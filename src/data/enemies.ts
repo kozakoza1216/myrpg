@@ -22,7 +22,7 @@ export const ASH_RAT: EnemyDef = {
 export const STRAGGLER_BANDIT: EnemyDef = {
   id: "straggler_bandit",
   name: "はぐれ賊",
-  stats: { hp: 46, atk: 20, def: 10, spd: 18, mag: 0, spir: 10, tech: 22, luck: 15 },
+  stats: { hp: 30, atk: 14, def: 8, spd: 14, mag: 0, spir: 8, tech: 14, luck: 10 },
   skillIds: ["bandit_strike"],
 };
 

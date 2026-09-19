@@ -211,7 +211,7 @@ export function resolveAndApply(
   return outcome;
 }
 
-export function tickAtb(combatants: Combatant[], amount = 6): Combatant | null {
+export function tickAtb(combatants: Combatant[], amount = 10): Combatant | null {
   for (const c of combatants) {
     if (c.defeated) continue;
     c.atb += c.stats.spd * (amount / 100);

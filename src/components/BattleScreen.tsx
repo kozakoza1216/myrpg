@@ -54,6 +54,17 @@ export default function BattleScreen({ title, party, enemyDefs, onEnd }: BattleS
 
   const allCombatants = () => [...partyRef.current, ...enemiesRef.current];
 
+  /** ダメージ適用直後に呼ぶ。決着していれば victory/defeat へ、そうでなければ idle へ戻す。 */
+  const continueOrEndBattle = () => {
+    if (partyRef.current.every((p) => p.defeated)) {
+      setPhase("defeat");
+    } else if (enemiesRef.current.every((e) => e.defeated)) {
+      setPhase("victory");
+    } else {
+      setPhase("idle");
+    }
+  };
+
   // ATB ループ
   useEffect(() => {
     if (phase !== "idle") return;
@@ -80,7 +91,7 @@ export default function BattleScreen({ title, party, enemyDefs, onEnd }: BattleS
           pushLog([`${ready.name}の${skill.name}！`, ...lines]);
           consumeTurn(ready);
           rerender();
-          setPhase("idle");
+          continueOrEndBattle();
         } else {
           setPendingEnemy({ enemy: ready, skillId: intent.skillId, target });
           setPhase("enemyIncoming");
@@ -92,15 +103,6 @@ export default function BattleScreen({ title, party, enemyDefs, onEnd }: BattleS
     }, 120);
     return () => clearInterval(interval);
   }, [phase]);
-
-  useEffect(() => {
-    if (phase === "idle" || phase === "intro") return;
-    if (partyRef.current.every((p) => p.defeated)) {
-      setPhase("defeat");
-    } else if (enemiesRef.current.every((e) => e.defeated)) {
-      setPhase("victory");
-    }
-  }, [log, phase]);
 
   const startBattle = () => setPhase("idle");
 
@@ -119,7 +121,7 @@ export default function BattleScreen({ title, party, enemyDefs, onEnd }: BattleS
     setSelectedSkillId(null);
     setActingCombatant(null);
     rerender();
-    setPhase("idle");
+    continueOrEndBattle();
   };
 
   const handleDefenderStance = (stance: Stance) => {
@@ -130,7 +132,7 @@ export default function BattleScreen({ title, party, enemyDefs, onEnd }: BattleS
     consumeTurn(pendingEnemy.enemy);
     setPendingEnemy(null);
     rerender();
-    setPhase("idle");
+    continueOrEndBattle();
   };
 
   useEffect(() => {
