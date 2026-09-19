@@ -1,0 +1,119 @@
+:root {
+  color-scheme: dark;
+  --bg: #100c08;
+  --panel: #1a1410;
+  --border: #4a3a28;
+  --text: #e8dcc8;
+  --accent: #d8a860;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+#app {
+  max-width: 760px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 16px;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* ── タイトル / 章末 ── */
+.title-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 24px;
+}
+.title-screen h1 { font-size: 2.2rem; letter-spacing: 0.15em; margin: 0; }
+.title-screen h2 { color: var(--accent); }
+.subtitle { color: #a89878; margin: 0; }
+.footnote { color: #6a5638; font-size: 0.85rem; max-width: 32rem; margin: 0; }
+.primary-btn {
+  background: #6a4a28; color: var(--text); border: 1px solid var(--accent);
+  border-radius: 6px; padding: 0.7rem 1.5rem; font-size: 1rem; margin-top: 0.5rem;
+}
+.primary-btn:hover { background: #8a6238; }
+
+/* ── ストーリー ── */
+.scene-header { width: 100%; text-align: center; cursor: pointer; padding: 3rem 1rem; }
+.scene-header-label {
+  font-size: 1.5rem; letter-spacing: 0.15em; color: var(--accent);
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 1rem 0;
+}
+.story-box {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 1.2rem 1.5rem; cursor: pointer; min-height: 4rem;
+}
+.story-box.dialogue .speaker { color: var(--accent); font-weight: bold; margin-bottom: 0.4rem; }
+.story-box p { margin: 0; white-space: pre-wrap; }
+.story-hint { text-align: right; color: #6a5638; font-size: 0.85rem; margin-top: 0.6rem; }
+.story-box.choice { cursor: default; }
+.choice-prompt { color: var(--accent); margin: 0 0 0.8rem; }
+.choice-options { display: flex; flex-direction: column; gap: 0.5rem; }
+.choice-options button {
+  background: #2e2418; color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+  padding: 0.6rem 1rem; text-align: left; font-size: 0.95rem;
+}
+.choice-options button:hover { background: #4a3a28; }
+
+/* ── 戦闘 ── */
+.battle-screen {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem;
+}
+.battle-title { text-align: center; color: var(--accent); letter-spacing: 0.1em; margin: 0 0 1rem; }
+.battle-field { display: flex; justify-content: space-between; gap: 1.5rem; margin-bottom: 1rem; }
+.combatant-column { flex: 1; display: flex; flex-direction: column; gap: 0.6rem; }
+.combatant-box {
+  background: #241c16; border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.7rem;
+  text-align: center;
+}
+.combatant-box.defeated { opacity: 0.35; }
+.combatant-box.clickable { cursor: pointer; outline: 2px solid transparent; }
+.combatant-box.clickable:hover { outline-color: var(--accent); }
+.picto, .picto-dragon { display: block; margin: 0 auto; }
+.combatant-name { font-weight: bold; margin: 0.2rem 0; font-size: 0.9rem; }
+.bar-track { position: relative; background: #100c08; border-radius: 4px; height: 14px; margin-bottom: 3px; overflow: hidden; }
+.bar-fill { height: 100%; transition: width 0.2s ease; }
+.bar-fill.hp { background: #b0402f; }
+.bar-fill.mp { background: #3a6bab; }
+.bar-fill.atb { background: #c8a03c; }
+.bar-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: #f0e8d8; text-shadow: 0 1px 2px #000; }
+.battle-log { background: #100c08; border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.8rem; min-height: 5rem; margin-bottom: 1rem; font-size: 0.85rem; }
+.battle-log p { margin: 0.15rem 0; }
+.battle-controls { text-align: center; }
+.prompt { margin-bottom: 0.6rem; color: var(--accent); }
+.btn-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+.skill-btn, .primary-btn { background: #2e2418; color: var(--text); border: 1px solid #6a5638; border-radius: 6px; padding: 0.5rem 1rem; font-size: 0.9rem; }
+.skill-btn:hover { background: #4a3a28; }
+.skill-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── 探索 ── */
+.dungeon-wrap, .worldmap-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+.dungeon-hud { color: var(--accent); font-size: 0.85rem; }
+.dungeon-scene { width: 100%; max-width: 500px; border: 1px solid var(--border); border-radius: 6px; background: #26221c; }
+.dungeon-msg { color: #e0a040; font-size: 0.9rem; }
+.automap-box { background: #100c08; border: 1px solid var(--border); padding: 4px; }
+.dungeon-controls { display: flex; gap: 0.5rem; }
+.worldmap { width: 100%; max-width: 420px; border: 1px solid var(--border); border-radius: 6px; background: #1a1612; }
+.map-node text { pointer-events: none; }
+.map-node.clickable circle { cursor: pointer; }
+.map-node.clickable:hover circle { stroke: var(--accent); stroke-width: 2; }
