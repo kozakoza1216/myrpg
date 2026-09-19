@@ -142,7 +142,7 @@ RPG.Explore = (function () {
       var tile = this.tileAt(cell.x, cell.y);
       if (this.isBlocking(tile)) { blockedAt = d; break; }
     }
-    var maxDepth = blockedAt >= 0 ? blockedAt : frames.length - 1;
+    var maxDepth = blockedAt >= 0 ? blockedAt : frames.length - 2;
 
     for (var depth = maxDepth; depth >= 0; depth--) {
       var f0 = frames[depth], f1 = frames[depth + 1];
