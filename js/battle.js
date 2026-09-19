@@ -37,7 +37,6 @@ RPG.Battle = (function () {
     this.phase = "intro"; // intro/idle/playerAct/target/response/message/done
     this.critPeriod = 15 + Math.floor(Math.random() * 26); // 15〜40
     this.critCount = 0;
-    this.timer = null;
   }
 
   State.prototype.allCombatants = function () {
@@ -63,36 +62,39 @@ RPG.Battle = (function () {
     }
   };
 
-  // ── ATBループ ──
-  State.prototype.startLoop = function () {
-    var self = this;
-    this.phase = "idle";
-    this.render();
-    clearInterval(this.timer);
-    this.timer = setInterval(function () { self.tick(); }, 110);
-  };
-
-  State.prototype.stopLoop = function () {
-    clearInterval(this.timer);
-  };
-
-  State.prototype.tick = function () {
-    var self = this;
-    if (this.phase !== "idle") return;
-    var all = this.allCombatants();
-    var ready = null;
+  // ── ATB進行 ──
+  // 「速さ比例でゲージが溜まり満タンで行動」というルール自体はPLAN.md §2-0の通りに保つが、
+  // それをリアルタイムで眺めさせる必然性はない。次に誰の手番が来るかを解析的に計算し、
+  // 待ち時間なしで即座にその時点まで進める（クリックへの応答性を優先）。
+  State.prototype.advanceToNextReady = function () {
+    var all = this.allCombatants().filter(function (c) { return !c.defeated; });
+    if (all.length === 0) return null;
+    var minDt = Infinity;
     all.forEach(function (c) {
-      if (c.defeated) return;
-      c.atb += c.stats.spd * 0.09;
-      if (c.atb >= ATB_MAX && (!ready || c.atb > ready.atb)) ready = c;
+      if (c.stats.spd <= 0) return;
+      var dt = (ATB_MAX - c.atb) / c.stats.spd;
+      if (dt < minDt) minDt = dt;
     });
+    if (!isFinite(minDt)) minDt = 0;
+    all.forEach(function (c) { c.atb = Math.min(ATB_MAX, c.atb + c.stats.spd * minDt); });
+    var ready = all.filter(function (c) { return c.atb >= ATB_MAX - 0.001; });
+    ready.sort(function (a, b) { return b.atb - a.atb; });
+    return ready[0];
+  };
+
+  State.prototype.startLoop = function () {
+    this.phase = "idle";
+    this.advanceTurn();
+  };
+
+  State.prototype.advanceTurn = function () {
+    var ready = this.advanceToNextReady();
     this.render();
     if (!ready) return;
 
     var end = this.checkEnd();
     if (end) { this.finish(end); return; }
 
-    this.stopLoop();
     if (ready.isEnemy) {
       this.enemyActs(ready);
     } else {
@@ -103,7 +105,6 @@ RPG.Battle = (function () {
   };
 
   State.prototype.finish = function (result) {
-    this.stopLoop();
     this.phase = "done";
     this.render();
     var self = this;
@@ -119,7 +120,7 @@ RPG.Battle = (function () {
     if (end) { this.finish(end); return; }
     this.phase = "idle";
     this.pending = null;
-    this.startLoop();
+    this.advanceTurn();
   };
 
   // ── 敵AI：仕掛けフェーズ（§6-A） ──
