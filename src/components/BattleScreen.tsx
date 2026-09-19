@@ -65,18 +65,28 @@ export default function BattleScreen({ title, party, enemyDefs, onEnd }: BattleS
     }
   };
 
-  // ATB ループ
+  // ATB ループ。
+  // 注意：guaranteedHit系の自動解決は phase を 'idle' のまま維持するため、
+  // setPhase('idle') は React の同値bailoutで再レンダーもeffect再起動も起きない。
+  // そのため、ユーザー入力が必要になる／決着がつく場合だけ interval を止める。
   useEffect(() => {
     if (phase !== "idle") return;
     const interval = setInterval(() => {
       const ready = tickAtb(allCombatants());
       rerender();
       if (!ready) return;
-      if (partyRef.current.every((p) => p.defeated) || enemiesRef.current.every((e) => e.defeated)) {
+
+      const endCheck = (): "victory" | "defeat" | null => {
+        if (partyRef.current.every((p) => p.defeated)) return "defeat";
+        if (enemiesRef.current.every((e) => e.defeated)) return "victory";
+        return null;
+      };
+
+      if (endCheck()) {
         clearInterval(interval);
+        setPhase(endCheck()!);
         return;
       }
-      clearInterval(interval);
 
       if (ready.isEnemy) {
         const intent = pickEnemyAction(ready, partyRef.current);
@@ -91,12 +101,19 @@ export default function BattleScreen({ title, party, enemyDefs, onEnd }: BattleS
           pushLog([`${ready.name}の${skill.name}！`, ...lines]);
           consumeTurn(ready);
           rerender();
-          continueOrEndBattle();
+          const end = endCheck();
+          if (end) {
+            clearInterval(interval);
+            setPhase(end);
+          }
+          // 決着していなければ同じ interval を継続し、次tickで次の行動へ進む
         } else {
+          clearInterval(interval);
           setPendingEnemy({ enemy: ready, skillId: intent.skillId, target });
           setPhase("enemyIncoming");
         }
       } else {
+        clearInterval(interval);
         setActingCombatant(ready);
         setPhase("playerTurn");
       }
