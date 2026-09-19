@@ -64,8 +64,8 @@ RPG.Explore = (function () {
     this.x = target.x; this.y = target.y;
     this.markVisited(this.x, this.y);
     this.game.steps += 1;
-    this.onEnterTile(tile);
-    this.render();
+    var leftScreen = this.onEnterTile(tile);
+    if (!leftScreen) this.render();
   };
 
   Dungeon.prototype.flash = function (msg) {
@@ -76,18 +76,20 @@ RPG.Explore = (function () {
     this._flashTimer = setTimeout(function () { self.transientMsg = null; self.render(); }, 1400);
   };
 
+  // 戻り値 true = 画面遷移が起きた（呼び出し側は自分のrender()を呼んではいけない）
   Dungeon.prototype.onEnterTile = function (tile) {
-    if (typeof tile !== "string") return;
-    if (tile === "exit") { if (this.cb.onExit) this.cb.onExit(); return; }
+    if (typeof tile !== "string") return false;
+    if (tile === "exit") { if (this.cb.onExit) this.cb.onExit(); return true; }
     if (tile.indexOf("event:") === 0) {
       var id = tile.slice(6);
       if (this.cb.onEvent) this.cb.onEvent(id);
-      return;
+      return true;
     }
     if (tile === "encounter" || tile === "floor") {
       var rate = tile === "encounter" ? 0.35 : 0.06;
-      if (Math.random() < rate && this.cb.onEncounter) this.cb.onEncounter();
+      if (Math.random() < rate && this.cb.onEncounter) { this.cb.onEncounter(); return true; }
     }
+    return false;
   };
 
   Dungeon.prototype.interactFront = function () {
@@ -96,7 +98,6 @@ RPG.Explore = (function () {
     if (tile === "chest") {
       this.data.grid[target.y][target.x] = "floor";
       if (this.cb.onChest) this.cb.onChest();
-      this.render();
       return;
     }
     if (typeof tile === "string" && tile.indexOf("npc:") === 0) {
@@ -295,12 +296,13 @@ RPG.Explore = (function () {
       var reachable = gameState.visitedNodes[node.id] || worldData.edges.some(function (e) {
         return (e.from === node.id || e.to === node.id) && (gameState.visitedNodes[e.from] || gameState.visitedNodes[e.to]);
       });
-      var g = el("g", { class: reachable ? "map-node clickable" : "map-node" });
+      var isTarget = reachable && node.id !== gameState.currentNode;
+      var g = el("g", { class: isTarget ? "map-node clickable" : "map-node" });
       g.appendChild(el("circle", { cx: node.x, cy: node.y, r: node.id === gameState.currentNode ? 10 : 7, fill: gameState.visitedNodes[node.id] ? "#d8a860" : "#5a5244" }));
       var label = el("text", { x: node.x, y: node.y - 12, "text-anchor": "middle", fill: "#e8dcc8", "font-size": 11 });
       label.textContent = node.name;
       g.appendChild(label);
-      if (reachable && node.id !== gameState.currentNode) {
+      if (isTarget) {
         g.onclick = function () { onTravel(node); };
       }
       svg.appendChild(g);

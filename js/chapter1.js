@@ -123,10 +123,12 @@ RPG.Chapter1 = (function () {
     { kind: "narration", text: "こうして二人は、目的の違う共闘を始めた。祭壇の入口はすぐそこだった。" },
   ];
 
+  var shrineDungeon = null;
+
   function afterTeamUp() {
     game.party.push(Battle.createCombatant("tzelf", false));
     game.visitedNodes["saidan_dungeon"] = true;
-    Explore.start(app, SHRINE_DUNGEON, game, {
+    shrineDungeon = Explore.start(app, SHRINE_DUNGEON, game, {
       onExit: function () {
         if (game.flags.kagariDefeated) { afterDungeonExit(); return; }
         Explore.renderWorldMap(app, WORLD, game, onTravel);
@@ -134,34 +136,16 @@ RPG.Chapter1 = (function () {
       onEvent: onDungeonEvent,
       onChest: onDungeonChest,
       onEncounter: function () {
-        runBattle(["shrine_guard"], "祭壇の守衛", false, function () {
-          Explore.start(app, SHRINE_DUNGEON, game, dungeonCallbacks());
-        });
+        runBattle(["shrine_guard"], "祭壇の守衛", false, function () { shrineDungeon.render(); });
       },
     });
-  }
-
-  function dungeonCallbacks() {
-    return {
-      onExit: function () {
-        if (game.flags.kagariDefeated) { afterDungeonExit(); return; }
-        Explore.renderWorldMap(app, WORLD, game, onTravel);
-      },
-      onEvent: onDungeonEvent,
-      onChest: onDungeonChest,
-      onEncounter: function () {
-        runBattle(["shrine_guard"], "祭壇の守衛", false, function () {
-          Explore.start(app, SHRINE_DUNGEON, game, dungeonCallbacks());
-        });
-      },
-    };
   }
 
   function onDungeonChest() {
     var seo = game.party[0];
     if (seo.skills.indexOf("vital_strike") < 0) seo.skills.push("vital_strike");
     Story.play(app, [{ kind: "narration", text: "宝箱を開けた。〈急所狙いの記憶結晶〉――セオはこの技を覚えた。" }], function () {
-      Explore.start(app, SHRINE_DUNGEON, game, dungeonCallbacks());
+      shrineDungeon.render();
     });
   }
 
@@ -182,7 +166,7 @@ RPG.Chapter1 = (function () {
   function afterKagari() {
     game.flags.kagariDefeated = true;
     Story.play(app, kagariPostBeats, function () {
-      Explore.start(app, SHRINE_DUNGEON, game, dungeonCallbacks());
+      shrineDungeon.render();
     });
   }
 
