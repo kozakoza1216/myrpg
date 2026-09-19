@@ -298,6 +298,9 @@ RPG.Explore = (function () {
       });
       var isTarget = reachable && node.id !== gameState.currentNode;
       var g = el("g", { class: isTarget ? "map-node clickable" : "map-node" });
+      if (isTarget) {
+        g.appendChild(el("circle", { cx: node.x, cy: node.y, r: 16, fill: "transparent", "pointer-events": "all" }));
+      }
       g.appendChild(el("circle", { cx: node.x, cy: node.y, r: node.id === gameState.currentNode ? 10 : 7, fill: gameState.visitedNodes[node.id] ? "#d8a860" : "#5a5244" }));
       var label = el("text", { x: node.x, y: node.y - 12, "text-anchor": "middle", fill: "#e8dcc8", "font-size": 11 });
       label.textContent = node.name;
