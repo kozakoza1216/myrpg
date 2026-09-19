@@ -89,7 +89,7 @@ RPG.Data = (function () {
     },
     straggler_bandit: {
       id: "straggler_bandit", name: "はぐれ賊", isBoss: false,
-      stats: { hp: 46, atk: 20, def: 10, spd: 18, mag: 0, men: 10, tec: 22, luck: 15 },
+      stats: { hp: 26, atk: 12, def: 8, spd: 14, mag: 0, men: 8, tec: 14, luck: 12 },
       skills: ["bandit_strike"],
       picto: { bodyColor: "#6a5638", headColor: "#c8a878" },
     },
