@@ -1,32 +1,33 @@
-# React + TypeScript + Vite
+# 暗黒時代RPG ― プレイアブルプロトタイプ
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+フウィム宇宙・暗黒時代RPGの設計ドキュメント一式（PLAN／bosses／enemies／quests／
+equipment／技リスト／キャラステータス／広域マップ／攻略チャート／章骨組み／
+エンディング一覧）から起こした、判定バトルシステム＋ストーリーのプレイアブル
+プロトタイプです。
 
-Currently, two official plugins are available:
+## 実装範囲
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **判定バトルエンジン**（`src/engine/battle.ts`）：ATB、判定力計算
+  （攻撃判定＝(攻+技)/2、突破判定＝(攻+速)/2、防御判定＝(防+精)/2、
+  回避判定＝(速+技)/2）、スコア計算（判定力＋技ボーナス）×相性係数＋乱数、
+  防御／回避／カウンターの受動選択、最低保証ダメージ、クリティカル、
+  カウンター成立時の反射ダメージ。
+- **ストーリー進行システム**（`src/story/`）：会話・ナレーション・選択肢・
+  戦闘・パーティ加入をID分岐でつなぐシーンスクリプト形式。
+- **第一章「ミラ奪還〜追放」を全編プレイ可能**：日常チュートリアル→くじ→
+  ミラの身代わり→追放→道中戦闘→ツェルフとの強制イベント戦→共闘・命名→
+  招竜の祭壇でカガリ戦→ミラ加入→竜の影→帰還拒絶、まで一本道で通せます。
 
-## React Compiler
+## 未実装（第一段階のスコープ外）
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+第二章以降のストーリー、装備・記憶結晶システム、狩猟隊クエスト、残り13体の
+ボス、雑魚敵15組のうち実装済みは2組のみ、等。データ層（`src/data/`）は今後
+拡張しやすい形にしてあります。
 
-## Expanding the Oxlint configuration
+## 開発
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm run build    # 型チェック + 本番ビルド
 ```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
