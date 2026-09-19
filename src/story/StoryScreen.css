@@ -1,0 +1,85 @@
+.story-screen {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scene-header {
+  width: 100%;
+  text-align: center;
+  cursor: pointer;
+  padding: 3rem 1rem;
+}
+
+.scene-header-label {
+  font-size: 1.6rem;
+  letter-spacing: 0.15em;
+  color: #d8a860;
+  border-top: 1px solid #6a5638;
+  border-bottom: 1px solid #6a5638;
+  padding: 1rem 0;
+}
+
+.story-box {
+  width: 100%;
+  background: #1a1410;
+  border: 1px solid #4a3a28;
+  border-radius: 8px;
+  padding: 1.2rem 1.5rem;
+  color: #e8dcc8;
+  cursor: pointer;
+  min-height: 5rem;
+  position: relative;
+}
+
+.story-box.dialogue .speaker {
+  color: #d8a860;
+  font-weight: bold;
+  margin-bottom: 0.4rem;
+}
+
+.story-box p {
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.story-hint {
+  text-align: right;
+  color: #6a5638;
+  font-size: 0.85rem;
+  margin-top: 0.6rem;
+}
+
+.story-box.choice {
+  cursor: default;
+}
+
+.choice-prompt {
+  color: #d8a860;
+  margin-bottom: 0.8rem;
+}
+
+.choice-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.choice-options button {
+  background: #2e2418;
+  color: #e8dcc8;
+  border: 1px solid #6a5638;
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.choice-options button:hover {
+  background: #4a3a28;
+}
