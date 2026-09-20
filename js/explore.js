@@ -149,8 +149,12 @@ RPG.Explore = (function () {
       points: [nearX, f0.b, outNearX, f0.b - 3, outFarX, f1.b - 2, farX, f1.b].join(" "),
       fill: "#1c1812", opacity: 0.9,
     }));
+    // 覗き穴の奥に見える壁面は、自分の視線に対して正面（垂直）に立っている壁。
+    // 側壁（視線と平行に奥へすぼまっていく台形）と同じ形で描くと、まるで
+    // もう一枚別の平行な壁＝ドアのようなものが飛び出て見えてしまうため、
+    // 手前と奥で高さが変わらない、まっすぐな矩形として描く。
     svg.appendChild(el("polygon", {
-      points: [outNearX, f0.t, outFarX, f1.t, outFarX, f1.b - 2, outNearX, f0.b - 3].join(" "),
+      points: [outNearX, f1.t, outFarX, f1.t, outFarX, f1.b - 2, outNearX, f1.b - 2].join(" "),
       fill: "#4a4438", stroke: "#201c16", "stroke-width": 1,
     }));
   }
