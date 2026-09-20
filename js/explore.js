@@ -578,13 +578,16 @@ RPG.Explore = (function () {
   // マス目には区切らず、クリックした座標へ直接歩く。位置は連続座標(x,y)で持ち、
   // 障害物・危険域・宝箱・出口は円形の当たり判定として定義する。
   // data: { width, height, start:{x,y}, obstacles:[{x,y,r}], zones:[{id,kind,x,y,r,encounterRate?}] }
-  function FreeArea(containerEl, data, gameState, callbacks) {
+  // initialTaken: 既に消化済みのゾーン（宝箱を開けた等）を渡せば、
+  // このエリアへ出入りし直しても「もう取った」状態が保たれる
+  // （渡さなければ、Dungeonの visited 同様、空から始まる扱いになる）。
+  function FreeArea(containerEl, data, gameState, callbacks, initialTaken) {
     this.el = containerEl;
     this.data = data;
     this.game = gameState;
     this.cb = callbacks || {};
     this.pos = { x: data.start.x, y: data.start.y };
-    this.taken = {};
+    this.taken = initialTaken || {};
     this.insideZoneId = null;
   }
 
@@ -852,8 +855,8 @@ RPG.Explore = (function () {
     svg.focus();
   };
 
-  function startFreeArea(containerEl, data, gameState, callbacks) {
-    var f = new FreeArea(containerEl, data, gameState, callbacks);
+  function startFreeArea(containerEl, data, gameState, callbacks, initialTaken) {
+    var f = new FreeArea(containerEl, data, gameState, callbacks, initialTaken);
     f.render();
     return f;
   }

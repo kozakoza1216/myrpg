@@ -159,6 +159,10 @@ RPG.Chapter1 = (function () {
   var worldMap = null;
   var hairegionArea = null;
   var hairegionCleared = false;
+  // 廃区画も祭壇と同じく、出口から出た後にノードとしてクリックし直しても
+  // 中へ戻れなくなっていた。取得済みの宝箱等の状態を保ったまま再入場
+  // できるように記憶しておく。
+  var hairegionTaken = {};
 
   function afterKuji() {
     worldMap = Explore.startWorldMap(app, WORLD, game, {
@@ -179,11 +183,15 @@ RPG.Chapter1 = (function () {
       Story.play(app, [{ kind: "narration", text: "門は固く閉ざされていた。追放された今、もうここへは戻れない。" }], next);
       return;
     }
-    if (id === "hairegion" && !hairegionCleared) {
-      Story.play(app, [
-        { kind: "header", text: "廃区画" },
-        { kind: "narration", text: "崩れた区画の入り口に着いた。瓦礫に埋もれた道の先に何があるのかは、まだ分からない。" },
-      ], enterHairegion);
+    if (id === "hairegion") {
+      if (!hairegionCleared) {
+        Story.play(app, [
+          { kind: "header", text: "廃区画" },
+          { kind: "narration", text: "崩れた区画の入り口に着いた。瓦礫に埋もれた道の先に何があるのかは、まだ分からない。" },
+        ], enterHairegion);
+      } else {
+        enterHairegion();
+      }
       return;
     }
     if (id === "michi" && firstVisit) { Story.play(app, roadBeats, afterRoad); return; }
@@ -209,7 +217,7 @@ RPG.Chapter1 = (function () {
       onEncounter: function (next) {
         runBattle(["straggler_bandit"], "はぐれ賊", false, next);
       },
-    });
+    }, hairegionTaken);
   }
 
   var roadBeats = [
