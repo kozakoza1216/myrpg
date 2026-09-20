@@ -327,7 +327,7 @@ RPG.Chapter1 = (function () {
     { kind: "narration", text: "奪還は成功したのに、帰る場所を失った。帰れない三人が、旅を続ける理由だけがここに残った。" },
     { kind: "narration", text: "赤い鳥人が、ふと口を開いた。" },
     { speaker: "赤い鳥人", text: "……名か。持ったことがない。お前たちの数字でいうと012、だったか。" },
-    { kind: "narration", text: "ドイツ語で12――ツェルフ。誰からともなく、その呼び名が定まった。帰れない者同士になった瞬間、彼は名を得た。" },
+    { kind: "narration", text: "その数字を口の中で転がしているうちに、いつしか「ツェルフ」という響きに変わっていた。誰からともなく、その呼び名が定まった。帰れない者同士になった瞬間、彼は名を得た。" },
   ];
 
   function runBattle(enemyIds, title, forceProceed, next) {
