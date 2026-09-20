@@ -326,8 +326,10 @@ RPG.Chapter1 = (function () {
     { speaker: "ミラ", text: "上等じゃない。こっちから願い下げよ。" },
     { kind: "narration", text: "奪還は成功したのに、帰る場所を失った。帰れない三人が、旅を続ける理由だけがここに残った。" },
     { kind: "narration", text: "赤い鳥人が、ふと口を開いた。" },
-    { speaker: "赤い鳥人", text: "……名か。持ったことがない。お前たちの数字でいうと012、だったか。" },
-    { kind: "narration", text: "その数字を口の中で転がしているうちに、いつしか「ツェルフ」という響きに変わっていた。誰からともなく、その呼び名が定まった。帰れない者同士になった瞬間、彼は名を得た。" },
+    { speaker: "赤い鳥人", text: "……名か。持ったことがない。招竜派に、要らぬものだとずっと言われてきた。" },
+    { kind: "narration", text: "ミラは少し考えて、口にした。" },
+    { speaker: "ミラ", text: "……ツェルフ、なんてどう？　特に意味はないけど。" },
+    { kind: "narration", text: "鳥人は小さく頷いた。理由なんて要らなかった。帰れない者同士になった瞬間、彼は名を得た。" },
   ];
 
   function runBattle(enemyIds, title, forceProceed, next) {
