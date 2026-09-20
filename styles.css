@@ -109,10 +109,17 @@ button {
 /* ── 探索 ── */
 .dungeon-wrap, .worldmap-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
 .dungeon-hud { color: var(--accent); font-size: 0.85rem; }
-.dungeon-scene-frame { position: relative; width: 100%; max-width: 500px; }
-.dungeon-scene { display: block; width: 100%; border: 1px solid var(--border); border-radius: 6px; background: #26221c; }
-/* 方向転換は画面を動かさず、暗転からの復帰トランジションだけで表す */
-.dungeon-flash { position: absolute; inset: 0; background: #000; opacity: 0; border-radius: 6px; pointer-events: none; transition: opacity 0.16s ease-in-out; }
+/* 回頭中は景色を横に押し出す/呼び込むための土台。overflow:hiddenで
+   フレームの外にはみ出した部分を隠し、aspect-ratioで景色が絶対配置に
+   なっている間もフレーム自体の高さが潰れないようにする */
+.dungeon-scene-frame { position: relative; width: 100%; max-width: 500px; aspect-ratio: 400 / 260; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; }
+.dungeon-scene-pane { display: block; width: 100%; height: 100%; }
+.dungeon-scene { display: block; width: 100%; height: 100%; background: #26221c; }
+/* 回頭＝視点が回る動きを、今の景色が回した側へスライドして退き、その下から
+   新しい景色が現れてくる横パンとして見せる。transformはsvg自体ではなく
+   包んでいるdiv（pane）に掛ける（退く側の古いpaneだけを動かす。新しい
+   paneは普通に描かれたまま一切動かさない） */
+.dungeon-scene-pane.pan-out, .dungeon-scene-pane.pan-in { position: absolute; top: 0; left: 0; transition: transform 0.26s ease-in-out; }
 @keyframes dscene-fwd { from { opacity: 0.5; transform: scale(0.93); } to { opacity: 1; transform: scale(1); } }
 @keyframes dscene-back { from { opacity: 0.5; transform: scale(1.06); } to { opacity: 1; transform: scale(1); } }
 @keyframes dscene-bump { 0% { transform: translateX(0); } 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-3px); } 100% { transform: translateX(0); } }

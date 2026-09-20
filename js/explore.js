@@ -52,9 +52,40 @@ RPG.Explore = (function () {
   };
 
   Dungeon.prototype.turn = function (delta) {
+    var oldFrame = this.el.querySelector(".dungeon-scene-frame");
+    var oldPane = oldFrame ? oldFrame.querySelector(".dungeon-scene-pane") : null;
+    // 幅は、これから作り直される新しい要素ではなく、既に一度描画済みで
+    // 安定しているこちら（old）から先に測っておく。新しくrender()した
+    // 直後の要素に対してgetBoundingClientRect等のレイアウト読み取りを
+    // 挟んでからtransformを変更すると、以後のtransform変更がcomputed
+    // styleに反映されなくなる（それでいてinline styleの値自体は正しく
+    // 入っている）という、実際に検証で再現したブラウザの癖があったため。
+    var panWidth = oldFrame ? oldFrame.getBoundingClientRect().width : 0;
+
     this.dir = (this.dir + delta + 4) % 4;
     this.lastAction = delta > 0 ? "turn-right" : "turn-left";
     this.render();
+
+    // 回頭＝視点が回る、その途中の動きを見せる。新しい景色（newPane）は
+    // 普通に描かれたそのままにしておき、今まで見えていた景色（oldPane、
+    // 既に一度描画済みで安定した要素）だけをその上に重ねて回した側へ
+    // スライドさせて退かす。退けるにつれて新しい景色が反対側から
+    // 現れてくるように見える。newPane自身のtransformは一切いじらない
+    // （できたばかりの要素のtransformを操作しようとすると、上のpanWidth
+    // 計測の件と同種の癖でトランジションが発火しないことがあったため）。
+    if (!oldPane) return;
+    var newFrame = this.el.querySelector(".dungeon-scene-frame");
+    var sign = delta > 0 ? 1 : -1; // 右へ回頭するなら、景色は左へ流れ去る
+    oldPane.classList.add("pan-out");
+    newFrame.appendChild(oldPane); // 新しいフレームに移し、その上に重ねる
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        oldPane.style.transform = "translateX(" + -sign * panWidth + "px)";
+      });
+    });
+    setTimeout(function () {
+      if (oldPane.parentNode) oldPane.parentNode.removeChild(oldPane);
+    }, 340);
   };
 
   Dungeon.prototype.step = function (backward) {
@@ -334,7 +365,10 @@ RPG.Explore = (function () {
 
     var frame = document.createElement("div");
     frame.className = "dungeon-scene-frame";
-    frame.appendChild(this.renderScene());
+    var pane = document.createElement("div");
+    pane.className = "dungeon-scene-pane";
+    pane.appendChild(this.renderScene());
+    frame.appendChild(pane);
     wrap.appendChild(frame);
 
     if (this.transientMsg) {
