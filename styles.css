@@ -117,5 +117,5 @@ button {
 .overworld-controls .vgrid { display: flex; flex-direction: column; gap: 0.3rem; align-items: center; }
 .worldmap { width: 100%; max-width: 420px; border: 1px solid var(--border); border-radius: 6px; background: #1a1612; }
 .map-node text { pointer-events: none; }
-.map-node.clickable { cursor: pointer; }
-.map-node.clickable:hover { stroke: var(--accent); stroke-width: 2; }
+.map-node.clickable { cursor: pointer; stroke: none; }
+.map-node.clickable:hover { fill: rgba(240, 200, 96, 0.18); stroke: var(--accent); stroke-width: 2; }

@@ -332,7 +332,45 @@ RPG.Explore = (function () {
     return false;
   };
 
-  var TILE_COLOR = { plain: "#4a4030", danger: "#5a3428", wall: "#1c1712" };
+  // frac の並び [x1,y1,x2,y2,...]（タイル幅wに対する比率）を points 文字列に変換
+  function pts(w, frac) {
+    var out = [];
+    for (var i = 0; i < frac.length; i += 2) out.push((frac[i] * w) + "," + (frac[i + 1] * w));
+    return out.join(" ");
+  }
+
+  // 廃墟の瓦礫（進入不可マス）
+  function drawWallTile(g, w) {
+    g.appendChild(el("rect", { x: 0, y: 0, width: w, height: w, fill: "#171310" }));
+    g.appendChild(el("polygon", { points: pts(w, [0.10, 0.90, 0.05, 0.50, 0.35, 0.35, 0.45, 0.75]), fill: "#4a4038", stroke: "#241f19", "stroke-width": 1 }));
+    g.appendChild(el("polygon", { points: pts(w, [0.40, 0.85, 0.50, 0.30, 0.75, 0.40, 0.70, 0.90]), fill: "#5a5048", stroke: "#241f19", "stroke-width": 1 }));
+    g.appendChild(el("polygon", { points: pts(w, [0.65, 0.90, 0.72, 0.55, 0.95, 0.60, 0.90, 0.92]), fill: "#3a342c", stroke: "#241f19", "stroke-width": 1 }));
+  }
+
+  // ひび割れた危険地帯（エンカウント発生マス）
+  function drawDangerTile(g, w) {
+    g.appendChild(el("rect", { x: 0, y: 0, width: w, height: w, fill: "#4a2018" }));
+    g.appendChild(el("polyline", {
+      points: pts(w, [0.15, 0.10, 0.45, 0.40, 0.25, 0.55, 0.60, 0.85, 0.85, 0.90]),
+      fill: "none", stroke: "#e0602c", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round",
+    }));
+    g.appendChild(el("polygon", { points: pts(w, [0.5, 0.12, 0.62, 0.32, 0.38, 0.32]), fill: "#e0a030" }));
+  }
+
+  // 荒れた地面（通行可能マス）
+  function drawPlainTile(g, w) {
+    g.appendChild(el("rect", { x: 0, y: 0, width: w, height: w, fill: "#3a3226" }));
+    g.appendChild(el("circle", { cx: w * 0.3, cy: w * 0.7, r: w * 0.05, fill: "#5a5040" }));
+    g.appendChild(el("circle", { cx: w * 0.65, cy: w * 0.35, r: w * 0.04, fill: "#4a4234" }));
+    g.appendChild(el("circle", { cx: w * 0.55, cy: w * 0.78, r: w * 0.03, fill: "#5a5040" }));
+  }
+
+  // 到達地点の鳥居状の目印
+  function drawArriveIcon(g, w) {
+    g.appendChild(el("rect", { x: w * 0.3, y: w * 0.35, width: w * 0.08, height: w * 0.5, fill: "#d8a860" }));
+    g.appendChild(el("rect", { x: w * 0.62, y: w * 0.35, width: w * 0.08, height: w * 0.5, fill: "#d8a860" }));
+    g.appendChild(el("rect", { x: w * 0.22, y: w * 0.28, width: w * 0.56, height: w * 0.09, fill: "#d8a860" }));
+  }
 
   Overworld.prototype.render = function () {
     var self = this;
@@ -345,7 +383,7 @@ RPG.Explore = (function () {
     hud.textContent = (this.data.label || "") + "　歩数 " + this.game.steps + " / " + this.game.stepLimit;
     wrap.appendChild(hud);
 
-    var size = 34;
+    var size = 34, w = size - 2;
     var rows = this.data.grid.length, cols = this.data.grid[0].length;
     var svg = el("svg", { viewBox: "0 0 " + cols * size + " " + rows * size, class: "worldmap" });
 
@@ -353,15 +391,24 @@ RPG.Explore = (function () {
       for (var x = 0; x < cols; x++) {
         var tile = this.tileAt(x, y);
         var known = this.visited[x + "," + y];
-        var color = this.isBlocking(tile) ? TILE_COLOR.wall : (tile === "danger" ? TILE_COLOR.danger : TILE_COLOR.plain);
-        if (!known) color = "#0c0906";
+        var g = el("g", { transform: "translate(" + x * size + "," + y * size + ")" });
+        if (!known) {
+          g.appendChild(el("rect", { x: 0, y: 0, width: w, height: w, fill: "#0c0906" }));
+        } else if (this.isBlocking(tile)) {
+          drawWallTile(g, w);
+        } else if (tile === "danger") {
+          drawDangerTile(g, w);
+        } else {
+          drawPlainTile(g, w);
+          if (typeof tile === "string" && tile.indexOf("arrive:") === 0) drawArriveIcon(g, w);
+        }
         var isAdjacent = Math.abs(x - this.x) + Math.abs(y - this.y) === 1 && !this.isBlocking(tile);
-        var rect = el("rect", {
-          x: x * size, y: y * size, width: size - 2, height: size - 2, fill: color,
-          class: isAdjacent ? "map-node clickable" : "",
-        });
-        if (isAdjacent) rect.onclick = (function (dx, dy) { return function () { self.moveBy(dx, dy); }; })(x - this.x, y - this.y);
-        svg.appendChild(rect);
+        if (isAdjacent) {
+          var overlay = el("rect", { x: 0, y: 0, width: w, height: w, fill: "transparent", class: "map-node clickable" });
+          overlay.onclick = (function (dx, dy) { return function () { self.moveBy(dx, dy); }; })(x - this.x, y - this.y);
+          g.appendChild(overlay);
+        }
+        svg.appendChild(g);
         if (typeof tile === "string" && tile.indexOf("arrive:") === 0 && known) {
           var label = el("text", { x: x * size + size / 2, y: y * size - 4, "text-anchor": "middle", fill: "#d8a860", "font-size": 10 });
           label.textContent = this.data.labels && this.data.labels[tile.slice(7)] || "?";
@@ -369,7 +416,10 @@ RPG.Explore = (function () {
         }
       }
     }
-    svg.appendChild(el("circle", { cx: this.x * size + size / 2, cy: this.y * size + size / 2, r: size / 3, fill: "#3a6bab", stroke: "#e8dcc8", "stroke-width": 2 }));
+    var pg = el("g", { transform: "translate(" + (this.x * size + size / 2 - 7) + "," + (this.y * size + size / 2 - 10) + ")" });
+    pg.appendChild(el("polygon", { points: "7,10 1,20 13,20", fill: "#3a6bab", stroke: "#e8dcc8", "stroke-width": 1.5 }));
+    pg.appendChild(el("circle", { cx: 7, cy: 6, r: 6, fill: "#e8dcc8", stroke: "#3a6bab", "stroke-width": 1.5 }));
+    svg.appendChild(pg);
 
     wrap.appendChild(svg);
 
