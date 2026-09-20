@@ -113,8 +113,6 @@ button {
 .dungeon-msg { color: #e0a040; font-size: 0.9rem; }
 .automap-box { background: #100c08; border: 1px solid var(--border); padding: 4px; }
 .dungeon-controls { display: flex; gap: 0.5rem; align-items: center; }
-.overworld-controls { gap: 0.3rem; }
-.overworld-controls .vgrid { display: flex; flex-direction: column; gap: 0.3rem; align-items: center; }
 .worldmap { width: 100%; max-width: 420px; border: 1px solid var(--border); border-radius: 6px; background: #1a1612; }
 .map-node text { pointer-events: none; }
 .map-node.clickable { cursor: pointer; stroke: none; }

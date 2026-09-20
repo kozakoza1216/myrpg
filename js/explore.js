@@ -275,104 +275,82 @@ RPG.Explore = (function () {
     return d;
   }
 
-  // ── 広域マップ（見下ろし・自由移動） ──
-  // PLAN.md §8-1「広域マップの移動は、ノード間を結ぶ経路を進む形式（グリッド or ノードグラフ）」
-  // のうち、グリッド歩行を採用。ノードをクリックして飛ぶのではなく、実際にタイルを踏んで進む。
-  function Overworld(containerEl, data, gameState, callbacks) {
+  // ── 広域マップ（ノードグラフ・PLAN.md §8-1/8-3準拠） ──
+  // 「広域マップの移動は、ノード間を結ぶ経路を進む形式（グリッド or ノードグラフ）」
+  // 「広域：マップ上の街・ノードを直接クリックして移動」に基づき、
+  // 街・集落・危険地帯・寄り道跡などのノードを経路（エッジ）で繋ぎ、
+  // 現在地に隣接するノードだけをクリックして進める。危険な経路は強制エンカウントのリスクを持つ。
+  function WorldMap(containerEl, data, gameState, callbacks) {
     this.el = containerEl;
     this.data = data;
     this.game = gameState;
     this.cb = callbacks || {};
-    this.x = data.start.x;
-    this.y = data.start.y;
+    this.current = data.start;
     this.visited = {};
-    this.markVisited(this.x, this.y);
+    this.visited[data.start] = true;
   }
 
-  Overworld.prototype.tileAt = function (x, y) {
-    var row = this.data.grid[y];
-    if (!row) return "wall";
-    var t = row[x];
-    return t === undefined ? "wall" : t;
+  WorldMap.prototype.nodeById = function (id) {
+    return this.data.nodes.filter(function (n) { return n.id === id; })[0];
   };
 
-  Overworld.prototype.markVisited = function (x, y) { this.visited[x + "," + y] = true; };
-  Overworld.prototype.isBlocking = function (tile) { return tile === "wall"; };
-
-  Overworld.prototype.moveBy = function (dx, dy) {
-    var tx = this.x + dx, ty = this.y + dy;
-    var tile = this.tileAt(tx, ty);
-    if (this.isBlocking(tile)) { this.flash("これ以上は進めない。"); return; }
-    this.x = tx; this.y = ty;
-    this.markVisited(this.x, this.y);
-    this.game.steps += 1;
-    var left = this.onEnterTile(tile);
-    if (!left) this.render();
+  WorldMap.prototype.edgesFrom = function (id) {
+    return this.data.edges.filter(function (e) { return e.from === id || e.to === id; });
   };
 
-  Overworld.prototype.flash = function (msg) {
-    this.transientMsg = msg;
-    this.render();
+  WorldMap.prototype.travelTo = function (nodeId) {
     var self = this;
-    clearTimeout(this._flashTimer);
-    this._flashTimer = setTimeout(function () { self.transientMsg = null; self.render(); }, 1200);
+    var edge = this.edgesFrom(this.current).filter(function (e) {
+      return e.from === nodeId || e.to === nodeId;
+    })[0];
+    if (!edge) return;
+    this.game.steps += edge.steps || 10;
+    this.current = nodeId;
+    var firstVisit = !this.visited[nodeId];
+    this.visited[nodeId] = true;
+    var node = this.nodeById(nodeId);
+
+    var proceed = function () {
+      if (node && node.arrive && self.cb.onArrive) { self.cb.onArrive(nodeId); return; }
+      if (firstVisit && node && node.flavor && self.cb.onFlavor) {
+        self.cb.onFlavor(node.flavor, function () { self.render(); });
+        return;
+      }
+      self.render();
+    };
+
+    if (edge.encounterRate && Math.random() < edge.encounterRate && this.cb.onEncounter) {
+      this.cb.onEncounter(edge.enemy, proceed);
+      return;
+    }
+    proceed();
   };
 
-  // 戻り値 true = 画面遷移が起きた（呼び出し側は自分のrender()を呼んではいけない）
-  Overworld.prototype.onEnterTile = function (tile) {
-    if (typeof tile !== "string") return false;
-    if (tile.indexOf("arrive:") === 0) {
-      if (this.cb.onArrive) { this.cb.onArrive(tile.slice(7)); return true; }
-      return false;
-    }
-    if (tile === "danger") {
-      var rate = this.data.encounterRate === undefined ? 0.22 : this.data.encounterRate;
-      if (Math.random() < rate && this.cb.onEncounter) { this.cb.onEncounter(); return true; }
-    }
-    return false;
-  };
-
-  // frac の並び [x1,y1,x2,y2,...]（タイル幅wに対する比率）を points 文字列に変換
-  function pts(w, frac) {
-    var out = [];
-    for (var i = 0; i < frac.length; i += 2) out.push((frac[i] * w) + "," + (frac[i + 1] * w));
-    return out.join(" ");
+  // ノードの種別ごとの簡易ピクトグラムアイコン
+  function drawSettlementIcon(g) {
+    g.appendChild(el("polygon", { points: "-9,10 -9,-3 0,-12 9,-3 9,10", fill: "#d8a860", stroke: "#4a3a28", "stroke-width": 1.5 }));
+    g.appendChild(el("rect", { x: -3, y: 0, width: 6, height: 10, fill: "#4a3a28" }));
+  }
+  function drawDangerIcon(g) {
+    g.appendChild(el("circle", { cx: 0, cy: 0, r: 11, fill: "#4a2018", stroke: "#8a3020", "stroke-width": 1.5 }));
+    g.appendChild(el("polyline", { points: "-5,-6 1,-1 -3,3 5,7", fill: "none", stroke: "#e0602c", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+  }
+  function drawRuinIcon(g) {
+    g.appendChild(el("polygon", { points: "-9,9 -9,-2 -3,-9 3,-3 9,-6 9,9", fill: "#5a5048", stroke: "#241f19", "stroke-width": 1.5 }));
+  }
+  function drawShrineIcon(g) {
+    g.appendChild(el("rect", { x: -8, y: -9, width: 3, height: 19, fill: "#d8a860" }));
+    g.appendChild(el("rect", { x: 5, y: -9, width: 3, height: 19, fill: "#d8a860" }));
+    g.appendChild(el("rect", { x: -11, y: -12, width: 22, height: 4, fill: "#d8a860" }));
+  }
+  function drawNodeIcon(g, kind) {
+    if (kind === "danger") drawDangerIcon(g);
+    else if (kind === "ruin") drawRuinIcon(g);
+    else if (kind === "shrine") drawShrineIcon(g);
+    else drawSettlementIcon(g);
   }
 
-  // 廃墟の瓦礫（進入不可マス）
-  function drawWallTile(g, w) {
-    g.appendChild(el("rect", { x: 0, y: 0, width: w, height: w, fill: "#171310" }));
-    g.appendChild(el("polygon", { points: pts(w, [0.10, 0.90, 0.05, 0.50, 0.35, 0.35, 0.45, 0.75]), fill: "#4a4038", stroke: "#241f19", "stroke-width": 1 }));
-    g.appendChild(el("polygon", { points: pts(w, [0.40, 0.85, 0.50, 0.30, 0.75, 0.40, 0.70, 0.90]), fill: "#5a5048", stroke: "#241f19", "stroke-width": 1 }));
-    g.appendChild(el("polygon", { points: pts(w, [0.65, 0.90, 0.72, 0.55, 0.95, 0.60, 0.90, 0.92]), fill: "#3a342c", stroke: "#241f19", "stroke-width": 1 }));
-  }
-
-  // ひび割れた危険地帯（エンカウント発生マス）
-  function drawDangerTile(g, w) {
-    g.appendChild(el("rect", { x: 0, y: 0, width: w, height: w, fill: "#4a2018" }));
-    g.appendChild(el("polyline", {
-      points: pts(w, [0.15, 0.10, 0.45, 0.40, 0.25, 0.55, 0.60, 0.85, 0.85, 0.90]),
-      fill: "none", stroke: "#e0602c", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round",
-    }));
-    g.appendChild(el("polygon", { points: pts(w, [0.5, 0.12, 0.62, 0.32, 0.38, 0.32]), fill: "#e0a030" }));
-  }
-
-  // 荒れた地面（通行可能マス）
-  function drawPlainTile(g, w) {
-    g.appendChild(el("rect", { x: 0, y: 0, width: w, height: w, fill: "#3a3226" }));
-    g.appendChild(el("circle", { cx: w * 0.3, cy: w * 0.7, r: w * 0.05, fill: "#5a5040" }));
-    g.appendChild(el("circle", { cx: w * 0.65, cy: w * 0.35, r: w * 0.04, fill: "#4a4234" }));
-    g.appendChild(el("circle", { cx: w * 0.55, cy: w * 0.78, r: w * 0.03, fill: "#5a5040" }));
-  }
-
-  // 到達地点の鳥居状の目印
-  function drawArriveIcon(g, w) {
-    g.appendChild(el("rect", { x: w * 0.3, y: w * 0.35, width: w * 0.08, height: w * 0.5, fill: "#d8a860" }));
-    g.appendChild(el("rect", { x: w * 0.62, y: w * 0.35, width: w * 0.08, height: w * 0.5, fill: "#d8a860" }));
-    g.appendChild(el("rect", { x: w * 0.22, y: w * 0.28, width: w * 0.56, height: w * 0.09, fill: "#d8a860" }));
-  }
-
-  Overworld.prototype.render = function () {
+  WorldMap.prototype.render = function () {
     var self = this;
     this.el.innerHTML = "";
     var wrap = document.createElement("div");
@@ -383,72 +361,50 @@ RPG.Explore = (function () {
     hud.textContent = (this.data.label || "") + "　歩数 " + this.game.steps + " / " + this.game.stepLimit;
     wrap.appendChild(hud);
 
-    var size = 34, w = size - 2;
-    var rows = this.data.grid.length, cols = this.data.grid[0].length;
-    var svg = el("svg", { viewBox: "0 0 " + cols * size + " " + rows * size, class: "worldmap" });
+    var svg = el("svg", { viewBox: "0 0 " + (this.data.width || 400) + " " + (this.data.height || 260), class: "worldmap" });
 
-    for (var y = 0; y < rows; y++) {
-      for (var x = 0; x < cols; x++) {
-        var tile = this.tileAt(x, y);
-        var known = this.visited[x + "," + y];
-        var g = el("g", { transform: "translate(" + x * size + "," + y * size + ")" });
-        if (!known) {
-          g.appendChild(el("rect", { x: 0, y: 0, width: w, height: w, fill: "#0c0906" }));
-        } else if (this.isBlocking(tile)) {
-          drawWallTile(g, w);
-        } else if (tile === "danger") {
-          drawDangerTile(g, w);
-        } else {
-          drawPlainTile(g, w);
-          if (typeof tile === "string" && tile.indexOf("arrive:") === 0) drawArriveIcon(g, w);
-        }
-        var isAdjacent = Math.abs(x - this.x) + Math.abs(y - this.y) === 1 && !this.isBlocking(tile);
-        if (isAdjacent) {
-          var overlay = el("rect", { x: 0, y: 0, width: w, height: w, fill: "transparent", class: "map-node clickable" });
-          overlay.onclick = (function (dx, dy) { return function () { self.moveBy(dx, dy); }; })(x - this.x, y - this.y);
-          g.appendChild(overlay);
-        }
-        svg.appendChild(g);
-        if (typeof tile === "string" && tile.indexOf("arrive:") === 0 && known) {
-          var label = el("text", { x: x * size + size / 2, y: y * size - 4, "text-anchor": "middle", fill: "#d8a860", "font-size": 10 });
-          label.textContent = this.data.labels && this.data.labels[tile.slice(7)] || "?";
-          svg.appendChild(label);
-        }
+    var neighborIds = this.edgesFrom(this.current).map(function (e) {
+      return e.from === self.current ? e.to : e.from;
+    });
+
+    this.data.edges.forEach(function (edge) {
+      var a = self.nodeById(edge.from), b = self.nodeById(edge.to);
+      if (!a || !b) return;
+      var danger = !!edge.encounterRate;
+      svg.appendChild(el("line", {
+        x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+        stroke: danger ? "#8a3020" : "#6a5638", "stroke-width": 3,
+        "stroke-dasharray": danger ? "5,4" : "none",
+      }));
+    });
+
+    this.data.nodes.forEach(function (node) {
+      var isCurrent = node.id === self.current;
+      var isNeighbor = neighborIds.indexOf(node.id) >= 0;
+      var g = el("g", { transform: "translate(" + node.x + "," + node.y + ")", class: "map-node" });
+      if (!isCurrent && !isNeighbor) g.setAttribute("opacity", "0.55");
+      drawNodeIcon(g, node.kind);
+      if (isCurrent) g.appendChild(el("circle", { cx: 0, cy: 0, r: 15, fill: "none", stroke: "#3a6bab", "stroke-width": 2 }));
+      if (isNeighbor) {
+        var hit = el("circle", { cx: 0, cy: 0, r: 16, fill: "transparent", class: "map-node clickable" });
+        hit.onclick = function () { self.travelTo(node.id); };
+        g.appendChild(hit);
       }
-    }
-    var pg = el("g", { transform: "translate(" + (this.x * size + size / 2 - 7) + "," + (this.y * size + size / 2 - 10) + ")" });
-    pg.appendChild(el("polygon", { points: "7,10 1,20 13,20", fill: "#3a6bab", stroke: "#e8dcc8", "stroke-width": 1.5 }));
-    pg.appendChild(el("circle", { cx: 7, cy: 6, r: 6, fill: "#e8dcc8", stroke: "#3a6bab", "stroke-width": 1.5 }));
-    svg.appendChild(pg);
+      var label = el("text", { x: 0, y: 24, "text-anchor": "middle", fill: "#e8dcc8", "font-size": 11 });
+      label.textContent = node.name;
+      g.appendChild(label);
+      svg.appendChild(g);
+    });
 
     wrap.appendChild(svg);
-
-    if (this.transientMsg) {
-      var msg = document.createElement("div");
-      msg.className = "dungeon-msg";
-      msg.textContent = this.transientMsg;
-      wrap.appendChild(msg);
-    }
-
-    var controls = document.createElement("div");
-    controls.className = "dungeon-controls overworld-controls";
-    controls.appendChild(ctrlBtn("←", function () { self.moveBy(-1, 0); }));
-    var vgrid = document.createElement("div");
-    vgrid.className = "vgrid";
-    vgrid.appendChild(ctrlBtn("↑", function () { self.moveBy(0, -1); }));
-    vgrid.appendChild(ctrlBtn("↓", function () { self.moveBy(0, 1); }));
-    controls.appendChild(vgrid);
-    controls.appendChild(ctrlBtn("→", function () { self.moveBy(1, 0); }));
-    wrap.appendChild(controls);
-
     this.el.appendChild(wrap);
   };
 
-  function startOverworld(containerEl, data, gameState, callbacks) {
-    var o = new Overworld(containerEl, data, gameState, callbacks);
-    o.render();
-    return o;
+  function startWorldMap(containerEl, data, gameState, callbacks) {
+    var m = new WorldMap(containerEl, data, gameState, callbacks);
+    m.render();
+    return m;
   }
 
-  return { start: start, startOverworld: startOverworld };
+  return { start: start, startWorldMap: startWorldMap };
 })();

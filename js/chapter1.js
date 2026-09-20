@@ -5,20 +5,21 @@ RPG.Chapter1 = (function () {
   var Story = RPG.Story, Battle = RPG.Battle, Explore = RPG.Explore, Data = RPG.Data;
   var app, game, onChapterEnd;
 
-  var OVERWORLD = {
-    label: "廃区画",
-    start: { x: 3, y: 7 },
-    encounterRate: 0.22,
-    labels: { saidan: "招竜の祭壇" },
-    grid: [
-      ["wall", "wall", "wall", "wall", "wall", "arrive:saidan", "wall", "wall", "wall", "wall"],
-      ["wall", "plain", "plain", "danger", "danger", "danger", "plain", "plain", "plain", "wall"],
-      ["wall", "plain", "plain", "danger", "plain", "danger", "plain", "plain", "plain", "wall"],
-      ["wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "wall"],
-      ["wall", "plain", "danger", "danger", "plain", "danger", "danger", "plain", "plain", "wall"],
-      ["wall", "plain", "plain", "danger", "plain", "danger", "plain", "plain", "plain", "wall"],
-      ["wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "wall"],
-      ["wall", "wall", "wall", "plain", "wall", "wall", "wall", "wall", "wall", "wall"],
+  var WORLD = {
+    label: "地下世界・南方区画",
+    width: 400, height: 260,
+    start: "haiberi",
+    nodes: [
+      { id: "haiberi", name: "灰縁の集落", x: 40, y: 210, kind: "settlement" },
+      { id: "hairegion", name: "廃区画", x: 170, y: 150, kind: "danger" },
+      { id: "yaketa", name: "焼けた集落跡", x: 90, y: 60, kind: "ruin",
+        flavor: "集落跡の中央に、黒く焼け焦げた石碑が残っていた。文字は読み取れない。ただ、ここで何かが起き、住人が忽然といなくなったことだけは伝わってくる。" },
+      { id: "saidan", name: "招竜の祭壇", x: 330, y: 70, kind: "shrine", arrive: true },
+    ],
+    edges: [
+      { from: "haiberi", to: "hairegion", steps: 35, encounterRate: 0.35, enemy: "straggler_bandit" },
+      { from: "hairegion", to: "yaketa", steps: 20, encounterRate: 0 },
+      { from: "hairegion", to: "saidan", steps: 45, encounterRate: 0.25, enemy: "straggler_bandit" },
     ],
   };
 
@@ -78,15 +79,18 @@ RPG.Chapter1 = (function () {
     { kind: "narration", text: "門を出ると、荒れ果てた広域の景色が広がった。目的地は招竜の祭壇。もう振り返る場所はない。" },
   ];
 
-  var overworld = null;
+  var worldMap = null;
 
   function afterKuji() {
-    overworld = Explore.startOverworld(app, OVERWORLD, game, {
+    worldMap = Explore.startWorldMap(app, WORLD, game, {
       onArrive: function (id) {
         if (id === "saidan") Story.play(app, roadBeats, afterRoad);
       },
-      onEncounter: function () {
-        runBattle(["straggler_bandit"], "はぐれ賊", false, function () { overworld.render(); });
+      onEncounter: function (enemyId, next) {
+        runBattle([enemyId || "straggler_bandit"], "はぐれ賊", false, next);
+      },
+      onFlavor: function (text, next) {
+        Story.play(app, [{ kind: "narration", text: text }], next);
       },
     });
   }
@@ -119,7 +123,7 @@ RPG.Chapter1 = (function () {
     shrineDungeon = Explore.start(app, SHRINE_DUNGEON, game, {
       onExit: function () {
         if (game.flags.kagariDefeated) { afterDungeonExit(); return; }
-        overworld.render();
+        worldMap.render();
       },
       onEvent: onDungeonEvent,
       onChest: onDungeonChest,
