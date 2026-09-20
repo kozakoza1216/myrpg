@@ -174,15 +174,12 @@ RPG.Explore = (function () {
     svg.appendChild(el("circle", { cx: 96, cy: 42, r: 14, fill: "#3a3630", opacity: 0.5 }));
     svg.appendChild(el("rect", { x: 0, y: 130, width: 400, height: 130, fill: "#26221c" })); // 床
 
-    // 奥行き0→1の縮み方がきつすぎ、1マス先（手を伸ばせば届く宝箱・敵・NPC）が
-    // 実際には遠くの物のように小さく描かれていた。手前ほど緩やかに、奥ほど急に
-    // すぼまる曲線に描き直す（1マス先はまだ近くに大きく見えるべき）
     var frames = [
       { l: 0, r: 400, t: 40, b: 220 },
-      { l: 24, r: 376, t: 51, b: 209 },
-      { l: 70, r: 330, t: 71, b: 189 },
-      { l: 120, r: 280, t: 94, b: 166 },
-      { l: 160, r: 240, t: 112, b: 148 },
+      { l: 70, r: 330, t: 70, b: 190 },
+      { l: 130, r: 270, t: 92, b: 168 },
+      { l: 165, r: 235, t: 108, b: 152 },
+      { l: 185, r: 215, t: 118, b: 142 },
     ];
 
     var blockedAt = -1;
@@ -199,12 +196,12 @@ RPG.Explore = (function () {
     // 「奥の壁が手前の壁より前に出て見える」という描画優先度の逆転が起きる。
     if (blockedAt >= 0) {
       var bf0 = frames[blockedAt];
-      // 左右の幅は「ひとつ手前の奥行き」の枠まで広げる。frames[0]まで一律に広げると、
-      // 塞がれた場所がプレイヤーから2マス以上先にある時、その手前にある本物の側壁
-      // （各深度ごとの台形）より前に張り出して描かれてしまい矛盾を生む
-      var nf = frames[Math.max(0, blockedAt - 1)];
+      // 突き当たりの壁は、その奥行きなりの自然な大きさ（frames[blockedAt]）で描く。
+      // 以前はここを手前の枠まで無理に広げていたが、脇の開口部は今はdrawSidePeekが
+      // 実際の形を描くようになっているので、その代わりに壁を膨らませる必要はなく、
+      // むしろ角のような場面で不自然に巨大な壁になってしまっていた
       svg.appendChild(el("polygon", {
-        points: [nf.l, bf0.t, nf.r, bf0.t, nf.r, bf0.b, nf.l, bf0.b].join(" "),
+        points: [bf0.l, bf0.t, bf0.r, bf0.t, bf0.r, bf0.b, bf0.l, bf0.b].join(" "),
         fill: "#6a6050", stroke: "#201c16", "stroke-width": 1.5,
       }));
     }
