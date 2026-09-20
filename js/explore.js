@@ -332,7 +332,10 @@ RPG.Explore = (function () {
     hud.textContent = "歩数 " + this.game.steps + " / " + this.game.stepLimit + "　向き: " + DIR_NAMES[this.dir];
     wrap.appendChild(hud);
 
-    wrap.appendChild(this.renderScene());
+    var frame = document.createElement("div");
+    frame.className = "dungeon-scene-frame";
+    frame.appendChild(this.renderScene());
+    wrap.appendChild(frame);
 
     if (this.transientMsg) {
       var msg = document.createElement("div");
@@ -355,6 +358,20 @@ RPG.Explore = (function () {
     wrap.appendChild(controls);
 
     this.el.appendChild(wrap);
+
+    // 方向転換は、絵そのものを動かすアニメーションではなく、一瞬の暗転から
+    // 元に戻るトランジションで表現する。要素をライブDOMに挿入する前に
+    // opacityを2回書き換えると、最初の値が一度も描画されないままブラウザが
+    // まとめて後の値だけを反映してしまい、トランジションが発火しなかった。
+    // 挿入後にreflowを強制してから値を変えることで、確実に発火させる。
+    if (this.lastAction === "turn-left" || this.lastAction === "turn-right") {
+      var flash = document.createElement("div");
+      flash.className = "dungeon-flash";
+      flash.style.opacity = "0.85";
+      frame.appendChild(flash);
+      void flash.offsetHeight;
+      flash.style.opacity = "0";
+    }
   };
 
   function ctrlBtn(label, onClick) {
