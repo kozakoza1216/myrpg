@@ -474,9 +474,7 @@ RPG.Explore = (function () {
   FreeArea.prototype.moveTo = function (tx, ty) {
     if (this.isBlocked(tx, ty)) { this.flash("そこには進めない。"); return; }
     if (this._playerEl) this._playerEl.style.transition = "transform 0.25s ease-out";
-    var dist = Math.hypot(tx - this.pos.x, ty - this.pos.y);
     this.pos = { x: tx, y: ty };
-    this.game.steps += Math.max(1, Math.round(dist / 18));
     this.updateHudAndPlayer();
     this.checkZone(tx, ty);
   };
@@ -546,8 +544,6 @@ RPG.Explore = (function () {
     var ny = this.pos.y + (dy / len) * speed * dt;
     if (!this.isBlocked(this.pos.x, ny)) { moved += Math.abs(ny - this.pos.y); this.pos.y = ny; }
     if (moved <= 0) return;
-    this._stepAccum = (this._stepAccum || 0) + moved;
-    while (this._stepAccum >= 18) { this.game.steps += 1; this._stepAccum -= 18; }
     this.updateHudAndPlayer();
     this.checkZone(this.pos.x, this.pos.y);
   };
@@ -560,7 +556,13 @@ RPG.Explore = (function () {
   FreeArea.prototype.enterZone = function (zone) {
     var self = this;
     this.detachKeyboard();
-    if (zone.kind === "exit") { if (this.cb.onExit) this.cb.onExit(zone.to); return; }
+    // 広域マップの経路と同じ考え方：移動距離ではなく、その区画を踏破した分の
+    // 固定歩数をここでまとめて消費する（ノードの経路にsteps値を持たせるのと同じ形）。
+    if (zone.kind === "exit") {
+      this.game.steps += zone.steps === undefined ? 15 : zone.steps;
+      if (this.cb.onExit) this.cb.onExit(zone.to);
+      return;
+    }
     if (zone.kind === "chest") {
       this.taken[zone.id] = true;
       if (this.cb.onChest) this.cb.onChest(zone.id, function () { self.render(); });

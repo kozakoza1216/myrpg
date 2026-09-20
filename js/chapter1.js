@@ -23,7 +23,7 @@ RPG.Chapter1 = (function () {
         speaker: "竜読みの老人", text: "竜には逆らえん。くじは絶対だ……お前さんも、いずれわかる。" },
       { id: "chest_shelf", kind: "chest", x: 400, y: 60, r: 16, label: "住居の棚" },
       { id: "rat", kind: "encounter", x: 80, y: 55, r: 26, label: "灰色の気配" },
-      { id: "exit_plaza", kind: "exit", to: "plaza", x: 420, y: 170, r: 22, label: "広場へ（くじの刻限）" },
+      { id: "exit_plaza", kind: "exit", to: "plaza", x: 420, y: 170, r: 22, steps: 5, label: "広場へ（くじの刻限）" },
     ],
   };
 
@@ -68,8 +68,8 @@ RPG.Chapter1 = (function () {
     zones: [
       { id: "danger1", kind: "danger", x: 235, y: 155, r: 28, encounterRate: 0.5, label: "危険な瓦礫の陰" },
       { id: "chest1", kind: "chest", x: 70, y: 105, r: 16, label: "宝箱" },
-      { id: "exit_yaketa", kind: "exit", to: "yaketa", x: 220, y: 25, r: 20, label: "焼けた集落跡方面（寄り道）" },
-      { id: "exit_michi", kind: "exit", to: "michi", x: 455, y: 160, r: 24, label: "祭壇方面" },
+      { id: "exit_yaketa", kind: "exit", to: "yaketa", x: 220, y: 25, r: 20, steps: 15, label: "焼けた集落跡方面（寄り道）" },
+      { id: "exit_michi", kind: "exit", to: "michi", x: 455, y: 160, r: 24, steps: 30, label: "祭壇方面" },
     ],
   };
 
