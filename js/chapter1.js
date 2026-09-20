@@ -31,14 +31,17 @@ RPG.Chapter1 = (function () {
     width: 320, height: 220,
     start: { x: 70, y: 180 },
     obstacles: [
-      { x: 150, y: 120, r: 28 },
-      { x: 230, y: 60, r: 22 },
-      { x: 90, y: 55, r: 18 },
+      { x: 55, y: 50, r: 16 },
+      { x: 115, y: 38, r: 13 },
+      { x: 265, y: 48, r: 18 },
+      { x: 175, y: 95, r: 24 },
+      { x: 245, y: 178, r: 15 },
+      { x: 100, y: 150, r: 13 },
     ],
     zones: [
-      { id: "danger1", kind: "danger", x: 190, y: 150, r: 26, encounterRate: 0.5, label: "危険な瓦礫の陰" },
-      { id: "chest1", kind: "chest", x: 270, y: 130, r: 18, label: "宝箱" },
-      { id: "exit1", kind: "exit", x: 40, y: 200, r: 20, label: "広域マップへ戻る" },
+      { id: "danger1", kind: "danger", x: 210, y: 148, r: 22, encounterRate: 0.5, label: "危険な瓦礫の陰" },
+      { id: "chest1", kind: "chest", x: 270, y: 105, r: 16, label: "宝箱" },
+      { id: "exit1", kind: "exit", x: 30, y: 195, r: 18, label: "広域マップへ戻る" },
     ],
   };
 

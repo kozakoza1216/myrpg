@@ -118,4 +118,5 @@ button {
 .map-node.clickable { cursor: pointer; stroke: none; }
 .map-node.clickable:hover { fill: rgba(240, 200, 96, 0.18); stroke: var(--accent); stroke-width: 2; }
 .freearea { width: 100%; max-width: 480px; border: 1px solid var(--border); border-radius: 6px; cursor: crosshair; }
+.freearea:focus { outline: none; }
 .freearea-player { transition: transform 0.35s ease-out; }

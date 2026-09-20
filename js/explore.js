@@ -439,18 +439,96 @@ RPG.Explore = (function () {
   };
 
   FreeArea.prototype.moveTo = function (tx, ty) {
-    var self = this;
     if (this.isBlocked(tx, ty)) { this.flash("そこには進めない。"); return; }
+    if (this._playerEl) this._playerEl.style.transition = "transform 0.25s ease-out";
     var dist = Math.hypot(tx - this.pos.x, ty - this.pos.y);
     this.pos = { x: tx, y: ty };
     this.game.steps += Math.max(1, Math.round(dist / 18));
-    this.render();
+    this.updateHudAndPlayer();
     var zone = this.zoneAt(tx, ty);
     if (zone) this.enterZone(zone);
   };
 
+  var KEYMAP = {
+    ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
+    w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right",
+  };
+
+  FreeArea.prototype.attachKeyboard = function () {
+    if (this._kbAttached) return;
+    this._kbAttached = true;
+    this._keys = {};
+    var self = this;
+    this._onKeyDown = function (e) {
+      var dir = KEYMAP[e.key];
+      if (!dir) return;
+      e.preventDefault();
+      self._keys[dir] = true;
+      self.ensureLoop();
+    };
+    this._onKeyUp = function (e) {
+      var dir = KEYMAP[e.key];
+      if (dir) self._keys[dir] = false;
+    };
+    document.addEventListener("keydown", this._onKeyDown);
+    document.addEventListener("keyup", this._onKeyUp);
+  };
+
+  FreeArea.prototype.detachKeyboard = function () {
+    if (!this._kbAttached) return;
+    this._kbAttached = false;
+    document.removeEventListener("keydown", this._onKeyDown);
+    document.removeEventListener("keyup", this._onKeyUp);
+    if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
+    this._keys = {};
+  };
+
+  FreeArea.prototype.ensureLoop = function () {
+    if (this._raf) return;
+    if (this._playerEl) this._playerEl.style.transition = "none";
+    var self = this;
+    var last = null;
+    function frame(t) {
+      if (last === null) last = t;
+      var dt = Math.min(0.05, (t - last) / 1000);
+      last = t;
+      self.tick(dt);
+      var k = self._keys;
+      if (k && (k.up || k.down || k.left || k.right)) self._raf = requestAnimationFrame(frame);
+      else self._raf = null;
+    }
+    this._raf = requestAnimationFrame(frame);
+  };
+
+  // 矢印キー/WASD押下中は毎フレーム連続座標で移動する（マス目には一切吸着しない）。
+  FreeArea.prototype.tick = function (dt) {
+    var k = this._keys;
+    var dx = (k.right ? 1 : 0) - (k.left ? 1 : 0);
+    var dy = (k.down ? 1 : 0) - (k.up ? 1 : 0);
+    if (!dx && !dy) return;
+    var len = Math.hypot(dx, dy) || 1;
+    var speed = 130;
+    var moved = 0;
+    var nx = this.pos.x + (dx / len) * speed * dt;
+    if (!this.isBlocked(nx, this.pos.y)) { moved += Math.abs(nx - this.pos.x); this.pos.x = nx; }
+    var ny = this.pos.y + (dy / len) * speed * dt;
+    if (!this.isBlocked(this.pos.x, ny)) { moved += Math.abs(ny - this.pos.y); this.pos.y = ny; }
+    if (moved <= 0) return;
+    this._stepAccum = (this._stepAccum || 0) + moved;
+    while (this._stepAccum >= 18) { this.game.steps += 1; this._stepAccum -= 18; }
+    this.updateHudAndPlayer();
+    var zone = this.zoneAt(this.pos.x, this.pos.y);
+    if (zone) this.enterZone(zone);
+  };
+
+  FreeArea.prototype.updateHudAndPlayer = function () {
+    if (this._hudEl) this._hudEl.textContent = (this.data.label || "") + "　歩数 " + this.game.steps + " / " + this.game.stepLimit;
+    if (this._playerEl) this._playerEl.setAttribute("transform", "translate(" + this.pos.x + "," + this.pos.y + ")");
+  };
+
   FreeArea.prototype.enterZone = function (zone) {
     var self = this;
+    this.detachKeyboard();
     if (zone.kind === "exit") { if (this.cb.onExit) this.cb.onExit(); return; }
     if (zone.kind === "chest") {
       this.taken[zone.id] = true;
@@ -459,7 +537,8 @@ RPG.Explore = (function () {
     }
     if (zone.kind === "danger") {
       var rate = zone.encounterRate === undefined ? 0.4 : zone.encounterRate;
-      if (Math.random() < rate && this.cb.onEncounter) { this.cb.onEncounter(function () { self.render(); }); }
+      if (Math.random() < rate && this.cb.onEncounter) { this.cb.onEncounter(function () { self.render(); }); return; }
+      this.attachKeyboard();
     }
   };
 
@@ -471,17 +550,24 @@ RPG.Explore = (function () {
     this._flashTimer = setTimeout(function () { self.transientMsg = null; self.render(); }, 1200);
   };
 
-  function drawFreeAreaObstacle(g, o) {
-    g.appendChild(el("polygon", {
-      points: pts18(o.x, o.y, o.r, [0.9, 0.4, 0.75, -0.1, 0.15, -0.15, -0.4, 0.5, -0.1, 0.9, 0.6, 0.85]),
-      fill: "#4a4038", stroke: "#241f19", "stroke-width": 1.5,
-    }));
-  }
   // 中心(cx,cy)・半径rを基準にした比率座標列(x1,y1,...)をpolygon points文字列へ
   function pts18(cx, cy, r, frac) {
     var out = [];
     for (var i = 0; i < frac.length; i += 2) out.push((cx + frac[i] * r) + "," + (cy + frac[i + 1] * r));
     return out.join(" ");
+  }
+
+  // 瓦礫の山。形状を3種類使い回し、コピペ感の出ないよう向き・付随する破片を変える。
+  var RUBBLE_SHAPES = [
+    [0.9, 0.4, 0.75, -0.1, 0.15, -0.15, -0.4, 0.5, -0.1, 0.9, 0.6, 0.85],
+    [-0.9, 0.2, -0.5, -0.6, 0.3, -0.7, 0.85, 0.1, 0.5, 0.8, -0.2, 0.7],
+    [0.1, -0.9, 0.8, -0.3, 0.6, 0.6, -0.1, 0.8, -0.75, 0.3, -0.55, -0.5],
+  ];
+  function drawFreeAreaObstacle(g, o, i) {
+    var shape = RUBBLE_SHAPES[i % RUBBLE_SHAPES.length];
+    g.appendChild(el("polygon", { points: pts18(o.x, o.y, o.r, shape), fill: "#4a4038", stroke: "#241f19", "stroke-width": 1.5 }));
+    var ax = o.x + o.r * (i % 2 === 0 ? -0.9 : 0.9), ay = o.y + o.r * 0.7;
+    g.appendChild(el("rect", { x: ax - 4, y: ay - 3, width: 8, height: 6, fill: "#5a5048", stroke: "#241f19", "stroke-width": 1, transform: "rotate(" + (i * 23) + " " + ax + " " + ay + ")" }));
   }
 
   function drawFreeAreaZone(g, z) {
@@ -492,8 +578,10 @@ RPG.Explore = (function () {
       g.appendChild(el("rect", { x: z.x - 10, y: z.y - 7, width: 20, height: 14, fill: "#8a6a30", stroke: "#4a3a28", "stroke-width": 1.5 }));
       g.appendChild(el("rect", { x: z.x - 10, y: z.y - 12, width: 20, height: 7, fill: "#a8823c", stroke: "#4a3a28", "stroke-width": 1.5 }));
     } else if (z.kind === "exit") {
-      g.appendChild(el("rect", { x: z.x - 3, y: z.y - 14, width: 6, height: 28, fill: "#d8a860" }));
-      g.appendChild(el("rect", { x: z.x - 13, y: z.y - 17, width: 26, height: 5, fill: "#d8a860" }));
+      // 小さな門（左右の柱＋まぐさ）。祭壇の鳥居と混同しない簡素な形にする
+      g.appendChild(el("rect", { x: z.x - 9, y: z.y - 10, width: 4, height: 20, fill: "#d8a860" }));
+      g.appendChild(el("rect", { x: z.x + 5, y: z.y - 10, width: 4, height: 20, fill: "#d8a860" }));
+      g.appendChild(el("rect", { x: z.x - 11, y: z.y - 13, width: 22, height: 4, fill: "#d8a860" }));
     }
     if (z.label) {
       var t = el("text", { x: z.x, y: z.y + z.r + 12, "text-anchor": "middle", fill: "#c8b898", "font-size": 10 });
@@ -504,6 +592,7 @@ RPG.Explore = (function () {
 
   FreeArea.prototype.render = function () {
     var self = this;
+    this.detachKeyboard();
     this.el.innerHTML = "";
     var wrap = document.createElement("div");
     wrap.className = "dungeon-wrap";
@@ -512,23 +601,26 @@ RPG.Explore = (function () {
     hud.className = "dungeon-hud";
     hud.textContent = (this.data.label || "") + "　歩数 " + this.game.steps + " / " + this.game.stepLimit;
     wrap.appendChild(hud);
+    this._hudEl = hud;
 
-    var svg = el("svg", { viewBox: "0 0 " + this.data.width + " " + this.data.height, class: "freearea" });
+    var svg = el("svg", { viewBox: "0 0 " + this.data.width + " " + this.data.height, class: "freearea", tabindex: "0" });
     svg.appendChild(el("rect", { x: 0, y: 0, width: this.data.width, height: this.data.height, fill: "#26221c" }));
 
-    (this.data.obstacles || []).forEach(function (o) { drawFreeAreaObstacle(svg, o); });
+    (this.data.obstacles || []).forEach(function (o, i) { drawFreeAreaObstacle(svg, o, i); });
     (this.data.zones || []).forEach(function (z) { if (!self.taken[z.id]) drawFreeAreaZone(svg, z); });
 
     var pg = el("g", { class: "freearea-player", transform: "translate(" + this.pos.x + "," + this.pos.y + ")" });
     pg.appendChild(el("polygon", { points: "0,10 -6,20 6,20", fill: "#3a6bab", stroke: "#e8dcc8", "stroke-width": 1.5 }));
     pg.appendChild(el("circle", { cx: 0, cy: 6, r: 6, fill: "#e8dcc8", stroke: "#3a6bab", "stroke-width": 1.5 }));
     svg.appendChild(pg);
+    this._playerEl = pg;
 
     svg.onclick = function (evt) {
       var rect = svg.getBoundingClientRect();
       var x = (evt.clientX - rect.left) * (self.data.width / rect.width);
       var y = (evt.clientY - rect.top) * (self.data.height / rect.height);
       self.moveTo(x, y);
+      svg.focus();
     };
 
     wrap.appendChild(svg);
@@ -542,10 +634,12 @@ RPG.Explore = (function () {
 
     var hint = document.createElement("p");
     hint.className = "footnote";
-    hint.textContent = "マップ内をクリックすると、その場所まで歩きます。";
+    hint.textContent = "矢印キー／WASDで移動。クリックした場所へ直接歩くこともできます。";
     wrap.appendChild(hint);
 
     this.el.appendChild(wrap);
+    this.attachKeyboard();
+    svg.focus();
   };
 
   function startFreeArea(containerEl, data, gameState, callbacks) {
