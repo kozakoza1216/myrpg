@@ -194,10 +194,14 @@ RPG.Explore = (function () {
 
     if (blockedAt >= 0) {
       var bf0 = frames[blockedAt];
-      // 左右の幅は手前(frames[0])いっぱいまで広げる。塞がれた奥行きなりの幅（frames[blockedAt]）
-      // だけで描くと、脇に何も壁が無い＝素通しの空白に見えてしまい「壁が浮いている」ように見えるため
+      // 左右の幅は「ひとつ手前の奥行き」の枠まで広げる。frames[0]まで一律に広げると、
+      // 塞がれた場所がプレイヤーから2マス以上先にある時、その手前にある本物の側壁
+      // （各深度ごとの台形）より前に張り出して描かれてしまい、遠いはずの壁が近い壁より
+      // 手前にあるように見える矛盾を生む。ひとつ前の深度の枠幅までに留めれば、
+      // その深度の側壁描画（frames[blockedAt-1]→frames[blockedAt]の台形）と辻褄が合う
+      var nf = frames[Math.max(0, blockedAt - 1)];
       svg.appendChild(el("polygon", {
-        points: [frames[0].l, bf0.t, frames[0].r, bf0.t, frames[0].r, bf0.b, frames[0].l, bf0.b].join(" "),
+        points: [nf.l, bf0.t, nf.r, bf0.t, nf.r, bf0.b, nf.l, bf0.b].join(" "),
         fill: "#6a6050", stroke: "#201c16", "stroke-width": 1.5,
       }));
     }
