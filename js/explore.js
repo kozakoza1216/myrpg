@@ -190,6 +190,22 @@ RPG.Explore = (function () {
     }
     var maxDepth = blockedAt >= 0 ? blockedAt : frames.length - 2;
 
+    // 突き当たりの壁は、視界の中で最も奥にあるもの＝一番最初（一番奥）に描く。
+    // ループの後にただ追記すると、SVGは後に描いた要素ほど手前に乗るため、
+    // 本来もっと近い側壁より奥にあるはずのこの壁が常に最前面に来てしまい、
+    // 「奥の壁が手前の壁より前に出て見える」という描画優先度の逆転が起きる。
+    if (blockedAt >= 0) {
+      var bf0 = frames[blockedAt];
+      // 左右の幅は「ひとつ手前の奥行き」の枠まで広げる。frames[0]まで一律に広げると、
+      // 塞がれた場所がプレイヤーから2マス以上先にある時、その手前にある本物の側壁
+      // （各深度ごとの台形）より前に張り出して描かれてしまい矛盾を生む
+      var nf = frames[Math.max(0, blockedAt - 1)];
+      svg.appendChild(el("polygon", {
+        points: [nf.l, bf0.t, nf.r, bf0.t, nf.r, bf0.b, nf.l, bf0.b].join(" "),
+        fill: "#6a6050", stroke: "#201c16", "stroke-width": 1.5,
+      }));
+    }
+
     for (var depth = maxDepth; depth >= 0; depth--) {
       var f0 = frames[depth], f1 = frames[depth + 1];
       var cellHere = this.forward(depth);
@@ -234,20 +250,6 @@ RPG.Explore = (function () {
         var rightPeek = sidePeekDepth(this, cellHere.x, cellHere.y, rv.dx, rv.dy);
         drawSidePeek(svg, f0, f1, "right", rightPeek);
       }
-    }
-
-    if (blockedAt >= 0) {
-      var bf0 = frames[blockedAt];
-      // 左右の幅は「ひとつ手前の奥行き」の枠まで広げる。frames[0]まで一律に広げると、
-      // 塞がれた場所がプレイヤーから2マス以上先にある時、その手前にある本物の側壁
-      // （各深度ごとの台形）より前に張り出して描かれてしまい、遠いはずの壁が近い壁より
-      // 手前にあるように見える矛盾を生む。ひとつ前の深度の枠幅までに留めれば、
-      // その深度の側壁描画（frames[blockedAt-1]→frames[blockedAt]の台形）と辻褄が合う
-      var nf = frames[Math.max(0, blockedAt - 1)];
-      svg.appendChild(el("polygon", {
-        points: [nf.l, bf0.t, nf.r, bf0.t, nf.r, bf0.b, nf.l, bf0.b].join(" "),
-        fill: "#6a6050", stroke: "#201c16", "stroke-width": 1.5,
-      }));
     }
 
     // 前方のシンボル（扉／宝箱／NPC／段）
