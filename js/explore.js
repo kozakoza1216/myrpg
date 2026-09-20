@@ -210,10 +210,17 @@ RPG.Explore = (function () {
           fill: "#5a5244", stroke: "#201c16", "stroke-width": 1,
         }));
       }
-      // 建物ファサードのディテール（窓っぽい矩形）
-      if (this.isBlocking(leftTile) || this.isBlocking(rightTile)) {
+      // 建物ファサードのディテール（窓っぽい矩形）。実際に壁がある側にだけ置く
+      // （左右どちらが塞がっているか見ずに常にf0.lへ置いていたため、右だけが壁の時に
+      // 壁のない左側の宙に窓が浮いて見えるバグがあった）
+      if (this.isBlocking(leftTile)) {
         svg.appendChild(el("rect", {
           x: f0.l + 4, y: (f0.t + f1.t) / 2, width: 6, height: 6, fill: "#8a7a5a", opacity: 0.5,
+        }));
+      }
+      if (this.isBlocking(rightTile)) {
+        svg.appendChild(el("rect", {
+          x: f0.r - 10, y: (f0.t + f1.t) / 2, width: 6, height: 6, fill: "#8a7a5a", opacity: 0.5,
         }));
       }
       // 壁がない側＝脇道の開口部。実際にその先へ何マス進めるかを見て、
