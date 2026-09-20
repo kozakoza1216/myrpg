@@ -5,6 +5,28 @@ RPG.Chapter1 = (function () {
   var Story = RPG.Story, Battle = RPG.Battle, Explore = RPG.Explore, Data = RPG.Data;
   var app, game, onChapterEnd;
 
+  // 灰縁の集落。PLAN.md §7.5-2b「①日常：移動・会話・簡易戦闘のチュートリアル」に基づき、
+  // くじが引かれる前に自由に歩ける（＝追放されたら二度と戻れない、ここでしか拾えないアイテムがある）。
+  var HAIBERI_VILLAGE = {
+    label: "灰縁の集落",
+    width: 480, height: 320,
+    start: { x: 240, y: 280 },
+    obstacles: [
+      { x: 240, y: 210, r: 20, kind: "hut" },
+      { x: 120, y: 230, r: 20, kind: "hut" },
+      { x: 350, y: 230, r: 18, kind: "hut" },
+      { x: 90, y: 110, r: 18, kind: "hut" },
+      { x: 400, y: 120, r: 20, kind: "hut" },
+    ],
+    zones: [
+      { id: "well", kind: "talk", x: 230, y: 140, r: 20, label: "井戸端の老人",
+        speaker: "竜読みの老人", text: "竜には逆らえん。くじは絶対だ……お前さんも、いずれわかる。" },
+      { id: "chest_shelf", kind: "chest", x: 400, y: 60, r: 16, label: "住居の棚" },
+      { id: "rat", kind: "encounter", x: 80, y: 55, r: 26, label: "灰色の気配" },
+      { id: "exit_plaza", kind: "exit", to: "plaza", x: 420, y: 170, r: 22, label: "広場へ（くじの刻限）" },
+    ],
+  };
+
   // 広域マップ＝街・集落・危険地帯のノードグラフ（PLAN.md §8-1）。
   // 廃区画へ初めて入るときだけ内部（HAIREGION_AREA）を実際に歩き、
   // どちらの出口から抜けたかで到着ノードが決まる（＝踏破＝広域マップ上を前進する）。
@@ -51,46 +73,70 @@ RPG.Chapter1 = (function () {
     ],
   };
 
-  var SHRINE_DUNGEON = {
-    id: "saidan",
-    start: { x: 2, y: 5, dir: 0 },
-    grid: [
-      ["wall", "wall", "wall", "wall", "wall"],
-      ["wall", "floor", "floor", "event:kagari", "wall"],
-      ["wall", "floor", "wall", "encounter", "wall"],
-      ["wall", "chest", "floor", "floor", "wall"],
-      ["wall", "floor", "floor", "floor", "wall"],
-      ["wall", "wall", "exit", "wall", "wall"],
-    ],
+  // 招竜の祭壇＝入口の外殿（ground）と、カガリと対峙する奥の内殿（inner）の2階層。
+  // inner の階段は、カガリを倒した後は「外へ出る」に化ける（もう外殿を歩き直す必要はない）。
+  var SHRINE_FLOORS = {
+    ground: {
+      start: { x: 1, y: 7, dir: 0 },
+      grid: [
+        ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+        ["wall", "floor", "floor", "chest", "floor", "floor", "wall"],
+        ["wall", "floor", "wall", "wall", "wall", "floor", "wall"],
+        ["wall", "floor", "wall", "wall", "wall", "floor", "wall"],
+        ["wall", "floor", "wall", "wall", "wall", "floor", "wall"],
+        ["wall", "floor", "wall", "wall", "wall", "floor", "wall"],
+        ["wall", "floor", "floor", "encounter", "floor", "floor", "wall"],
+        ["wall", "exit", "wall", "wall", "wall", "stairs:inner", "wall"],
+      ],
+    },
+    inner: {
+      start: { x: 2, y: 6, dir: 0 },
+      grid: [
+        ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+        ["wall", "floor", "floor", "event:kagari", "floor", "floor", "wall"],
+        ["wall", "floor", "wall", "wall", "wall", "floor", "wall"],
+        ["wall", "chest", "floor", "floor", "floor", "floor", "wall"],
+        ["wall", "floor", "wall", "wall", "wall", "floor", "wall"],
+        ["wall", "floor", "floor", "floor", "floor", "floor", "wall"],
+        ["wall", "wall", "stairs:ground", "wall", "wall", "wall", "wall"],
+      ],
+    },
   };
 
   function run(appEl, gameState, endCallback) {
     app = appEl; game = gameState; onChapterEnd = endCallback;
-    Story.play(app, introBeats, afterIntro);
+    Story.play(app, wakeBeats, enterVillage);
   }
 
-  var introBeats = [
+  var wakeBeats = [
     { kind: "header", text: "第一章　灰縁（はいべり）の集落" },
     { kind: "narration", text: "人工天井の裂け目から薄暮が差し込む。二つに割れた月が、いつまでも同じ高さで止まっている。竜の脅威圏の縁に築かれた小さな集落――灰縁。" },
     { kind: "header", text: "セオの住居" },
     { speaker: "ミラ", text: "セオ、起きて。今日は「くじ」の日でしょ。寝坊したら承知しないから。" },
     { kind: "choice", prompt: "（ミラに何と返す？　――何を選んでも、話の筋は変わらない）", options: ["「わかってる。今起きる」", "「……くじ、か」と呟く", "何も言わず起き上がる"] },
-    { kind: "narration", text: "ミラは肩をすくめて、先に外へ出ていった。棚には〈干し肉〉と〈古びた回復薬〉が置かれている。" },
-    { kind: "header", text: "集落・井戸端" },
-    { speaker: "竜読みの老人", text: "竜には逆らえん。くじは絶対だ……お前さんも、いずれわかる。" },
-    { kind: "narration", text: "集落の外れで、瓦礫の陰から灰色の毛並みが動いた。灰ネズミだ。腕試しには、ちょうどいい。" },
+    { kind: "narration", text: "ミラは肩をすくめて、先に外へ出ていった。棚には〈干し肉〉と〈古びた回復薬〉が置かれている。戸口を出ると、くじの刻限まではまだ間があった。" },
   ];
 
-  function afterIntro() {
-    runBattle(["ash_rat"], "灰ネズミとの戦い", true, afterTutorial);
-  }
+  var villageArea = null;
 
-  function afterTutorial() {
-    Story.play(app, kujiBeats, afterKuji);
+  function enterVillage() {
+    villageArea = Explore.startFreeArea(app, HAIBERI_VILLAGE, game, {
+      onExit: function () { Story.play(app, kujiBeats, afterKuji); },
+      onTalk: function (zone, next) {
+        Story.play(app, [{ speaker: zone.speaker, text: zone.text }], next);
+      },
+      onChest: function (zoneId, next) {
+        var seo = game.party[0];
+        if (seo.skills.indexOf("double_slash") < 0) seo.skills.push("double_slash");
+        Story.play(app, [{ kind: "narration", text: "棚の奥に、古い記憶結晶が仕舞われていた。〈二連撃の記憶結晶〉――セオはこの技を覚えた。" }], next);
+      },
+      onEncounter: function (next) {
+        runBattle(["ash_rat"], "灰ネズミとの戦い", true, next);
+      },
+    });
   }
 
   var kujiBeats = [
-    { kind: "narration", text: "たいした敵ではなかった。だが、得物を振るった感触は確かに手に残った。" },
     { kind: "header", text: "集落中央広場・くじ" },
     { kind: "narration", text: "招竜派の祭司カガリが、儀式めいた仕草で木札の箱を掲げる。集落中が息を呑んで見守る。" },
     { speaker: "カガリ", text: "此度の供物は……セオ、お前だ。" },
@@ -124,7 +170,13 @@ RPG.Chapter1 = (function () {
   // どちらの出口へ抜けたかで実際の到着ノードを決める（＝踏破が前進そのもの）。
   // 二度目以降は既に踏破済みなので、隣接ノードとして直接クリックで行き来できる。
   function onWorldArrive(id, firstVisit, next) {
-    if (id === "hairegion" && !hairegionCleared) { enterHairegion(); return; }
+    if (id === "hairegion" && !hairegionCleared) {
+      Story.play(app, [
+        { kind: "header", text: "廃区画" },
+        { kind: "narration", text: "崩れた区画の入り口に着いた。瓦礫に埋もれた道の先に何があるのかは、まだ分からない。" },
+      ], enterHairegion);
+      return;
+    }
     if (id === "michi" && firstVisit) { Story.play(app, roadBeats, afterRoad); return; }
     if (id === "yaketa" && firstVisit) {
       Story.play(app, [{ kind: "narration", text: "集落跡の中央に、黒く焼け焦げた石碑が残っていた。文字は読み取れない。ただ、ここで何かが起き、住人が忽然といなくなったことだけは伝わってくる。" }], next);
@@ -168,25 +220,39 @@ RPG.Chapter1 = (function () {
   ];
 
   var shrineDungeon = null;
+  var shrineFloorId = "ground";
 
   function afterTeamUp() {
     game.party.push(Battle.createCombatant("tzelf", false));
     worldMap.setCurrent("saidan");
-    shrineDungeon = Explore.start(app, SHRINE_DUNGEON, game, {
-      onExit: function () {
-        if (game.flags.kagariDefeated) { afterDungeonExit(); return; }
-        worldMap.render();
-      },
+    enterShrineFloor("ground");
+  }
+
+  function enterShrineFloor(floorId) {
+    shrineFloorId = floorId;
+    shrineDungeon = Explore.start(app, SHRINE_FLOORS[floorId], game, {
+      onExit: function () { worldMap.render(); },
       onEvent: onDungeonEvent,
       onChest: onDungeonChest,
       onEncounter: function () {
         runBattle(["shrine_guard"], "祭壇の守衛", false, function () { shrineDungeon.render(); });
+      },
+      onStairs: function (targetFloorId) {
+        if (targetFloorId === "ground" && game.flags.kagariDefeated) { afterDungeonExit(); return; }
+        enterShrineFloor(targetFloorId);
       },
     });
   }
 
   function onDungeonChest() {
     var seo = game.party[0];
+    if (shrineFloorId === "ground") {
+      if (seo.skills.indexOf("power_strike") < 0) seo.skills.push("power_strike");
+      Story.play(app, [{ kind: "narration", text: "宝箱を開けた。〈力押しの記憶結晶〉――セオはこの技を覚えた。" }], function () {
+        shrineDungeon.render();
+      });
+      return;
+    }
     if (seo.skills.indexOf("vital_strike") < 0) seo.skills.push("vital_strike");
     Story.play(app, [{ kind: "narration", text: "宝箱を開けた。〈急所狙いの記憶結晶〉――セオはこの技を覚えた。" }], function () {
       shrineDungeon.render();

@@ -85,6 +85,10 @@ RPG.Explore = (function () {
       if (this.cb.onEvent) this.cb.onEvent(id);
       return true;
     }
+    if (tile.indexOf("stairs:") === 0) {
+      var floorId = tile.slice(7);
+      if (this.cb.onStairs) { this.cb.onStairs(floorId); return true; }
+    }
     if (tile === "encounter" || tile === "floor") {
       var rate = tile === "encounter" ? 0.35 : 0.06;
       if (Math.random() < rate && this.cb.onEncounter) { this.cb.onEncounter(); return true; }
@@ -433,6 +437,7 @@ RPG.Explore = (function () {
     this.cb = callbacks || {};
     this.pos = { x: data.start.x, y: data.start.y };
     this.taken = {};
+    this.insideZoneId = null;
   }
 
   FreeArea.prototype.isBlocked = function (x, y) {
@@ -456,6 +461,16 @@ RPG.Explore = (function () {
     return null;
   };
 
+  // ゾーンとの当たり判定は「入った瞬間」だけ発火させる（円の中に留まっている間、
+  // 毎フレーム再発火しないように現在いるゾーンidを記憶しておく）。
+  FreeArea.prototype.checkZone = function (x, y) {
+    var zone = this.zoneAt(x, y);
+    var id = zone ? zone.id : null;
+    if (id === this.insideZoneId) return;
+    this.insideZoneId = id;
+    if (zone) this.enterZone(zone);
+  };
+
   FreeArea.prototype.moveTo = function (tx, ty) {
     if (this.isBlocked(tx, ty)) { this.flash("そこには進めない。"); return; }
     if (this._playerEl) this._playerEl.style.transition = "transform 0.25s ease-out";
@@ -463,8 +478,7 @@ RPG.Explore = (function () {
     this.pos = { x: tx, y: ty };
     this.game.steps += Math.max(1, Math.round(dist / 18));
     this.updateHudAndPlayer();
-    var zone = this.zoneAt(tx, ty);
-    if (zone) this.enterZone(zone);
+    this.checkZone(tx, ty);
   };
 
   var KEYMAP = {
@@ -535,8 +549,7 @@ RPG.Explore = (function () {
     this._stepAccum = (this._stepAccum || 0) + moved;
     while (this._stepAccum >= 18) { this.game.steps += 1; this._stepAccum -= 18; }
     this.updateHudAndPlayer();
-    var zone = this.zoneAt(this.pos.x, this.pos.y);
-    if (zone) this.enterZone(zone);
+    this.checkZone(this.pos.x, this.pos.y);
   };
 
   FreeArea.prototype.updateHudAndPlayer = function () {
@@ -551,6 +564,18 @@ RPG.Explore = (function () {
     if (zone.kind === "chest") {
       this.taken[zone.id] = true;
       if (this.cb.onChest) this.cb.onChest(zone.id, function () { self.render(); });
+      return;
+    }
+    if (zone.kind === "talk") {
+      if (this.cb.onTalk) { this.cb.onTalk(zone, function () { self.render(); }); return; }
+      this.attachKeyboard();
+      return;
+    }
+    // 一度だけ確実に起きる遭遇（チュートリアル戦闘など）。「danger」と違い確率判定はしない
+    if (zone.kind === "encounter") {
+      this.taken[zone.id] = true;
+      if (this.cb.onEncounter) { this.cb.onEncounter(function () { self.render(); }); return; }
+      this.attachKeyboard();
       return;
     }
     if (zone.kind === "danger") {
@@ -582,10 +607,18 @@ RPG.Explore = (function () {
     [0.1, -0.9, 0.8, -0.3, 0.6, 0.6, -0.1, 0.8, -0.75, 0.3, -0.55, -0.5],
   ];
   function drawFreeAreaObstacle(g, o, i) {
+    if (o.kind === "hut") { drawHutObstacle(g, o); return; }
     var shape = RUBBLE_SHAPES[i % RUBBLE_SHAPES.length];
     g.appendChild(el("polygon", { points: pts18(o.x, o.y, o.r, shape), fill: "#4a4038", stroke: "#241f19", "stroke-width": 1.5 }));
     var ax = o.x + o.r * (i % 2 === 0 ? -0.9 : 0.9), ay = o.y + o.r * 0.7;
     g.appendChild(el("rect", { x: ax - 4, y: ay - 3, width: 8, height: 6, fill: "#5a5048", stroke: "#241f19", "stroke-width": 1, transform: "rotate(" + (i * 23) + " " + ax + " " + ay + ")" }));
+  }
+
+  // 住人のいる小屋（廃墟の瓦礫ではなく、人が暮らす建物として区別できる意匠にする）
+  function drawHutObstacle(g, o) {
+    var r = o.r;
+    g.appendChild(el("polygon", { points: pts18(o.x, o.y, r, [-0.8, 0.9, -0.8, 0.1, 0, -0.9, 0.8, 0.1, 0.8, 0.9]), fill: "#6a5638", stroke: "#3a2e1c", "stroke-width": 1.5 }));
+    g.appendChild(el("rect", { x: o.x - r * 0.2, y: o.y + r * 0.3, width: r * 0.4, height: r * 0.6, fill: "#3a2e1c" }));
   }
 
   function drawFreeAreaZone(g, z) {
@@ -600,6 +633,15 @@ RPG.Explore = (function () {
       g.appendChild(el("rect", { x: z.x - 9, y: z.y - 10, width: 4, height: 20, fill: "#d8a860" }));
       g.appendChild(el("rect", { x: z.x + 5, y: z.y - 10, width: 4, height: 20, fill: "#d8a860" }));
       g.appendChild(el("rect", { x: z.x - 11, y: z.y - 13, width: 22, height: 4, fill: "#d8a860" }));
+    } else if (z.kind === "talk") {
+      // 吹き出し（危険ではないNPC接触点）
+      g.appendChild(el("rect", { x: z.x - 11, y: z.y - 10, width: 22, height: 15, rx: 4, fill: "#3a6bab", stroke: "#e8dcc8", "stroke-width": 1.5 }));
+      g.appendChild(el("polygon", { points: (z.x - 4) + "," + (z.y + 5) + " " + (z.x + 2) + "," + (z.y + 5) + " " + (z.x - 6) + "," + (z.y + 12), fill: "#3a6bab", stroke: "#e8dcc8", "stroke-width": 1.5 }));
+    } else if (z.kind === "encounter") {
+      // 確定遭遇（危険地帯と違い実線の円＋足跡）
+      g.appendChild(el("circle", { cx: z.x, cy: z.y, r: z.r, fill: "rgba(160,90,40,0.18)", stroke: "#a05a28", "stroke-width": 1.5 }));
+      g.appendChild(el("circle", { cx: z.x - 5, cy: z.y - 3, r: 4, fill: "#c88850" }));
+      g.appendChild(el("circle", { cx: z.x + 5, cy: z.y + 4, r: 4, fill: "#c88850" }));
     }
     if (z.label) {
       var t = el("text", { x: z.x, y: z.y + z.r + 12, "text-anchor": "middle", fill: "#c8b898", "font-size": 10 });
