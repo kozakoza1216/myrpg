@@ -153,8 +153,11 @@ RPG.Explore = (function () {
     // 側壁（視線と平行に奥へすぼまっていく台形）と同じ形で描くと、まるで
     // もう一枚別の平行な壁＝ドアのようなものが飛び出て見えてしまうため、
     // 手前と奥で高さが変わらない、まっすぐな矩形として描く。
+    // 内側の縁は突き当たりの壁の実際の端（farX）にぴったり合わせる。
+    // 台形時代の名残りでoutFarX（farXよりさらに外側にオフセットした点）を
+    // 使っていたため、突き当たりの壁との間に埋まらない隙間ができていた。
     svg.appendChild(el("polygon", {
-      points: [outNearX, f1.t, outFarX, f1.t, outFarX, f1.b - 2, outNearX, f1.b - 2].join(" "),
+      points: [outNearX, f1.t, farX, f1.t, farX, f1.b, outNearX, f1.b - 2].join(" "),
       fill: "#4a4438", stroke: "#201c16", "stroke-width": 1,
     }));
   }
