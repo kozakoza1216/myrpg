@@ -335,6 +335,13 @@ RPG.Explore = (function () {
     this.render();
   };
 
+  // 会話/戦闘の流れでどこか別の場所へ進んだことを、画面遷移や到着判定を発火させずに
+  // 広域マップの内部状態にだけ反映する（後でこのマップに戻った時の現在地を正しくするため）。
+  WorldMap.prototype.setCurrent = function (nodeId) {
+    this.current = nodeId;
+    this.visited[nodeId] = true;
+  };
+
   // ノードの種別ごとの簡易ピクトグラムアイコン
   function drawSettlementIcon(g) {
     g.appendChild(el("polygon", { points: "-9,10 -9,-3 0,-12 9,-3 9,10", fill: "#d8a860", stroke: "#4a3a28", "stroke-width": 1.5 }));

@@ -14,34 +14,40 @@ RPG.Chapter1 = (function () {
     width: 400, height: 260,
     start: "haiberi",
     nodes: [
-      { id: "haiberi", name: "灰縁の集落", x: 40, y: 210, kind: "settlement" },
-      { id: "hairegion", name: "廃区画", x: 170, y: 150, kind: "danger" },
-      { id: "yaketa", name: "焼けた集落跡", x: 90, y: 60, kind: "ruin" },
-      { id: "saidan", name: "招竜の祭壇", x: 330, y: 70, kind: "shrine" },
+      { id: "haiberi", name: "灰縁の集落", x: 30, y: 220, kind: "settlement" },
+      { id: "hairegion", name: "廃区画", x: 160, y: 160, kind: "danger" },
+      { id: "yaketa", name: "焼けた集落跡", x: 80, y: 55, kind: "ruin" },
+      { id: "michi", name: "祭壇へ続く道", x: 260, y: 110, kind: "danger" },
+      { id: "saidan", name: "招竜の祭壇", x: 360, y: 55, kind: "shrine" },
     ],
     edges: [
       { from: "haiberi", to: "hairegion", steps: 10, encounterRate: 0 },
       { from: "hairegion", to: "yaketa", steps: 10, encounterRate: 0 },
-      { from: "hairegion", to: "saidan", steps: 10, encounterRate: 0 },
+      { from: "hairegion", to: "michi", steps: 10, encounterRate: 0 },
+      { from: "michi", to: "saidan", steps: 15, encounterRate: 0.2, enemy: "straggler_bandit" },
     ],
   };
 
-  // 廃区画の内部。左から入り、右か上の出口から抜ける（歩数・エンカウントはここで消化する）。
+  // 廃区画の内部。左から入り、複数の出口へ抜ける（歩数・エンカウントはここで消化する）。
+  // 「祭壇方面」は最終目的地の祭壇へ直接ではなく、途中の中継ノード（祭壇へ続く道＝michi）へ
+  // 出る＝先で道がどう分岐していてもおかしくない、という含みを持たせる。
   var HAIREGION_AREA = {
     label: "廃区画",
-    width: 320, height: 220,
-    start: { x: 20, y: 190 },
+    width: 480, height: 320,
+    start: { x: 25, y: 280 },
     obstacles: [
-      { x: 90, y: 90, r: 16 },
-      { x: 150, y: 160, r: 18 },
-      { x: 225, y: 55, r: 14 },
-      { x: 70, y: 145, r: 11 },
+      { x: 120, y: 130, r: 20 },
+      { x: 220, y: 220, r: 24 },
+      { x: 330, y: 90, r: 18 },
+      { x: 90, y: 220, r: 14 },
+      { x: 260, y: 140, r: 16 },
+      { x: 380, y: 230, r: 15 },
     ],
     zones: [
-      { id: "danger1", kind: "danger", x: 155, y: 95, r: 22, encounterRate: 0.5, label: "危険な瓦礫の陰" },
-      { id: "chest1", kind: "chest", x: 55, y: 125, r: 15, label: "宝箱" },
-      { id: "exit_yaketa", kind: "exit", to: "yaketa", x: 160, y: 22, r: 18, label: "焼けた集落跡へ（寄り道）" },
-      { id: "exit_saidan", kind: "exit", to: "saidan", x: 300, y: 110, r: 20, label: "招竜の祭壇へ" },
+      { id: "danger1", kind: "danger", x: 235, y: 155, r: 28, encounterRate: 0.5, label: "危険な瓦礫の陰" },
+      { id: "chest1", kind: "chest", x: 70, y: 105, r: 16, label: "宝箱" },
+      { id: "exit_yaketa", kind: "exit", to: "yaketa", x: 220, y: 25, r: 20, label: "焼けた集落跡方面（寄り道）" },
+      { id: "exit_michi", kind: "exit", to: "michi", x: 455, y: 160, r: 24, label: "祭壇方面" },
     ],
   };
 
@@ -119,7 +125,7 @@ RPG.Chapter1 = (function () {
   // 二度目以降は既に踏破済みなので、隣接ノードとして直接クリックで行き来できる。
   function onWorldArrive(id, firstVisit, next) {
     if (id === "hairegion" && !hairegionCleared) { enterHairegion(); return; }
-    if (id === "saidan") { Story.play(app, roadBeats, afterRoad); return; }
+    if (id === "michi" && firstVisit) { Story.play(app, roadBeats, afterRoad); return; }
     if (id === "yaketa" && firstVisit) {
       Story.play(app, [{ kind: "narration", text: "集落跡の中央に、黒く焼け焦げた石碑が残っていた。文字は読み取れない。ただ、ここで何かが起き、住人が忽然といなくなったことだけは伝わってくる。" }], next);
       return;
@@ -165,6 +171,7 @@ RPG.Chapter1 = (function () {
 
   function afterTeamUp() {
     game.party.push(Battle.createCombatant("tzelf", false));
+    worldMap.setCurrent("saidan");
     shrineDungeon = Explore.start(app, SHRINE_DUNGEON, game, {
       onExit: function () {
         if (game.flags.kagariDefeated) { afterDungeonExit(); return; }
