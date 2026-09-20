@@ -120,6 +120,40 @@ RPG.Explore = (function () {
     this.step(false);
   };
 
+  // 脇の開口部の先を実際に何マス覗けるか調べる（上限PEEK_MAXまで）
+  var PEEK_MAX = 2;
+  function sidePeekDepth(self, x, y, dx, dy) {
+    var depth = 0;
+    while (depth < PEEK_MAX) {
+      var nx = x + dx * (depth + 1), ny = y + dy * (depth + 1);
+      if (self.isBlocking(self.tileAt(nx, ny))) break;
+      depth++;
+    }
+    return depth;
+  }
+
+  // 脇の開口部を、実際に覗けた奥行き分だけ横に広げて描く。
+  // peekDepth が浅い（すぐ突き当たる）ほど狭い窪みに、深い（まだ続く）ほど
+  // 広く開けた通路に見えるようにし、突き当たりが分かる時はその壁も描く。
+  function drawSidePeek(svg, f0, f1, side, peekDepth) {
+    var sign = side === "left" ? -1 : 1;
+    var nearX = side === "left" ? f0.l : f0.r;
+    var farX = side === "left" ? f1.l : f1.r;
+    var ext = 22 * (peekDepth + 1);
+    var outNearX = Math.max(0, Math.min(400, nearX + sign * ext));
+    var outFarX = Math.max(0, Math.min(400, farX + sign * ext * 0.55));
+    svg.appendChild(el("polygon", {
+      points: [nearX, f0.b, outNearX, f0.b - 3, outFarX, f1.b - 2, farX, f1.b].join(" "),
+      fill: "#1c1812", opacity: 0.9,
+    }));
+    if (peekDepth < PEEK_MAX) {
+      svg.appendChild(el("polygon", {
+        points: [outNearX, f0.t, outFarX, f1.t, outFarX, f1.b - 2, outNearX, f0.b - 3].join(" "),
+        fill: "#4a4438", stroke: "#201c16", "stroke-width": 1,
+      }));
+    }
+  }
+
   // ── 擬似3D描画 ──
   Dungeon.prototype.renderScene = function () {
     // 直前の操作（前進/後退/旋回/衝突）に応じたアニメーションを毎回付け直すことで、
@@ -182,13 +216,16 @@ RPG.Explore = (function () {
           x: f0.l + 4, y: (f0.t + f1.t) / 2, width: 6, height: 6, fill: "#8a7a5a", opacity: 0.5,
         }));
       }
-      // 壁がない側＝脇道への開口部。何も描かないと欠落に見えるので、
-      // 境界の縁取りだけ薄く引いて「ここが通路の切れ目」だと分かるようにする
+      // 壁がない側＝脇道の開口部。実際にその先へ何マス進めるかを見て、
+      // 行き止まりならその突き当たりの壁まで、続いているならその分だけ広く覗き込ませる
+      // （見せかけの縁取りではなく、実際のマス目の形を反映した描画にする）
       if (!this.isBlocking(leftTile)) {
-        svg.appendChild(el("line", { x1: f0.l, y1: f0.b, x2: f1.l, y2: f1.b, stroke: "#4a4438", "stroke-width": 1.5, opacity: 0.55 }));
+        var leftPeek = sidePeekDepth(this, cellHere.x, cellHere.y, -rv.dx, -rv.dy);
+        drawSidePeek(svg, f0, f1, "left", leftPeek);
       }
       if (!this.isBlocking(rightTile)) {
-        svg.appendChild(el("line", { x1: f0.r, y1: f0.b, x2: f1.r, y2: f1.b, stroke: "#4a4438", "stroke-width": 1.5, opacity: 0.55 }));
+        var rightPeek = sidePeekDepth(this, cellHere.x, cellHere.y, rv.dx, rv.dy);
+        drawSidePeek(svg, f0, f1, "right", rightPeek);
       }
     }
 
