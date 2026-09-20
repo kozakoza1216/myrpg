@@ -360,17 +360,22 @@ RPG.Explore = (function () {
     this.el.appendChild(wrap);
 
     // 方向転換は、絵そのものを動かすアニメーションではなく、一瞬の暗転から
-    // 元に戻るトランジションで表現する。要素をライブDOMに挿入する前に
-    // opacityを2回書き換えると、最初の値が一度も描画されないままブラウザが
-    // まとめて後の値だけを反映してしまい、トランジションが発火しなかった。
-    // 挿入後にreflowを強制してから値を変えることで、確実に発火させる。
+    // 元に戻るトランジションで表現する。
+    // 暗くする方（0→0.85）も、戻す方（0.85→0）と同じようにきちんと
+    // トランジションさせないと、暗転そのものは一瞬で切り替わり、
+    // 戻る方だけが滑らかという中途半端な見え方になってしまう。
+    // 要素挿入直後の初期値（0のまま）からreflowを挟んで0.85へ変える
+    // ことで暗くなる過程も、少し間を置いてから0へ戻す過程も、
+    // どちらもCSSのtransitionとして発火させる。
     if (this.lastAction === "turn-left" || this.lastAction === "turn-right") {
       var flash = document.createElement("div");
       flash.className = "dungeon-flash";
-      flash.style.opacity = "0.85";
       frame.appendChild(flash);
       void flash.offsetHeight;
-      flash.style.opacity = "0";
+      flash.style.opacity = "0.85";
+      setTimeout(function () {
+        flash.style.opacity = "0";
+      }, 190);
     }
   };
 
