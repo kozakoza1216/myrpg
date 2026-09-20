@@ -404,5 +404,155 @@ RPG.Explore = (function () {
     return m;
   }
 
-  return { start: start, startWorldMap: startWorldMap };
+  // ── ノード内部の自由移動エリア（グリッド不使用） ──
+  // マス目には区切らず、クリックした座標へ直接歩く。位置は連続座標(x,y)で持ち、
+  // 障害物・危険域・宝箱・出口は円形の当たり判定として定義する。
+  // data: { width, height, start:{x,y}, obstacles:[{x,y,r}], zones:[{id,kind,x,y,r,encounterRate?}] }
+  function FreeArea(containerEl, data, gameState, callbacks) {
+    this.el = containerEl;
+    this.data = data;
+    this.game = gameState;
+    this.cb = callbacks || {};
+    this.pos = { x: data.start.x, y: data.start.y };
+    this.taken = {};
+  }
+
+  FreeArea.prototype.isBlocked = function (x, y) {
+    var margin = 12;
+    if (x < margin || x > this.data.width - margin || y < margin || y > this.data.height - margin) return true;
+    var obstacles = this.data.obstacles || [];
+    for (var i = 0; i < obstacles.length; i++) {
+      var o = obstacles[i];
+      if (Math.hypot(x - o.x, y - o.y) < o.r) return true;
+    }
+    return false;
+  };
+
+  FreeArea.prototype.zoneAt = function (x, y) {
+    var zones = this.data.zones || [];
+    for (var i = 0; i < zones.length; i++) {
+      var z = zones[i];
+      if (this.taken[z.id]) continue;
+      if (Math.hypot(x - z.x, y - z.y) < z.r) return z;
+    }
+    return null;
+  };
+
+  FreeArea.prototype.moveTo = function (tx, ty) {
+    var self = this;
+    if (this.isBlocked(tx, ty)) { this.flash("そこには進めない。"); return; }
+    var dist = Math.hypot(tx - this.pos.x, ty - this.pos.y);
+    this.pos = { x: tx, y: ty };
+    this.game.steps += Math.max(1, Math.round(dist / 18));
+    this.render();
+    var zone = this.zoneAt(tx, ty);
+    if (zone) this.enterZone(zone);
+  };
+
+  FreeArea.prototype.enterZone = function (zone) {
+    var self = this;
+    if (zone.kind === "exit") { if (this.cb.onExit) this.cb.onExit(); return; }
+    if (zone.kind === "chest") {
+      this.taken[zone.id] = true;
+      if (this.cb.onChest) this.cb.onChest(zone.id, function () { self.render(); });
+      return;
+    }
+    if (zone.kind === "danger") {
+      var rate = zone.encounterRate === undefined ? 0.4 : zone.encounterRate;
+      if (Math.random() < rate && this.cb.onEncounter) { this.cb.onEncounter(function () { self.render(); }); }
+    }
+  };
+
+  FreeArea.prototype.flash = function (msg) {
+    this.transientMsg = msg;
+    this.render();
+    var self = this;
+    clearTimeout(this._flashTimer);
+    this._flashTimer = setTimeout(function () { self.transientMsg = null; self.render(); }, 1200);
+  };
+
+  function drawFreeAreaObstacle(g, o) {
+    g.appendChild(el("polygon", {
+      points: pts18(o.x, o.y, o.r, [0.9, 0.4, 0.75, -0.1, 0.15, -0.15, -0.4, 0.5, -0.1, 0.9, 0.6, 0.85]),
+      fill: "#4a4038", stroke: "#241f19", "stroke-width": 1.5,
+    }));
+  }
+  // 中心(cx,cy)・半径rを基準にした比率座標列(x1,y1,...)をpolygon points文字列へ
+  function pts18(cx, cy, r, frac) {
+    var out = [];
+    for (var i = 0; i < frac.length; i += 2) out.push((cx + frac[i] * r) + "," + (cy + frac[i + 1] * r));
+    return out.join(" ");
+  }
+
+  function drawFreeAreaZone(g, z) {
+    if (z.kind === "danger") {
+      g.appendChild(el("circle", { cx: z.x, cy: z.y, r: z.r, fill: "rgba(224,96,44,0.16)", stroke: "#8a3020", "stroke-width": 1.5, "stroke-dasharray": "4,3" }));
+      g.appendChild(el("polyline", { points: pts18(z.x, z.y, z.r, [-0.5, -0.5, 0.1, 0, -0.3, 0.3, 0.5, 0.6]), fill: "none", stroke: "#e0602c", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+    } else if (z.kind === "chest") {
+      g.appendChild(el("rect", { x: z.x - 10, y: z.y - 7, width: 20, height: 14, fill: "#8a6a30", stroke: "#4a3a28", "stroke-width": 1.5 }));
+      g.appendChild(el("rect", { x: z.x - 10, y: z.y - 12, width: 20, height: 7, fill: "#a8823c", stroke: "#4a3a28", "stroke-width": 1.5 }));
+    } else if (z.kind === "exit") {
+      g.appendChild(el("rect", { x: z.x - 3, y: z.y - 14, width: 6, height: 28, fill: "#d8a860" }));
+      g.appendChild(el("rect", { x: z.x - 13, y: z.y - 17, width: 26, height: 5, fill: "#d8a860" }));
+    }
+    if (z.label) {
+      var t = el("text", { x: z.x, y: z.y + z.r + 12, "text-anchor": "middle", fill: "#c8b898", "font-size": 10 });
+      t.textContent = z.label;
+      g.appendChild(t);
+    }
+  }
+
+  FreeArea.prototype.render = function () {
+    var self = this;
+    this.el.innerHTML = "";
+    var wrap = document.createElement("div");
+    wrap.className = "dungeon-wrap";
+
+    var hud = document.createElement("div");
+    hud.className = "dungeon-hud";
+    hud.textContent = (this.data.label || "") + "　歩数 " + this.game.steps + " / " + this.game.stepLimit;
+    wrap.appendChild(hud);
+
+    var svg = el("svg", { viewBox: "0 0 " + this.data.width + " " + this.data.height, class: "freearea" });
+    svg.appendChild(el("rect", { x: 0, y: 0, width: this.data.width, height: this.data.height, fill: "#26221c" }));
+
+    (this.data.obstacles || []).forEach(function (o) { drawFreeAreaObstacle(svg, o); });
+    (this.data.zones || []).forEach(function (z) { if (!self.taken[z.id]) drawFreeAreaZone(svg, z); });
+
+    var pg = el("g", { class: "freearea-player", transform: "translate(" + this.pos.x + "," + this.pos.y + ")" });
+    pg.appendChild(el("polygon", { points: "0,10 -6,20 6,20", fill: "#3a6bab", stroke: "#e8dcc8", "stroke-width": 1.5 }));
+    pg.appendChild(el("circle", { cx: 0, cy: 6, r: 6, fill: "#e8dcc8", stroke: "#3a6bab", "stroke-width": 1.5 }));
+    svg.appendChild(pg);
+
+    svg.onclick = function (evt) {
+      var rect = svg.getBoundingClientRect();
+      var x = (evt.clientX - rect.left) * (self.data.width / rect.width);
+      var y = (evt.clientY - rect.top) * (self.data.height / rect.height);
+      self.moveTo(x, y);
+    };
+
+    wrap.appendChild(svg);
+
+    if (this.transientMsg) {
+      var msg = document.createElement("div");
+      msg.className = "dungeon-msg";
+      msg.textContent = this.transientMsg;
+      wrap.appendChild(msg);
+    }
+
+    var hint = document.createElement("p");
+    hint.className = "footnote";
+    hint.textContent = "マップ内をクリックすると、その場所まで歩きます。";
+    wrap.appendChild(hint);
+
+    this.el.appendChild(wrap);
+  };
+
+  function startFreeArea(containerEl, data, gameState, callbacks) {
+    var f = new FreeArea(containerEl, data, gameState, callbacks);
+    f.render();
+    return f;
+  }
+
+  return { start: start, startWorldMap: startWorldMap, startFreeArea: startFreeArea };
 })();

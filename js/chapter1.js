@@ -25,16 +25,20 @@ RPG.Chapter1 = (function () {
     ],
   };
 
-  // 廃区画の内部（局所ダンジョン）。危険地帯としてのエンカウントはここに内包する。
+  // 廃区画の内部。グリッドではなく、クリックした座標へ自由に歩ける連続座標のエリア。
   var HAIREGION_AREA = {
-    id: "hairegion",
-    start: { x: 2, y: 4, dir: 0 },
-    grid: [
-      ["wall", "wall", "wall", "wall", "wall"],
-      ["wall", "floor", "floor", "floor", "wall"],
-      ["wall", "encounter", "wall", "chest", "wall"],
-      ["wall", "floor", "floor", "floor", "wall"],
-      ["wall", "wall", "exit", "wall", "wall"],
+    label: "廃区画",
+    width: 320, height: 220,
+    start: { x: 70, y: 180 },
+    obstacles: [
+      { x: 150, y: 120, r: 28 },
+      { x: 230, y: 60, r: 22 },
+      { x: 90, y: 55, r: 18 },
+    ],
+    zones: [
+      { id: "danger1", kind: "danger", x: 190, y: 150, r: 26, encounterRate: 0.5, label: "危険な瓦礫の陰" },
+      { id: "chest1", kind: "chest", x: 270, y: 130, r: 18, label: "宝箱" },
+      { id: "exit1", kind: "exit", x: 40, y: 200, r: 20, label: "広域マップへ戻る" },
     ],
   };
 
@@ -119,15 +123,13 @@ RPG.Chapter1 = (function () {
 
   function enterHairegion() {
     hairegionCleared = true;
-    hairegionArea = Explore.start(app, HAIREGION_AREA, game, {
+    hairegionArea = Explore.startFreeArea(app, HAIREGION_AREA, game, {
       onExit: function () { worldMap.render(); },
-      onChest: function () {
-        Story.play(app, [{ kind: "narration", text: "瓦礫の下から、色褪せた家族写真が一枚出てきた。誰のものかは、もう分からない。" }], function () {
-          hairegionArea.render();
-        });
+      onChest: function (zoneId, next) {
+        Story.play(app, [{ kind: "narration", text: "瓦礫の下から、色褪せた家族写真が一枚出てきた。誰のものかは、もう分からない。" }], next);
       },
-      onEncounter: function () {
-        runBattle(["straggler_bandit"], "はぐれ賊", false, function () { hairegionArea.render(); });
+      onEncounter: function (next) {
+        runBattle(["straggler_bandit"], "はぐれ賊", false, next);
       },
     });
   }
