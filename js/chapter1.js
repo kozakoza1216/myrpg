@@ -191,6 +191,11 @@ RPG.Chapter1 = (function () {
       Story.play(app, [{ kind: "narration", text: "集落跡の中央に、黒く焼け焦げた石碑が残っていた。文字は読み取れない。ただ、ここで何かが起き、住人が忽然といなくなったことだけは伝わってくる。" }], next);
       return;
     }
+    // 祭壇は出口タイルで一度外へ抜けられるが、その後ノードとして
+    // クリックし直しても分岐がなくnext()止まりになり、中へ二度と
+    // 戻れなくなっていた。出た時にいたフロア（記憶した探索状況込み）へ
+    // 再入場させる。
+    if (id === "saidan") { enterShrineFloor(shrineFloorId); return; }
     next();
   }
 
