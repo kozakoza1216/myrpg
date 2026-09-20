@@ -156,9 +156,11 @@ RPG.Explore = (function () {
     // 内側の縁は突き当たりの壁の実際の端（farX）にぴったり合わせる。
     // 台形時代の名残りでoutFarX（farXよりさらに外側にオフセットした点）を
     // 使っていたため、突き当たりの壁との間に埋まらない隙間ができていた。
+    // 正面を向いた壁という点では突き当たりの壁と同じ種類なので、同じ色を使う
+    // （視線と平行な側壁の色を流用すると、ここだけ別の壁に見えてしまう）。
     svg.appendChild(el("polygon", {
       points: [outNearX, f1.t, farX, f1.t, farX, f1.b, outNearX, f1.b - 2].join(" "),
-      fill: "#4a4438", stroke: "#201c16", "stroke-width": 1,
+      fill: "#5c5446", stroke: "#201c16", "stroke-width": 1,
     }));
   }
 
@@ -208,9 +210,12 @@ RPG.Explore = (function () {
       // 以前はここを手前の枠まで無理に広げていたが、脇の開口部は今はdrawSidePeekが
       // 実際の形を描くようになっているので、その代わりに壁を膨らませる必要はなく、
       // むしろ角のような場面で不自然に巨大な壁になってしまっていた
+      // 色は周りの側壁（#4a4438／#5a5244）と同じ系統の色みに揃える。
+      // 以前は暖色寄りの明るい色（#6a6050）を使っていたため、
+      // 同じ壁のはずなのに正面だけ別の材質に見えてしまっていた。
       svg.appendChild(el("polygon", {
         points: [bf0.l, bf0.t, bf0.r, bf0.t, bf0.r, bf0.b, bf0.l, bf0.b].join(" "),
-        fill: "#6a6050", stroke: "#201c16", "stroke-width": 1.5,
+        fill: "#5c5446", stroke: "#201c16", "stroke-width": 1.5,
       }));
     }
 
