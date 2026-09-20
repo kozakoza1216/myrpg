@@ -529,7 +529,7 @@ RPG.Explore = (function () {
   FreeArea.prototype.enterZone = function (zone) {
     var self = this;
     this.detachKeyboard();
-    if (zone.kind === "exit") { if (this.cb.onExit) this.cb.onExit(); return; }
+    if (zone.kind === "exit") { if (this.cb.onExit) this.cb.onExit(zone.to); return; }
     if (zone.kind === "chest") {
       this.taken[zone.id] = true;
       if (this.cb.onChest) this.cb.onChest(zone.id, function () { self.render(); });
