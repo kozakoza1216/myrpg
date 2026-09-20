@@ -138,7 +138,7 @@ RPG.Explore = (function () {
     // 割れた月
     svg.appendChild(el("circle", { cx: 90, cy: 40, r: 14, fill: "#cfc7b0", opacity: 0.8 }));
     svg.appendChild(el("circle", { cx: 96, cy: 42, r: 14, fill: "#3a3630", opacity: 0.5 }));
-    svg.appendChild(el("rect", { x: 130, y: 130, width: 400, height: 130, fill: "#26221c" })); // 床
+    svg.appendChild(el("rect", { x: 0, y: 130, width: 400, height: 130, fill: "#26221c" })); // 床
 
     var frames = [
       { l: 0, r: 400, t: 40, b: 220 },
@@ -193,10 +193,11 @@ RPG.Explore = (function () {
     }
 
     if (blockedAt >= 0) {
-      var bf = frames[blockedAt + 1] || frames[frames.length - 1];
       var bf0 = frames[blockedAt];
+      // 左右の幅は手前(frames[0])いっぱいまで広げる。塞がれた奥行きなりの幅（frames[blockedAt]）
+      // だけで描くと、脇に何も壁が無い＝素通しの空白に見えてしまい「壁が浮いている」ように見えるため
       svg.appendChild(el("polygon", {
-        points: [bf0.l, bf0.t, bf0.r, bf0.t, bf0.r, bf0.b, bf0.l, bf0.b].join(" "),
+        points: [frames[0].l, bf0.t, frames[0].r, bf0.t, frames[0].r, bf0.b, frames[0].l, bf0.b].join(" "),
         fill: "#6a6050", stroke: "#201c16", "stroke-width": 1.5,
       }));
     }
