@@ -324,6 +324,17 @@ RPG.Explore = (function () {
     arrive();
   };
 
+  // ノード内部（局所エリア）を通り抜けた結果として、経路を辿らず直接そのノードへ
+  // 到着したことにする。エッジの消耗・エンカウント判定は内部側で既に済んでいる。
+  WorldMap.prototype.arriveAt = function (nodeId) {
+    var self = this;
+    var firstVisit = !this.visited[nodeId];
+    this.current = nodeId;
+    this.visited[nodeId] = true;
+    if (this.cb.onArrive) { this.cb.onArrive(nodeId, firstVisit, function () { self.render(); }); return; }
+    this.render();
+  };
+
   // ノードの種別ごとの簡易ピクトグラムアイコン
   function drawSettlementIcon(g) {
     g.appendChild(el("polygon", { points: "-9,10 -9,-3 0,-12 9,-3 9,10", fill: "#d8a860", stroke: "#4a3a28", "stroke-width": 1.5 }));

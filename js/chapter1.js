@@ -5,8 +5,28 @@ RPG.Chapter1 = (function () {
   var Story = RPG.Story, Battle = RPG.Battle, Explore = RPG.Explore, Data = RPG.Data;
   var app, game, onChapterEnd;
 
-  // 廃区画＝村から祭壇へ向かう道中そのもの。左から入り、通り抜けて右か上の出口から先へ進む
-  // （寄り道の焼けた集落跡はそのまま戻ってきて祭壇側へ抜け直す。広域マップへは戻らない）。
+  // 広域マップ＝街・集落・危険地帯のノードグラフ（PLAN.md §8-1）。
+  // 廃区画へ初めて入るときだけ内部（HAIREGION_AREA）を実際に歩き、
+  // どちらの出口から抜けたかで到着ノードが決まる（＝踏破＝広域マップ上を前進する）。
+  // 二度目以降は既に通り抜け済みなので、隣接ノードとして直接クリックで行き来できる。
+  var WORLD = {
+    label: "地下世界・南方区画",
+    width: 400, height: 260,
+    start: "haiberi",
+    nodes: [
+      { id: "haiberi", name: "灰縁の集落", x: 40, y: 210, kind: "settlement" },
+      { id: "hairegion", name: "廃区画", x: 170, y: 150, kind: "danger" },
+      { id: "yaketa", name: "焼けた集落跡", x: 90, y: 60, kind: "ruin" },
+      { id: "saidan", name: "招竜の祭壇", x: 330, y: 70, kind: "shrine" },
+    ],
+    edges: [
+      { from: "haiberi", to: "hairegion", steps: 10, encounterRate: 0 },
+      { from: "hairegion", to: "yaketa", steps: 10, encounterRate: 0 },
+      { from: "hairegion", to: "saidan", steps: 10, encounterRate: 0 },
+    ],
+  };
+
+  // 廃区画の内部。左から入り、右か上の出口から抜ける（歩数・エンカウントはここで消化する）。
   var HAIREGION_AREA = {
     label: "廃区画",
     width: 320, height: 220,
@@ -81,12 +101,36 @@ RPG.Chapter1 = (function () {
     { kind: "narration", text: "門を出ると、荒れ果てた広域の景色が広がった。目的地は招竜の祭壇。もう振り返る場所はない。" },
   ];
 
+  var worldMap = null;
   var hairegionArea = null;
-  var yaketaVisited = false;
+  var hairegionCleared = false;
 
   function afterKuji() {
+    worldMap = Explore.startWorldMap(app, WORLD, game, {
+      onArrive: onWorldArrive,
+      onEncounter: function (enemyId, next) {
+        runBattle([enemyId || "straggler_bandit"], "はぐれ賊", false, next);
+      },
+    });
+  }
+
+  // 広域マップ上のノードに着いた時の処理。廃区画は初回だけ内部を歩かせ、
+  // どちらの出口へ抜けたかで実際の到着ノードを決める（＝踏破が前進そのもの）。
+  // 二度目以降は既に踏破済みなので、隣接ノードとして直接クリックで行き来できる。
+  function onWorldArrive(id, firstVisit, next) {
+    if (id === "hairegion" && !hairegionCleared) { enterHairegion(); return; }
+    if (id === "saidan") { Story.play(app, roadBeats, afterRoad); return; }
+    if (id === "yaketa" && firstVisit) {
+      Story.play(app, [{ kind: "narration", text: "集落跡の中央に、黒く焼け焦げた石碑が残っていた。文字は読み取れない。ただ、ここで何かが起き、住人が忽然といなくなったことだけは伝わってくる。" }], next);
+      return;
+    }
+    next();
+  }
+
+  function enterHairegion() {
+    hairegionCleared = true;
     hairegionArea = Explore.startFreeArea(app, HAIREGION_AREA, game, {
-      onExit: onHairegionExit,
+      onExit: function (to) { worldMap.arriveAt(to); },
       onChest: function (zoneId, next) {
         Story.play(app, [{ kind: "narration", text: "瓦礫の下から、色褪せた家族写真が一枚出てきた。誰のものかは、もう分からない。" }], next);
       },
@@ -94,18 +138,6 @@ RPG.Chapter1 = (function () {
         runBattle(["straggler_bandit"], "はぐれ賊", false, next);
       },
     });
-  }
-
-  function onHairegionExit(to) {
-    if (to === "saidan") { Story.play(app, roadBeats, afterRoad); return; }
-    if (to === "yaketa" && !yaketaVisited) {
-      yaketaVisited = true;
-      Story.play(app, [{ kind: "narration", text: "集落跡の中央に、黒く焼け焦げた石碑が残っていた。文字は読み取れない。ただ、ここで何かが起き、住人が忽然といなくなったことだけは伝わってくる。" }], function () {
-        hairegionArea.render();
-      });
-      return;
-    }
-    hairegionArea.render();
   }
 
   var roadBeats = [
@@ -136,7 +168,7 @@ RPG.Chapter1 = (function () {
     shrineDungeon = Explore.start(app, SHRINE_DUNGEON, game, {
       onExit: function () {
         if (game.flags.kagariDefeated) { afterDungeonExit(); return; }
-        shrineDungeon.render();
+        worldMap.render();
       },
       onEvent: onDungeonEvent,
       onChest: onDungeonChest,
