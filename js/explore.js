@@ -275,44 +275,130 @@ RPG.Explore = (function () {
     return d;
   }
 
-  // ── 広域マップ（ノードクリック移動） ──
-  function renderWorldMap(containerEl, worldData, gameState, onTravel) {
-    containerEl.innerHTML = "";
-    var wrap = document.createElement("div");
-    wrap.className = "worldmap-wrap";
-    var hud = document.createElement("div");
-    hud.className = "dungeon-hud";
-    hud.textContent = "歩数 " + gameState.steps + " / " + gameState.stepLimit;
-    wrap.appendChild(hud);
-
-    var svg = el("svg", { viewBox: "0 0 400 300", class: "worldmap" });
-    worldData.edges.forEach(function (edge) {
-      var a = worldData.nodes.filter(function (n) { return n.id === edge.from; })[0];
-      var b = worldData.nodes.filter(function (n) { return n.id === edge.to; })[0];
-      if (!a || !b) return;
-      svg.appendChild(el("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "#6a5638", "stroke-width": 2 }));
-    });
-    worldData.nodes.forEach(function (node) {
-      var reachable = gameState.visitedNodes[node.id] || worldData.edges.some(function (e) {
-        return (e.from === node.id || e.to === node.id) && (gameState.visitedNodes[e.from] || gameState.visitedNodes[e.to]);
-      });
-      var isTarget = reachable && node.id !== gameState.currentNode;
-      var g = el("g", { class: isTarget ? "map-node clickable" : "map-node" });
-      if (isTarget) {
-        g.appendChild(el("circle", { cx: node.x, cy: node.y, r: 16, fill: "transparent", "pointer-events": "all" }));
-      }
-      g.appendChild(el("circle", { cx: node.x, cy: node.y, r: node.id === gameState.currentNode ? 10 : 7, fill: gameState.visitedNodes[node.id] ? "#d8a860" : "#5a5244" }));
-      var label = el("text", { x: node.x, y: node.y - 12, "text-anchor": "middle", fill: "#e8dcc8", "font-size": 11 });
-      label.textContent = node.name;
-      g.appendChild(label);
-      if (isTarget) {
-        g.onclick = function () { onTravel(node); };
-      }
-      svg.appendChild(g);
-    });
-    wrap.appendChild(svg);
-    containerEl.appendChild(wrap);
+  // ── 広域マップ（見下ろし・自由移動） ──
+  // PLAN.md §8-1「広域マップの移動は、ノード間を結ぶ経路を進む形式（グリッド or ノードグラフ）」
+  // のうち、グリッド歩行を採用。ノードをクリックして飛ぶのではなく、実際にタイルを踏んで進む。
+  function Overworld(containerEl, data, gameState, callbacks) {
+    this.el = containerEl;
+    this.data = data;
+    this.game = gameState;
+    this.cb = callbacks || {};
+    this.x = data.start.x;
+    this.y = data.start.y;
+    this.visited = {};
+    this.markVisited(this.x, this.y);
   }
 
-  return { start: start, renderWorldMap: renderWorldMap };
+  Overworld.prototype.tileAt = function (x, y) {
+    var row = this.data.grid[y];
+    if (!row) return "wall";
+    var t = row[x];
+    return t === undefined ? "wall" : t;
+  };
+
+  Overworld.prototype.markVisited = function (x, y) { this.visited[x + "," + y] = true; };
+  Overworld.prototype.isBlocking = function (tile) { return tile === "wall"; };
+
+  Overworld.prototype.moveBy = function (dx, dy) {
+    var tx = this.x + dx, ty = this.y + dy;
+    var tile = this.tileAt(tx, ty);
+    if (this.isBlocking(tile)) { this.flash("これ以上は進めない。"); return; }
+    this.x = tx; this.y = ty;
+    this.markVisited(this.x, this.y);
+    this.game.steps += 1;
+    var left = this.onEnterTile(tile);
+    if (!left) this.render();
+  };
+
+  Overworld.prototype.flash = function (msg) {
+    this.transientMsg = msg;
+    this.render();
+    var self = this;
+    clearTimeout(this._flashTimer);
+    this._flashTimer = setTimeout(function () { self.transientMsg = null; self.render(); }, 1200);
+  };
+
+  // 戻り値 true = 画面遷移が起きた（呼び出し側は自分のrender()を呼んではいけない）
+  Overworld.prototype.onEnterTile = function (tile) {
+    if (typeof tile !== "string") return false;
+    if (tile.indexOf("arrive:") === 0) {
+      if (this.cb.onArrive) { this.cb.onArrive(tile.slice(7)); return true; }
+      return false;
+    }
+    if (tile === "danger") {
+      var rate = this.data.encounterRate === undefined ? 0.22 : this.data.encounterRate;
+      if (Math.random() < rate && this.cb.onEncounter) { this.cb.onEncounter(); return true; }
+    }
+    return false;
+  };
+
+  var TILE_COLOR = { plain: "#4a4030", danger: "#5a3428", wall: "#1c1712" };
+
+  Overworld.prototype.render = function () {
+    var self = this;
+    this.el.innerHTML = "";
+    var wrap = document.createElement("div");
+    wrap.className = "worldmap-wrap";
+
+    var hud = document.createElement("div");
+    hud.className = "dungeon-hud";
+    hud.textContent = (this.data.label || "") + "　歩数 " + this.game.steps + " / " + this.game.stepLimit;
+    wrap.appendChild(hud);
+
+    var size = 34;
+    var rows = this.data.grid.length, cols = this.data.grid[0].length;
+    var svg = el("svg", { viewBox: "0 0 " + cols * size + " " + rows * size, class: "worldmap" });
+
+    for (var y = 0; y < rows; y++) {
+      for (var x = 0; x < cols; x++) {
+        var tile = this.tileAt(x, y);
+        var known = this.visited[x + "," + y];
+        var color = this.isBlocking(tile) ? TILE_COLOR.wall : (tile === "danger" ? TILE_COLOR.danger : TILE_COLOR.plain);
+        if (!known) color = "#0c0906";
+        var isAdjacent = Math.abs(x - this.x) + Math.abs(y - this.y) === 1 && !this.isBlocking(tile);
+        var rect = el("rect", {
+          x: x * size, y: y * size, width: size - 2, height: size - 2, fill: color,
+          class: isAdjacent ? "map-node clickable" : "",
+        });
+        if (isAdjacent) rect.onclick = (function (dx, dy) { return function () { self.moveBy(dx, dy); }; })(x - this.x, y - this.y);
+        svg.appendChild(rect);
+        if (typeof tile === "string" && tile.indexOf("arrive:") === 0 && known) {
+          var label = el("text", { x: x * size + size / 2, y: y * size - 4, "text-anchor": "middle", fill: "#d8a860", "font-size": 10 });
+          label.textContent = this.data.labels && this.data.labels[tile.slice(7)] || "?";
+          svg.appendChild(label);
+        }
+      }
+    }
+    svg.appendChild(el("circle", { cx: this.x * size + size / 2, cy: this.y * size + size / 2, r: size / 3, fill: "#3a6bab", stroke: "#e8dcc8", "stroke-width": 2 }));
+
+    wrap.appendChild(svg);
+
+    if (this.transientMsg) {
+      var msg = document.createElement("div");
+      msg.className = "dungeon-msg";
+      msg.textContent = this.transientMsg;
+      wrap.appendChild(msg);
+    }
+
+    var controls = document.createElement("div");
+    controls.className = "dungeon-controls overworld-controls";
+    controls.appendChild(ctrlBtn("←", function () { self.moveBy(-1, 0); }));
+    var vgrid = document.createElement("div");
+    vgrid.className = "vgrid";
+    vgrid.appendChild(ctrlBtn("↑", function () { self.moveBy(0, -1); }));
+    vgrid.appendChild(ctrlBtn("↓", function () { self.moveBy(0, 1); }));
+    controls.appendChild(vgrid);
+    controls.appendChild(ctrlBtn("→", function () { self.moveBy(1, 0); }));
+    wrap.appendChild(controls);
+
+    this.el.appendChild(wrap);
+  };
+
+  function startOverworld(containerEl, data, gameState, callbacks) {
+    var o = new Overworld(containerEl, data, gameState, callbacks);
+    o.render();
+    return o;
+  }
+
+  return { start: start, startOverworld: startOverworld };
 })();

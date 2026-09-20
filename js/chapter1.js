@@ -5,15 +5,20 @@ RPG.Chapter1 = (function () {
   var Story = RPG.Story, Battle = RPG.Battle, Explore = RPG.Explore, Data = RPG.Data;
   var app, game, onChapterEnd;
 
-  var WORLD = {
-    nodes: [
-      { id: "haiberi", name: "灰縁の集落", x: 60, y: 230 },
-      { id: "hairegion", name: "廃区画", x: 190, y: 150 },
-      { id: "saidan", name: "招竜の祭壇", x: 330, y: 70 },
-    ],
-    edges: [
-      { from: "haiberi", to: "hairegion", steps: 35, encounterRate: 0.5, enemy: "straggler_bandit" },
-      { from: "hairegion", to: "saidan", steps: 45, encounterRate: 0, enemy: null },
+  var OVERWORLD = {
+    label: "廃区画",
+    start: { x: 3, y: 7 },
+    encounterRate: 0.22,
+    labels: { saidan: "招竜の祭壇" },
+    grid: [
+      ["wall", "wall", "wall", "wall", "wall", "arrive:saidan", "wall", "wall", "wall", "wall"],
+      ["wall", "plain", "plain", "danger", "danger", "danger", "plain", "plain", "plain", "wall"],
+      ["wall", "plain", "plain", "danger", "plain", "danger", "plain", "plain", "plain", "wall"],
+      ["wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "wall"],
+      ["wall", "plain", "danger", "danger", "plain", "danger", "danger", "plain", "plain", "wall"],
+      ["wall", "plain", "plain", "danger", "plain", "danger", "plain", "plain", "plain", "wall"],
+      ["wall", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "wall"],
+      ["wall", "wall", "wall", "plain", "wall", "wall", "wall", "wall", "wall", "wall"],
     ],
   };
 
@@ -32,7 +37,6 @@ RPG.Chapter1 = (function () {
 
   function run(appEl, gameState, endCallback) {
     app = appEl; game = gameState; onChapterEnd = endCallback;
-    game.visitedNodes[game.currentNode] = true;
     Story.play(app, introBeats, afterIntro);
   }
 
@@ -57,7 +61,7 @@ RPG.Chapter1 = (function () {
   }
 
   var kujiBeats = [
-    { kind: "narration", text: "たいした敵ではなかった。だが判定バトルの手応えは、確かに覚えた。" },
+    { kind: "narration", text: "たいした敵ではなかった。だが、得物を振るった感触は確かに手に残った。" },
     { kind: "header", text: "集落中央広場・くじ" },
     { kind: "narration", text: "招竜派の祭司カガリが、儀式めいた仕草で木札の箱を掲げる。集落中が息を呑んで見守る。" },
     { speaker: "カガリ", text: "此度の供物は……セオ、お前だ。" },
@@ -74,32 +78,17 @@ RPG.Chapter1 = (function () {
     { kind: "narration", text: "門を出ると、荒れ果てた広域の景色が広がった。目的地は招竜の祭壇。もう振り返る場所はない。" },
   ];
 
+  var overworld = null;
+
   function afterKuji() {
-    game.visitedNodes["hairegion"] = false;
-    Explore.renderWorldMap(app, WORLD, game, onTravel);
-  }
-
-  function onTravel(targetNode) {
-    var edge = WORLD.edges.filter(function (e) {
-      return (e.from === game.currentNode && e.to === targetNode.id) || (e.to === game.currentNode && e.from === targetNode.id);
-    })[0];
-    game.steps += edge ? edge.steps : 10;
-    game.currentNode = targetNode.id;
-    game.visitedNodes[targetNode.id] = true;
-
-    if (targetNode.id === "hairegion") {
-      if (edge && edge.enemy && Math.random() < edge.encounterRate) {
-        runBattle([edge.enemy], "はぐれ賊", false, function () { Explore.renderWorldMap(app, WORLD, game, onTravel); });
-        return;
-      }
-      Explore.renderWorldMap(app, WORLD, game, onTravel);
-      return;
-    }
-    if (targetNode.id === "saidan") {
-      Story.play(app, roadBeats, afterRoad);
-      return;
-    }
-    Explore.renderWorldMap(app, WORLD, game, onTravel);
+    overworld = Explore.startOverworld(app, OVERWORLD, game, {
+      onArrive: function (id) {
+        if (id === "saidan") Story.play(app, roadBeats, afterRoad);
+      },
+      onEncounter: function () {
+        runBattle(["straggler_bandit"], "はぐれ賊", false, function () { overworld.render(); });
+      },
+    });
   }
 
   var roadBeats = [
@@ -127,11 +116,10 @@ RPG.Chapter1 = (function () {
 
   function afterTeamUp() {
     game.party.push(Battle.createCombatant("tzelf", false));
-    game.visitedNodes["saidan_dungeon"] = true;
     shrineDungeon = Explore.start(app, SHRINE_DUNGEON, game, {
       onExit: function () {
         if (game.flags.kagariDefeated) { afterDungeonExit(); return; }
-        Explore.renderWorldMap(app, WORLD, game, onTravel);
+        overworld.render();
       },
       onEvent: onDungeonEvent,
       onChest: onDungeonChest,
@@ -182,7 +170,6 @@ RPG.Chapter1 = (function () {
 
   function afterDungeonExit() {
     game.companions.push("mira");
-    game.currentNode = "haiberi";
     Story.play(app, endBeats, function () { onChapterEnd(); });
   }
 

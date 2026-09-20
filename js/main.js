@@ -9,8 +9,6 @@ window.RPG = window.RPG || {};
       steps: 0, stepLimit: 3000,
       party: [RPG.Battle.createCombatant("seo", false)],
       companions: [],
-      visitedNodes: { haiberi: true },
-      currentNode: "haiberi",
       flags: {},
     };
   }
