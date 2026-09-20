@@ -134,7 +134,10 @@ RPG.Explore = (function () {
 
   // 脇の開口部を、実際に覗けた奥行き分だけ横に広げて描く。
   // peekDepth が浅い（すぐ突き当たる）ほど狭い窪みに、深い（まだ続く）ほど
-  // 広く開けた通路に見えるようにし、突き当たりが分かる時はその壁も描く。
+  // 広く開けた通路に見える。奥行きの上限（PEEK_MAX）に達した＝その先まだ
+  // 通路が続いている場合も、壁面を省略すると開口部がほぼ何も見えない
+  // （真っ暗闇に沈んで、あたかも行き止まりしかないかのように見える）ため、
+  // 実際に続いている以上、壁は必ず描く（奥へ続く通路として見せる）。
   function drawSidePeek(svg, f0, f1, side, peekDepth) {
     var sign = side === "left" ? -1 : 1;
     var nearX = side === "left" ? f0.l : f0.r;
@@ -146,12 +149,10 @@ RPG.Explore = (function () {
       points: [nearX, f0.b, outNearX, f0.b - 3, outFarX, f1.b - 2, farX, f1.b].join(" "),
       fill: "#1c1812", opacity: 0.9,
     }));
-    if (peekDepth < PEEK_MAX) {
-      svg.appendChild(el("polygon", {
-        points: [outNearX, f0.t, outFarX, f1.t, outFarX, f1.b - 2, outNearX, f0.b - 3].join(" "),
-        fill: "#4a4438", stroke: "#201c16", "stroke-width": 1,
-      }));
-    }
+    svg.appendChild(el("polygon", {
+      points: [outNearX, f0.t, outFarX, f1.t, outFarX, f1.b - 2, outNearX, f0.b - 3].join(" "),
+      fill: "#4a4438", stroke: "#201c16", "stroke-width": 1,
+    }));
   }
 
   // ── 擬似3D描画 ──
@@ -206,7 +207,14 @@ RPG.Explore = (function () {
       }));
     }
 
-    for (var depth = maxDepth; depth >= 0; depth--) {
+    // depth=blockedAt（突き当たりの壁そのもののマス）はループ対象に含めない。
+    // そのマスは壁で占められていて実在する空間ではないため、その「隣」を見て
+    // 側壁や覗き穴を描くと、壁の向こう側にたまたまある無関係な通路を誤って
+    // 壁の脇の開口部として描いてしまう（行き止まりの壁に幽霊のような
+    // 切れ込みが入って見えるバグの原因だった）。実際に描画すべきなのは
+    // 突き当たりより手前の、本当に歩けるマスの分だけ。
+    var loopStart = blockedAt >= 0 ? blockedAt - 1 : maxDepth;
+    for (var depth = loopStart; depth >= 0; depth--) {
       var f0 = frames[depth], f1 = frames[depth + 1];
       var cellHere = this.forward(depth);
       var rv = this.right();
