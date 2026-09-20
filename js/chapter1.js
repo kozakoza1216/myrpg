@@ -5,6 +5,9 @@ RPG.Chapter1 = (function () {
   var Story = RPG.Story, Battle = RPG.Battle, Explore = RPG.Explore, Data = RPG.Data;
   var app, game, onChapterEnd;
 
+  // 広域マップ＝街・集落・危険地帯のノードグラフ（PLAN.md §8-1）。
+  // 各ノードは点でしかない。中に入ると局所ダンジョン（一人称グリッド探索、§8-2/8-3）に
+  // 切り替わり、そこを実際に歩き回れる（廃区画＝HAIREGION_AREA、祭壇＝SHRINE_DUNGEON）。
   var WORLD = {
     label: "地下世界・南方区画",
     width: 400, height: 260,
@@ -12,14 +15,26 @@ RPG.Chapter1 = (function () {
     nodes: [
       { id: "haiberi", name: "灰縁の集落", x: 40, y: 210, kind: "settlement" },
       { id: "hairegion", name: "廃区画", x: 170, y: 150, kind: "danger" },
-      { id: "yaketa", name: "焼けた集落跡", x: 90, y: 60, kind: "ruin",
-        flavor: "集落跡の中央に、黒く焼け焦げた石碑が残っていた。文字は読み取れない。ただ、ここで何かが起き、住人が忽然といなくなったことだけは伝わってくる。" },
-      { id: "saidan", name: "招竜の祭壇", x: 330, y: 70, kind: "shrine", arrive: true },
+      { id: "yaketa", name: "焼けた集落跡", x: 90, y: 60, kind: "ruin" },
+      { id: "saidan", name: "招竜の祭壇", x: 330, y: 70, kind: "shrine" },
     ],
     edges: [
-      { from: "haiberi", to: "hairegion", steps: 35, encounterRate: 0.35, enemy: "straggler_bandit" },
+      { from: "haiberi", to: "hairegion", steps: 35, encounterRate: 0 },
       { from: "hairegion", to: "yaketa", steps: 20, encounterRate: 0 },
-      { from: "hairegion", to: "saidan", steps: 45, encounterRate: 0.25, enemy: "straggler_bandit" },
+      { from: "hairegion", to: "saidan", steps: 45, encounterRate: 0.2, enemy: "straggler_bandit" },
+    ],
+  };
+
+  // 廃区画の内部（局所ダンジョン）。危険地帯としてのエンカウントはここに内包する。
+  var HAIREGION_AREA = {
+    id: "hairegion",
+    start: { x: 2, y: 4, dir: 0 },
+    grid: [
+      ["wall", "wall", "wall", "wall", "wall"],
+      ["wall", "floor", "floor", "floor", "wall"],
+      ["wall", "encounter", "wall", "chest", "wall"],
+      ["wall", "floor", "floor", "floor", "wall"],
+      ["wall", "wall", "exit", "wall", "wall"],
     ],
   };
 
@@ -80,17 +95,39 @@ RPG.Chapter1 = (function () {
   ];
 
   var worldMap = null;
+  var hairegionArea = null;
+  var hairegionCleared = false;
 
   function afterKuji() {
     worldMap = Explore.startWorldMap(app, WORLD, game, {
-      onArrive: function (id) {
-        if (id === "saidan") Story.play(app, roadBeats, afterRoad);
-      },
+      onArrive: onWorldArrive,
       onEncounter: function (enemyId, next) {
         runBattle([enemyId || "straggler_bandit"], "はぐれ賊", false, next);
       },
-      onFlavor: function (text, next) {
-        Story.play(app, [{ kind: "narration", text: text }], next);
+    });
+  }
+
+  function onWorldArrive(id, firstVisit, next) {
+    if (id === "saidan") { Story.play(app, roadBeats, afterRoad); return; }
+    if (id === "hairegion" && !hairegionCleared) { enterHairegion(); return; }
+    if (id === "yaketa" && firstVisit) {
+      Story.play(app, [{ kind: "narration", text: "集落跡の中央に、黒く焼け焦げた石碑が残っていた。文字は読み取れない。ただ、ここで何かが起き、住人が忽然といなくなったことだけは伝わってくる。" }], next);
+      return;
+    }
+    next();
+  }
+
+  function enterHairegion() {
+    hairegionCleared = true;
+    hairegionArea = Explore.start(app, HAIREGION_AREA, game, {
+      onExit: function () { worldMap.render(); },
+      onChest: function () {
+        Story.play(app, [{ kind: "narration", text: "瓦礫の下から、色褪せた家族写真が一枚出てきた。誰のものかは、もう分からない。" }], function () {
+          hairegionArea.render();
+        });
+      },
+      onEncounter: function () {
+        runBattle(["straggler_bandit"], "はぐれ賊", false, function () { hairegionArea.render(); });
       },
     });
   }

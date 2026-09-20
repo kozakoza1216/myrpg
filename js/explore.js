@@ -298,6 +298,9 @@ RPG.Explore = (function () {
     return this.data.edges.filter(function (e) { return e.from === id || e.to === id; });
   };
 
+  // 到着後は必ず onArrive(nodeId, firstVisit, next) を呼ぶ。呼び出し側が
+  // 「その場に留まる」（局所ダンジョンへ切替／会話イベントなど）か、
+  // next() を呼んで広域マップの再描画に戻るかを決める。
   WorldMap.prototype.travelTo = function (nodeId) {
     var self = this;
     var edge = this.edgesFrom(this.current).filter(function (e) {
@@ -308,22 +311,17 @@ RPG.Explore = (function () {
     this.current = nodeId;
     var firstVisit = !this.visited[nodeId];
     this.visited[nodeId] = true;
-    var node = this.nodeById(nodeId);
 
-    var proceed = function () {
-      if (node && node.arrive && self.cb.onArrive) { self.cb.onArrive(nodeId); return; }
-      if (firstVisit && node && node.flavor && self.cb.onFlavor) {
-        self.cb.onFlavor(node.flavor, function () { self.render(); });
-        return;
-      }
+    var arrive = function () {
+      if (self.cb.onArrive) { self.cb.onArrive(nodeId, firstVisit, function () { self.render(); }); return; }
       self.render();
     };
 
     if (edge.encounterRate && Math.random() < edge.encounterRate && this.cb.onEncounter) {
-      this.cb.onEncounter(edge.enemy, proceed);
+      this.cb.onEncounter(edge.enemy, arrive);
       return;
     }
-    proceed();
+    arrive();
   };
 
   // ノードの種別ごとの簡易ピクトグラムアイコン
