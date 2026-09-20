@@ -16,13 +16,16 @@ RPG.Chapter1 = (function () {
       { x: 120, y: 230, r: 20, kind: "hut" },
       { x: 350, y: 230, r: 18, kind: "hut" },
       { x: 90, y: 110, r: 18, kind: "hut" },
-      { x: 400, y: 120, r: 20, kind: "hut" },
+      { x: 260, y: 100, r: 18, kind: "hut" },
+      // 集落の家並みからは離れた、瓦礫の残る外れ（灰ネズミが出るのはここ）
+      { x: 60, y: 60, r: 16 },
+      { x: 40, y: 100, r: 12 },
     ],
     zones: [
       { id: "well", kind: "talk", x: 230, y: 140, r: 20, label: "井戸端の老人",
         speaker: "竜読みの老人", text: "竜には逆らえん。くじは絶対だ……お前さんも、いずれわかる。" },
       { id: "chest_shelf", kind: "chest", x: 400, y: 60, r: 16, label: "住居の棚" },
-      { id: "rat", kind: "encounter", x: 80, y: 55, r: 26, label: "灰色の気配" },
+      { id: "rat", kind: "encounter", x: 45, y: 170, r: 26, label: "集落の外れ・灰色の気配" },
       { id: "exit_plaza", kind: "exit", to: "plaza", x: 420, y: 170, r: 22, steps: 5, label: "広場へ（くじの刻限）" },
     ],
   };
@@ -170,6 +173,12 @@ RPG.Chapter1 = (function () {
   // どちらの出口へ抜けたかで実際の到着ノードを決める（＝踏破が前進そのもの）。
   // 二度目以降は既に踏破済みなので、隣接ノードとして直接クリックで行き来できる。
   function onWorldArrive(id, firstVisit, next) {
+    // 灰縁の集落はくじの前にしか歩けない。追放後は門そのものが閉ざされている
+    // ＝クリックしても何も起きないのではなく、閉ざされていると分かる反応を返す
+    if (id === "haiberi") {
+      Story.play(app, [{ kind: "narration", text: "門は固く閉ざされていた。追放された今、もうここへは戻れない。" }], next);
+      return;
+    }
     if (id === "hairegion" && !hairegionCleared) {
       Story.play(app, [
         { kind: "header", text: "廃区画" },
@@ -221,6 +230,8 @@ RPG.Chapter1 = (function () {
 
   var shrineDungeon = null;
   var shrineFloorId = "ground";
+  // フロアごとの探索済みマスを保持し、行き来しても自動地図の記憶が消えないようにする
+  var shrineFloorVisited = { ground: {}, inner: {} };
 
   function afterTeamUp() {
     game.party.push(Battle.createCombatant("tzelf", false));
@@ -241,7 +252,7 @@ RPG.Chapter1 = (function () {
         if (targetFloorId === "ground" && game.flags.kagariDefeated) { afterDungeonExit(); return; }
         enterShrineFloor(targetFloorId);
       },
-    });
+    }, shrineFloorVisited[floorId]);
   }
 
   function onDungeonChest() {

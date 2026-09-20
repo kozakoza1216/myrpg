@@ -12,7 +12,9 @@ RPG.Explore = (function () {
     return e;
   }
 
-  function Dungeon(containerEl, data, gameState, callbacks) {
+  // initialVisited: 既に探索済みの足跡マップ（同じ参照を渡せば、フロアを行き来しても
+  // 探索状況が保持される。省略時は空から始まる新規フロア扱い）。
+  function Dungeon(containerEl, data, gameState, callbacks, initialVisited) {
     this.el = containerEl;
     this.data = data;
     this.game = gameState;
@@ -20,7 +22,7 @@ RPG.Explore = (function () {
     this.x = data.start.x;
     this.y = data.start.y;
     this.dir = data.start.dir || 0;
-    this.visited = {};
+    this.visited = initialVisited || {};
     this.markVisited(this.x, this.y);
   }
 
@@ -51,6 +53,7 @@ RPG.Explore = (function () {
 
   Dungeon.prototype.turn = function (delta) {
     this.dir = (this.dir + delta + 4) % 4;
+    this.lastAction = delta > 0 ? "turn-right" : "turn-left";
     this.render();
   };
 
@@ -64,12 +67,14 @@ RPG.Explore = (function () {
     this.x = target.x; this.y = target.y;
     this.markVisited(this.x, this.y);
     this.game.steps += 1;
+    this.lastAction = backward ? "step-back" : "step-fwd";
     var leftScreen = this.onEnterTile(tile);
     if (!leftScreen) this.render();
   };
 
   Dungeon.prototype.flash = function (msg) {
     this.transientMsg = msg;
+    this.lastAction = "bump";
     this.render();
     var self = this;
     clearTimeout(this._flashTimer);
@@ -117,7 +122,10 @@ RPG.Explore = (function () {
 
   // ── 擬似3D描画 ──
   Dungeon.prototype.renderScene = function () {
-    var svg = el("svg", { viewBox: "0 0 400 260", class: "dungeon-scene" });
+    // 直前の操作（前進/後退/旋回/衝突）に応じたアニメーションを毎回付け直すことで、
+    // 全面再描画でも「今どの操作が効いたか」が視覚的に分かるようにする
+    var actionClass = this.lastAction ? " act-" + this.lastAction : "";
+    var svg = el("svg", { viewBox: "0 0 400 260", class: "dungeon-scene" + actionClass });
 
     // 壊れた人工天井（§8-2 常時表現）
     svg.appendChild(el("rect", { x: 0, y: 0, width: 400, height: 130, fill: "url(#skyGrad)" }));
@@ -174,6 +182,14 @@ RPG.Explore = (function () {
           x: f0.l + 4, y: (f0.t + f1.t) / 2, width: 6, height: 6, fill: "#8a7a5a", opacity: 0.5,
         }));
       }
+      // 壁がない側＝脇道への開口部。何も描かないと欠落に見えるので、
+      // 境界の縁取りだけ薄く引いて「ここが通路の切れ目」だと分かるようにする
+      if (!this.isBlocking(leftTile)) {
+        svg.appendChild(el("line", { x1: f0.l, y1: f0.b, x2: f1.l, y2: f1.b, stroke: "#4a4438", "stroke-width": 1.5, opacity: 0.55 }));
+      }
+      if (!this.isBlocking(rightTile)) {
+        svg.appendChild(el("line", { x1: f0.r, y1: f0.b, x2: f1.r, y2: f1.b, stroke: "#4a4438", "stroke-width": 1.5, opacity: 0.55 }));
+      }
     }
 
     if (blockedAt >= 0) {
@@ -219,6 +235,11 @@ RPG.Explore = (function () {
       var parts = k.split(",").map(Number);
       var tile = self.tileAt(parts[0], parts[1]);
       var color = self.isBlocking(tile) ? "#221e18" : "#8a7a5a";
+      // 一度見つけた宝箱・イベント・階段・出口は、自動地図の上でも色分けして覚えておく
+      if (tile === "chest") color = "#c8a030";
+      else if (typeof tile === "string" && tile.indexOf("event:") === 0) color = "#c85040";
+      else if (typeof tile === "string" && tile.indexOf("stairs:") === 0) color = "#5090c8";
+      else if (tile === "exit") color = "#60c880";
       svg.appendChild(el("rect", {
         x: (parts[0] - minX) * size, y: (parts[1] - minY) * size, width: size - 1, height: size - 1, fill: color,
       }));
@@ -273,8 +294,8 @@ RPG.Explore = (function () {
     return b;
   }
 
-  function start(containerEl, data, gameState, callbacks) {
-    var d = new Dungeon(containerEl, data, gameState, callbacks);
+  function start(containerEl, data, gameState, callbacks, initialVisited) {
+    var d = new Dungeon(containerEl, data, gameState, callbacks, initialVisited);
     d.render();
     return d;
   }
