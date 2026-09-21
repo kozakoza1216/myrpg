@@ -545,48 +545,145 @@ RPG.Explore = (function () {
     hud.textContent = (this.data.label || "") + "　歩数 " + this.game.steps + " / " + this.game.stepLimit;
     wrap.appendChild(hud);
 
-    var svg = el("svg", { viewBox: "0 0 " + (this.data.width || 400) + " " + (this.data.height || 260), class: "worldmap" });
+    var w = this.data.width || 400, h = this.data.height || 260;
+    var svg = el("svg", { viewBox: "0 0 " + w + " " + h, class: "worldmap" });
 
-    var neighborIds = this.edgesFrom(this.current).map(function (e) {
-      return e.from === self.current ? e.to : e.from;
-    });
+    // ── 地形 ──
+    svg.appendChild(el("rect", { x: 0, y: 0, width: w, height: h, fill: "#c2ad82" }));
 
-    this.data.edges.forEach(function (edge) {
-      var a = self.nodeById(edge.from), b = self.nodeById(edge.to);
-      if (!a || !b) return;
-      var danger = !!edge.encounterRate;
-      svg.appendChild(el("line", {
-        x1: a.x, y1: a.y, x2: b.x, y2: b.y,
-        stroke: danger ? "#8a3020" : "#6a5638", "stroke-width": 3,
-        "stroke-dasharray": danger ? "5,4" : "none",
+    // 左右の森林帯
+    svg.appendChild(el("path", {
+      d: "M0 0 L150 0 Q130 35 148 70 Q118 105 130 145 Q104 178 116 220 L88 260 L0 260 Z",
+      fill: "#8f9f6c", opacity: 0.9
+    }));
+    svg.appendChild(el("path", {
+      d: "M400 0 L272 0 Q292 32 275 66 Q300 95 280 125 Q308 160 287 195 Q315 225 300 260 L400 260 Z",
+      fill: "#819364", opacity: 0.9
+    }));
+
+    // 焼けた集落跡の灰地
+    svg.appendChild(el("path", {
+      d: "M28 22 Q70 5 112 24 Q132 46 110 78 Q76 94 42 78 Q18 58 28 22 Z",
+      fill: "#a79a84", opacity: 0.82
+    }));
+
+    // 廃区画の岩場
+    svg.appendChild(el("path", {
+      d: "M105 175 Q130 145 168 150 Q205 133 238 151 Q262 170 250 202 Q220 222 185 211 Q150 230 120 214 Z",
+      fill: "#8b7d68", stroke: "#685b49", "stroke-width": 2, opacity: 0.9
+    }));
+
+    // 地下水路
+    var river = "M215 -10 Q190 35 212 75 Q232 112 205 148 Q183 188 210 225 Q222 245 214 270";
+    svg.appendChild(el("path", { d: river, fill: "none", stroke: "#617982", "stroke-width": 17, opacity: 0.8 }));
+    svg.appendChild(el("path", { d: river, fill: "none", stroke: "#9bb5ad", "stroke-width": 9, opacity: 0.9 }));
+
+    // 森林の木
+    function forest(cx, cy, rx, ry) {
+      svg.appendChild(el("ellipse", { cx: cx, cy: cy, rx: rx, ry: ry, fill: "#71835c", opacity: 0.65 }));
+      var trees = [[-0.7,-0.1],[-0.35,-0.45],[0,-0.2],[0.35,-0.48],[0.68,-0.1],[-0.5,0.32],[-0.1,0.45],[0.35,0.28],[0.62,0.45]];
+      trees.forEach(function(p, i) {
+        var x = cx + p[0] * rx, y = cy + p[1] * ry;
+        svg.appendChild(el("polygon", {
+          points: (x-5)+","+(y+5)+" "+x+","+(y-8-(i%2)*3)+" "+(x+5)+","+(y+5),
+          fill: "#4f6247"
+        }));
+        svg.appendChild(el("rect", { x:x-1, y:y+4, width:2, height:5, fill:"#5b4b37" }));
+      });
+    }
+    forest(65, 150, 48, 34);
+    forest(345, 155, 42, 32);
+
+    // 瓦礫
+    [[22,112],[54,105],[118,118],[286,42],[322,88],[370,102],[275,218],[155,238],[248,235],[88,225]].forEach(function(p,i) {
+      svg.appendChild(el("polygon", {
+        points: (p[0]-5)+","+(p[1]+3)+" "+(p[0]-1)+","+(p[1]-5-(i%3)*2)+" "+(p[0]+5)+","+(p[1]-1)+" "+(p[0]+2)+","+(p[1]+5),
+        fill: i%2 ? "#766b59" : "#685d4e", opacity: 0.8
       }));
     });
 
-    this.data.nodes.forEach(function (node) {
+    // ── 道路 ──
+    function roadPath(a, b, bend) {
+      var mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+      var dx = b.x-a.x, dy = b.y-a.y, len = Math.hypot(dx,dy) || 1;
+      var nx = -dy/len, ny = dx/len;
+      return "M"+a.x+" "+a.y+" Q"+(mx+nx*bend)+" "+(my+ny*bend)+" "+b.x+" "+b.y;
+    }
+
+    var neighborIds = this.edgesFrom(this.current).map(function(e) {
+      return e.from === self.current ? e.to : e.from;
+    });
+
+    this.data.edges.forEach(function(edge,i) {
+      var a = self.nodeById(edge.from), b = self.nodeById(edge.to);
+      if (!a || !b) return;
+      var d = roadPath(a,b,(i%2 ? -1 : 1) * (8+(i%3)*4));
+      var danger = !!edge.encounterRate;
+
+      svg.appendChild(el("path", {
+        d:d, fill:"none", stroke:"#4e3d29", "stroke-width":10,
+        "stroke-linecap":"round", "stroke-linejoin":"round", opacity:0.8
+      }));
+      svg.appendChild(el("path", {
+        d:d, fill:"none", stroke:danger ? "#a3482d" : "#c49b62",
+        "stroke-width":5, "stroke-linecap":"round",
+        "stroke-linejoin":"round", "stroke-dasharray":danger ? "8 5" : "none"
+      }));
+    });
+
+    // ── コンパス ──
+    var compass = el("g", { transform:"translate("+(w-30)+",30)" });
+    compass.appendChild(el("circle", {cx:0,cy:0,r:18,fill:"#d8c69d",stroke:"#514632","stroke-width":2}));
+    compass.appendChild(el("polygon", {points:"0,-14 -4,4 0,1 4,4",fill:"#6b3328"}));
+    var nt = el("text", {x:0,y:-19,"text-anchor":"middle",fill:"#3f3526","font-size":9,"font-weight":"bold"});
+    nt.textContent = "N";
+    compass.appendChild(nt);
+    svg.appendChild(compass);
+
+    // ── 地点 ──
+    this.data.nodes.forEach(function(node) {
       var isCurrent = node.id === self.current;
       var isNeighbor = neighborIds.indexOf(node.id) >= 0;
-      var g = el("g", { transform: "translate(" + node.x + "," + node.y + ")", class: "map-node" });
-      if (!isCurrent && !isNeighbor) g.setAttribute("opacity", "0.55");
-      drawNodeIcon(g, node.kind);
+      var g = el("g", {
+        transform:"translate("+node.x+","+node.y+")",
+        class:"map-node"
+      });
+      if (!isCurrent && !isNeighbor) g.setAttribute("opacity","0.7");
+
+      g.appendChild(el("circle", {cx:0,cy:0,r:13,fill:"#d8c69d",stroke:"#514632","stroke-width":2}));
+      drawNodeIcon(g,node.kind);
+
       if (isCurrent) {
-        g.appendChild(el("circle", { cx: 0, cy: 0, r: 15, fill: "none", stroke: "#3a6bab", "stroke-width": 2 }));
-        // 今いる場所も、もう一度クリックして中を歩き直せるようにする
-        // （隣接ノードから移動してきた直後は自動で内部へ潜らせず地図に
-        // 留めているので、内部をもう一度歩く手段が他に無くなるため）。
-        var hitSelf = el("circle", { cx: 0, cy: 0, r: 16, fill: "transparent", class: "map-node clickable" });
-        hitSelf.onclick = function () { self.reenter(); };
+        g.appendChild(el("circle", {cx:0,cy:0,r:17,fill:"none",stroke:"#315f91","stroke-width":3}));
+        var hitSelf = el("circle", {cx:0,cy:0,r:18,fill:"transparent",class:"map-node clickable"});
+        hitSelf.onclick = function(){ self.reenter(); };
         g.appendChild(hitSelf);
       }
       if (isNeighbor) {
-        var hit = el("circle", { cx: 0, cy: 0, r: 16, fill: "transparent", class: "map-node clickable" });
-        hit.onclick = function () { self.travelTo(node.id); };
+        g.appendChild(el("circle", {cx:0,cy:0,r:16,fill:"none",stroke:"#8a6334","stroke-width":2,"stroke-dasharray":"3 2"});
+        var hit = el("circle", {cx:0,cy:0,r:18,fill:"transparent",class:"map-node clickable"});
+        hit.onclick = function(){ self.travelTo(node.id); };
         g.appendChild(hit);
       }
-      var label = el("text", { x: 0, y: 24, "text-anchor": "middle", fill: "#e8dcc8", "font-size": 11 });
+
+      var labelBg = el("rect", {x:-40,y:16,width:80,height:15,rx:4,fill:"#3e3528",opacity:0.82});
+      g.appendChild(labelBg);
+      var label = el("text", {
+        x:0,y:27,"text-anchor":"middle",fill:"#f0e4c7",
+        "font-size":9.5,"font-weight":isCurrent ? "bold" : "normal"
+      });
       label.textContent = node.name;
       g.appendChild(label);
       svg.appendChild(g);
     });
+
+    // ── 凡例 ──
+    var legend = el("g", {transform:"translate(12,"+(h-25)+")"});
+    legend.appendChild(el("rect",{x:0,y:-13,width:215,height:20,rx:5,fill:"#3e3528",opacity:0.82}));
+    var lt = el("text",{x:8,y:1,fill:"#eadfca","font-size":9});
+    lt.textContent = "実線: 通常道　 破線: 危険な道　 青枠: 現在地";
+    legend.appendChild(lt);
+    svg.appendChild(legend);
 
     wrap.appendChild(svg);
     this.el.appendChild(wrap);
