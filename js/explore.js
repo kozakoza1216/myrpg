@@ -487,6 +487,19 @@ RPG.Explore = (function () {
     this.render();
   };
 
+  // 現在地（今まさに立っているノード）をもう一度クリックした時の処理。
+  // 隣接ノードから移動してきた瞬間（travelTo／onArrive）とは意味が違う
+  // ため、別のコールバック（onReenter）で受ける。例えば「一度歩いた
+  // エリアに、もう一度中へ入って歩き直したい」という操作はこちらが担う
+  // （onArriveの方は初回到達時の判定やエンカウント消化を伴う「移動」の
+  // 意味を持つため、そこに無理に混ぜると移動していないのに歩数や
+  // 初回判定が絡んでしまう）。
+  WorldMap.prototype.reenter = function () {
+    var self = this;
+    if (this.cb.onReenter) { this.cb.onReenter(this.current, function () { self.render(); }); return; }
+    this.render();
+  };
+
   // 会話/戦闘の流れでどこか別の場所へ進んだことを、画面遷移や到着判定を発火させずに
   // 広域マップの内部状態にだけ反映する（後でこのマップに戻った時の現在地を正しくするため）。
   WorldMap.prototype.setCurrent = function (nodeId) {
@@ -552,7 +565,15 @@ RPG.Explore = (function () {
       var g = el("g", { transform: "translate(" + node.x + "," + node.y + ")", class: "map-node" });
       if (!isCurrent && !isNeighbor) g.setAttribute("opacity", "0.55");
       drawNodeIcon(g, node.kind);
-      if (isCurrent) g.appendChild(el("circle", { cx: 0, cy: 0, r: 15, fill: "none", stroke: "#3a6bab", "stroke-width": 2 }));
+      if (isCurrent) {
+        g.appendChild(el("circle", { cx: 0, cy: 0, r: 15, fill: "none", stroke: "#3a6bab", "stroke-width": 2 }));
+        // 今いる場所も、もう一度クリックして中を歩き直せるようにする
+        // （隣接ノードから移動してきた直後は自動で内部へ潜らせず地図に
+        // 留めているので、内部をもう一度歩く手段が他に無くなるため）。
+        var hitSelf = el("circle", { cx: 0, cy: 0, r: 16, fill: "transparent", class: "map-node clickable" });
+        hitSelf.onclick = function () { self.reenter(); };
+        g.appendChild(hitSelf);
+      }
       if (isNeighbor) {
         var hit = el("circle", { cx: 0, cy: 0, r: 16, fill: "transparent", class: "map-node clickable" });
         hit.onclick = function () { self.travelTo(node.id); };

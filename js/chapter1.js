@@ -167,6 +167,14 @@ RPG.Chapter1 = (function () {
   function afterKuji() {
     worldMap = Explore.startWorldMap(app, WORLD, game, {
       onArrive: onWorldArrive,
+      // 今いるノードをもう一度クリックした時の専用処理。廃区画は、
+      // 隣接ノードとして立ち止まれる（＝灰縁の集落など他のノードへ
+      // 移動する選択肢を保つ）のと、内部をもう一度歩き直せることの
+      // 両方を成り立たせる必要があるため、ここで内部へ入らせる。
+      onReenter: function (id, next) {
+        if (id === "hairegion") { enterHairegion(); return; }
+        next();
+      },
       onEncounter: function (enemyId, next) {
         runBattle([enemyId || "straggler_bandit"], "はぐれ賊", false, next);
       },
