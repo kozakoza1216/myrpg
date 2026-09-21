@@ -137,7 +137,7 @@ RPG.Battle = (function () {
     }
 
     var target = alive[Math.floor(Math.random() * alive.length)];
-    this.pending = { actor: enemy, skillId: skillId, target: target };
+    this.pending = { actor: enemy, skillId: skillId, target: target, concealAttackType: true };
     this.phase = "response";
     this.render();
     // プレイヤー操作対象が受動を選ぶまで待機（UIのhandleStance経由でresolve）
@@ -197,8 +197,16 @@ RPG.Battle = (function () {
     return side.some(function (c) { return !c.defeated && c.position === "back" && c !== defender; });
   };
 
-  State.prototype.availableStances = function (defender, category) {
+  State.prototype.availableStances = function (defender, category, concealAttackType) {
     var stances = [];
+    // 敵の攻撃／突破は選択時にプレイヤーへ知らせない。伏せられた応答では、
+    // 両方を読む受動を提示する。足止めは常に選べる読みの選択肢である。
+    if (concealAttackType) {
+      stances.push("defense", "evade", "hold");
+      if (defender.canCounter) stances.push("counter");
+      if (defender.isBoss) stances.push("breakthroughCounter");
+      return stances;
+    }
     if (category === "attack") {
       stances.push("defense", "evade");
       if (defender.isBoss) stances.push("hold");
@@ -432,7 +440,9 @@ RPG.Battle = (function () {
       var category = skill.category === "breakthrough" ? "breakthrough" : "attack";
       var p3 = document.createElement("p");
       p3.className = "prompt";
-      p3.textContent = atk.name + "が" + skill.name + "を仕掛けてくる！ " + target.name + "はどう受ける？";
+      p3.textContent = this.pending.concealAttackType
+        ? atk.name + "が仕掛けてくる。" + target.name + "はどう受ける？"
+        : atk.name + "が" + skill.name + "を仕掛けてくる！ " + target.name + "はどう受ける？";
       root.appendChild(p3);
       if (target.isEnemy) {
         var stance = this.aiPickStance(target, atk, category);
@@ -443,7 +453,7 @@ RPG.Battle = (function () {
       var grid2 = document.createElement("div");
       grid2.className = "btn-grid";
       var labels = { defense: "防御", evade: "回避", hold: "足止め", counter: "カウンター", breakthroughCounter: "突破カウンター" };
-      this.availableStances(target, category).forEach(function (st) {
+      this.availableStances(target, category, this.pending.concealAttackType).forEach(function (st) {
         grid2.appendChild(button(labels[st], function () { self.playerChooseStance(st); }));
       });
       root.appendChild(grid2);

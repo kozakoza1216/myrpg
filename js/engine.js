@@ -61,6 +61,9 @@ RPG.Engine = (function () {
     var atkBase = judgeValue(attacker.stats, atkKind, skill.isMagic) + (skill.techBonus || 0) + (bonuses.attackerBonus || 0) - (attacker.scoreDebuff || 0);
 
     var isCounter = defStance === "counter" || defStance === "breakthroughCounter";
+    // 逆のカウンターは成立せず、攻め側の行動がそのまま通る。
+    var counterMiss = (defStance === "counter" && atkKind === "breakthrough") ||
+      (defStance === "breakthroughCounter" && atkKind === "attack");
     var defKind = isCounter ? atkKind : defStance; // カウンターは攻撃側と同じ判定式を使う
     var defBase = judgeValue(defender.stats, defKind, false) + (bonuses.defenderBonus || 0) - (defender.scoreDebuff || 0);
     if (isCounter) defBase += 20; // 後出しボーナス（§7-2 大前提1d・検証済み値）
@@ -72,7 +75,7 @@ RPG.Engine = (function () {
     var defenderScore = defBase * coefA.defenderMul * coefB.defenderMul + rng();
 
     var attackerWins;
-    if (skill.guaranteedHit) {
+    if (counterMiss || skill.guaranteedHit) {
       attackerWins = true;
     } else if (attackerScore === defenderScore) {
       attackerWins = attacker.stats.spd === defender.stats.spd
@@ -82,7 +85,7 @@ RPG.Engine = (function () {
       attackerWins = attackerScore > defenderScore;
     }
 
-    return { attackerScore: attackerScore, defenderScore: defenderScore, attackerWins: attackerWins, isCounter: isCounter };
+    return { attackerScore: attackerScore, defenderScore: defenderScore, attackerWins: attackerWins, isCounter: isCounter, counterMiss: counterMiss };
   }
 
   // ── §4-7 ダメージ計算 ──
@@ -118,7 +121,7 @@ RPG.Engine = (function () {
       attackerWins: judgment.attackerWins,
       attackerScore: Math.round(judgment.attackerScore),
       defenderScore: Math.round(judgment.defenderScore),
-      isCounter: judgment.isCounter,
+      isCounter: judgment.isCounter, counterMiss: judgment.counterMiss,
       damage: 0, reflected: false, negated: false, critical: false, guaranteed: false,
     };
 
@@ -126,7 +129,7 @@ RPG.Engine = (function () {
 
     var mult = judgeResultMult(defStance, judgment.attackerWins);
 
-    if (judgment.isCounter) {
+    if (judgment.isCounter && !judgment.counterMiss) {
       if (!judgment.attackerWins) {
         // カウンター成立：技のダメージがそのまま反射
         var reflectRaw = baseDamage(attacker, skill) * (opts.powerMult || 1);

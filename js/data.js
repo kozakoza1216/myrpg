@@ -8,11 +8,11 @@ RPG.Data = (function () {
   const SKILLS = {
     normal_attack: {
       name: "ノーマル攻撃", category: "attack", attribute: "none",
-      mp: 0, power: 0.9, techBonus: 30, isMagic: false,
+      mp: 0, power: 0.9, techBonus: 0, isMagic: false,
     },
     normal_breakthrough: {
       name: "ノーマル突破", category: "breakthrough", attribute: "none",
-      mp: 0, power: 0.9, techBonus: 30, isMagic: false,
+      mp: 0, power: 0.9, techBonus: 0, isMagic: false,
     },
     double_slash: {
       name: "二連撃", category: "attack", attribute: "physical",
