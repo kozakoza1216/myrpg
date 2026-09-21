@@ -4,6 +4,9 @@ window.RPG = window.RPG || {};
 RPG.Explore = (function () {
   var SVG_NS = "http://www.w3.org/2000/svg";
   var DIRS = [{ dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }];
+  // FreeAreaで実際に画面に映る窓の大きさ（固定）。マップ自体はこれより
+  // 大きく作れる（プレイヤーを追いかけるカメラで、はみ出した分は歩いて見る）。
+  var FREEAREA_VIEW_W = 480, FREEAREA_VIEW_H = 320;
   var DIR_NAMES = ["北", "東", "南", "西"];
 
   function el(tag, attrs) {
@@ -612,6 +615,18 @@ RPG.Explore = (function () {
     this.insideZoneId = null;
   }
 
+  // 画面に見える窓は固定サイズ。マップ（data.width/height）がこれより
+  // 大きければ、全体を縮小して収めるのではなく、プレイヤーを中心に
+  // 窓だけが動く（＝マップ全体は一画面に収まらず、歩いて見て回る
+  // 必要がある）。窓の方が大きい／同じ場合は今まで通り全体表示になる。
+  FreeArea.prototype.cameraViewBox = function () {
+    var vw = Math.min(FREEAREA_VIEW_W, this.data.width);
+    var vh = Math.min(FREEAREA_VIEW_H, this.data.height);
+    var x = Math.max(0, Math.min(this.data.width - vw, this.pos.x - vw / 2));
+    var y = Math.max(0, Math.min(this.data.height - vh, this.pos.y - vh / 2));
+    return { x: x, y: y, vw: vw, vh: vh };
+  };
+
   FreeArea.prototype.isBlocked = function (x, y) {
     var margin = 12;
     if (x < margin || x > this.data.width - margin || y < margin || y > this.data.height - margin) return true;
@@ -723,6 +738,13 @@ RPG.Explore = (function () {
   FreeArea.prototype.updateHudAndPlayer = function () {
     if (this._hudEl) this._hudEl.textContent = (this.data.label || "") + "　歩数 " + this.game.steps + " / " + this.game.stepLimit;
     if (this._playerEl) this._playerEl.setAttribute("transform", "translate(" + this.pos.x + "," + this.pos.y + ")");
+    // moveTo()は毎フレームrender()し直すのではなく、この軽量更新だけで
+    // プレイヤー表示を動かす。カメラ（viewBox）もここで一緒に更新しないと、
+    // マップが画面より大きい場合に、歩いてもカメラが追従しなくなる。
+    if (this._svgEl) {
+      var cam = this.cameraViewBox();
+      this._svgEl.setAttribute("viewBox", cam.x + " " + cam.y + " " + cam.vw + " " + cam.vh);
+    }
   };
 
   FreeArea.prototype.enterZone = function (zone) {
@@ -837,7 +859,11 @@ RPG.Explore = (function () {
     wrap.appendChild(hud);
     this._hudEl = hud;
 
-    var svg = el("svg", { viewBox: "0 0 " + this.data.width + " " + this.data.height, class: "freearea", tabindex: "0" });
+    var cam = this.cameraViewBox();
+    var vw = cam.vw, vh = cam.vh, camX = cam.x, camY = cam.y;
+
+    var svg = el("svg", { viewBox: camX + " " + camY + " " + vw + " " + vh, class: "freearea", tabindex: "0" });
+    this._svgEl = svg;
     svg.appendChild(el("rect", { x: 0, y: 0, width: this.data.width, height: this.data.height, fill: "#26221c" }));
 
     (this.data.obstacles || []).forEach(function (o, i) { drawFreeAreaObstacle(svg, o, i); });
@@ -851,8 +877,8 @@ RPG.Explore = (function () {
 
     svg.onclick = function (evt) {
       var rect = svg.getBoundingClientRect();
-      var x = (evt.clientX - rect.left) * (self.data.width / rect.width);
-      var y = (evt.clientY - rect.top) * (self.data.height / rect.height);
+      var x = camX + (evt.clientX - rect.left) * (vw / rect.width);
+      var y = camY + (evt.clientY - rect.top) * (vh / rect.height);
       self.moveTo(x, y);
       svg.focus();
     };

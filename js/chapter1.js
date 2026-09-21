@@ -56,23 +56,28 @@ RPG.Chapter1 = (function () {
   // 廃区画の内部。左から入り、複数の出口へ抜ける（歩数・エンカウントはここで消化する）。
   // 「祭壇方面」は最終目的地の祭壇へ直接ではなく、途中の中継ノード（祭壇へ続く道＝michi）へ
   // 出る＝先で道がどう分岐していてもおかしくない、という含みを持たせる。
+  // 画面の窓（480x320）より大きく作ってあるため、全体は一画面に収まらず、
+  // プレイヤーを追いかけるカメラで実際に歩いて見て回ることになる。
   var HAIREGION_AREA = {
     label: "廃区画",
-    width: 480, height: 320,
-    start: { x: 25, y: 280 },
+    width: 900, height: 600,
+    start: { x: 47, y: 525 },
     obstacles: [
-      { x: 120, y: 130, r: 20 },
-      { x: 220, y: 220, r: 24 },
-      { x: 330, y: 90, r: 18 },
-      { x: 90, y: 220, r: 14 },
-      { x: 260, y: 140, r: 16 },
-      { x: 380, y: 230, r: 15 },
+      { x: 225, y: 244, r: 20 },
+      { x: 413, y: 413, r: 24 },
+      { x: 619, y: 169, r: 18 },
+      { x: 169, y: 413, r: 14 },
+      { x: 488, y: 263, r: 16 },
+      { x: 713, y: 431, r: 15 },
+      { x: 320, y: 520, r: 18 },
+      { x: 620, y: 490, r: 16 },
+      { x: 780, y: 250, r: 14 },
     ],
     zones: [
-      { id: "danger1", kind: "danger", x: 235, y: 155, r: 28, encounterRate: 0.5, label: "危険な瓦礫の陰" },
-      { id: "chest1", kind: "chest", x: 70, y: 105, r: 16, label: "宝箱" },
-      { id: "exit_yaketa", kind: "exit", to: "yaketa", x: 220, y: 25, r: 20, steps: 15, label: "焼けた集落跡方面（寄り道）" },
-      { id: "exit_michi", kind: "exit", to: "michi", x: 455, y: 160, r: 24, steps: 30, label: "祭壇方面" },
+      { id: "danger1", kind: "danger", x: 441, y: 291, r: 28, encounterRate: 0.5, label: "危険な瓦礫の陰" },
+      { id: "chest1", kind: "chest", x: 131, y: 197, r: 16, label: "宝箱" },
+      { id: "exit_yaketa", kind: "exit", to: "yaketa", x: 413, y: 47, r: 20, steps: 15, label: "焼けた集落跡方面（寄り道）" },
+      { id: "exit_michi", kind: "exit", to: "michi", x: 853, y: 300, r: 24, steps: 30, label: "祭壇方面" },
     ],
   };
 
