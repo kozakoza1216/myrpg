@@ -57,6 +57,16 @@ RPG.Story = (function () {
         hint2.className = "story-hint";
         hint2.textContent = "▼";
         box.appendChild(hint2);
+
+        var nextBtn = document.createElement("button");
+        nextBtn.className = "story-next-btn";
+        nextBtn.type = "button";
+        nextBtn.textContent = "次へ";
+        nextBtn.onclick = function (e) {
+          e.stopPropagation();
+          advance();
+        };
+        box.appendChild(nextBtn);
         box.onclick = advance;
       }
       containerEl.appendChild(box);
