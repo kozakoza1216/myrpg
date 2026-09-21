@@ -660,7 +660,7 @@ RPG.Explore = (function () {
         g.appendChild(hitSelf);
       }
       if (isNeighbor) {
-        g.appendChild(el("circle", {cx:0,cy:0,r:16,fill:"none",stroke:"#8a6334","stroke-width":2,"stroke-dasharray":"3 2"});
+        g.appendChild(el("circle", {cx:0,cy:0,r:16,fill:"none",stroke:"#8a6334","stroke-width":2,"stroke-dasharray":"3 2"}));
         var hit = el("circle", {cx:0,cy:0,r:18,fill:"transparent",class:"map-node clickable"});
         hit.onclick = function(){ self.travelTo(node.id); };
         g.appendChild(hit);
