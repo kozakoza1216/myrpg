@@ -31,18 +31,17 @@ RPG.Chapter1 = (function () {
   };
 
   // 広域マップ＝街・集落・危険地帯のノードグラフ（PLAN.md §8-1）。
-  // 廃区画へ初めて入るときだけ内部（HAIREGION_AREA）を実際に歩き、
-  // どちらの出口から抜けたかで到着ノードが決まる（＝踏破＝広域マップ上を前進する）。
-  // 二度目以降は既に通り抜け済みなので、隣接ノードとして直接クリックで行き来できる。
+  // 廃区画はノードではなく局所探索エリア。どの方向から入っても内部を実際に
+  // 歩き、出口から抜ける（通常移動で踏破済みの区画を飛び越えない）。
   var WORLD = {
     label: "地下世界・南方区画",
     width: 400, height: 260,
     start: "haiberi",
     nodes: [
-      { id: "haiberi", name: "灰縁の集落", x: 30, y: 220, kind: "settlement" },
-      { id: "hairegion", name: "廃区画", x: 160, y: 160, kind: "danger" },
+      { id: "haiberi", name: "灰縁の集落", x: 30, y: 220, kind: "settlement", fastTravel: false },
+      { id: "hairegion", name: "廃区画", x: 160, y: 160, kind: "danger", fastTravel: false },
       { id: "yaketa", name: "焼けた集落跡", x: 80, y: 55, kind: "ruin" },
-      { id: "michi", name: "祭壇へ続く道", x: 260, y: 110, kind: "danger" },
+      { id: "michi", name: "祭壇へ続く道", x: 260, y: 110, kind: "danger", fastTravel: false },
       { id: "saidan", name: "招竜の祭壇", x: 360, y: 55, kind: "shrine" },
     ],
     edges: [
@@ -168,6 +167,11 @@ RPG.Chapter1 = (function () {
   var worldMap = null;
   var hairegionArea = null;
   var hairegionCleared = false;
+  var HAIREGION_ENTRIES = {
+    haiberi: { x: 47, y: 525 },
+    yaketa: { x: 413, y: 92 },
+    michi: { x: 806, y: 300 },
+  };
   // 廃区画も祭壇と同じく、出口から出た後にノードとしてクリックし直しても
   // 中へ戻れなくなっていた。取得済みの宝箱等の状態を保ったまま再入場
   // できるように記憶しておく。
@@ -176,10 +180,6 @@ RPG.Chapter1 = (function () {
   function afterKuji() {
     worldMap = Explore.startWorldMap(app, WORLD, game, {
       onArrive: onWorldArrive,
-      // 今いるノードをもう一度クリックした時の専用処理。廃区画は、
-      // 隣接ノードとして立ち止まれる（＝灰縁の集落など他のノードへ
-      // 移動する選択肢を保つ）のと、内部をもう一度歩き直せることの
-      // 両方を成り立たせる必要があるため、ここで内部へ入らせる。
       onReenter: function (id, next) {
         if (id === "hairegion") { enterHairegion(); return; }
         next();
@@ -190,10 +190,7 @@ RPG.Chapter1 = (function () {
     });
   }
 
-  // 広域マップ上のノードに着いた時の処理。廃区画は初回だけ内部を歩かせ、
-  // どちらの出口へ抜けたかで実際の到着ノードを決める（＝踏破が前進そのもの）。
-  // 二度目以降は既に踏破済みなので、隣接ノードとして直接クリックで行き来できる。
-  function onWorldArrive(id, firstVisit, next) {
+  function onWorldArrive(id, firstVisit, next, travel) {
     // 灰縁の集落はくじの前にしか歩けない。追放後は「門が勝手に閉ざされている」
     // という説明のつかない物理現象ではなく、集落長の命を受けた門番が
     // 実際に押し戻す、という筋の通った拒絶にする
@@ -205,18 +202,16 @@ RPG.Chapter1 = (function () {
       ], next);
       return;
     }
-    // 廃区画は初回だけ内部を歩かせる。二度目以降は、内部へ強制的に
-    // 戻すのではなく、ここに書いてある元々の設計どおり、ただの中継
-    // ノードとしてワールドマップ上に留まらせる。そうしないと、廃区画
-    // だけに繋がっている灰縁の集落へ二度と辿り着けなくなってしまう
-    // （廃区画に着くたび自動で内部へ潜ってしまい、隣接ノードを
-    // クリックできる「ワールドマップ上に立ち止まる瞬間」が
-    // 一度も存在しなくなるため）。
-    if (id === "hairegion" && !hairegionCleared) {
-      Story.play(app, [
-        { kind: "header", text: "廃区画" },
-        { kind: "narration", text: "崩れた区画の入り口に着いた。瓦礫に埋もれた道の先に何があるのかは、まだ分からない。" },
-      ], enterHairegion);
+    if (id === "hairegion") {
+      var enter = function () { enterHairegion(travel && travel.from); };
+      if (!hairegionCleared) {
+        Story.play(app, [
+          { kind: "header", text: "廃区画" },
+          { kind: "narration", text: "崩れた区画の入り口に着いた。瓦礫に埋もれた道の先に何があるのかは、まだ分からない。" },
+        ], enter);
+      } else {
+        enter();
+      }
       return;
     }
     if (id === "michi" && firstVisit) { Story.play(app, roadBeats, afterRoad); return; }
@@ -232,9 +227,11 @@ RPG.Chapter1 = (function () {
     next();
   }
 
-  function enterHairegion() {
+  function enterHairegion(fromNodeId) {
     hairegionCleared = true;
-    hairegionArea = Explore.startFreeArea(app, HAIREGION_AREA, game, {
+    var entry = HAIREGION_ENTRIES[fromNodeId] || HAIREGION_AREA.start;
+    var areaData = Object.assign({}, HAIREGION_AREA, { start: entry });
+    hairegionArea = Explore.startFreeArea(app, areaData, game, {
       onExit: function (to) { worldMap.arriveAt(to); },
       onChest: function (zoneId, next) {
         Story.play(app, [{ kind: "narration", text: "瓦礫の下から、色褪せた家族写真が一枚出てきた。誰のものかは、もう分からない。" }], next);

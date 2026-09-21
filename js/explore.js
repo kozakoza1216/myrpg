@@ -458,6 +458,7 @@ RPG.Explore = (function () {
   // next() を呼んで広域マップの再描画に戻るかを決める。
   WorldMap.prototype.travelTo = function (nodeId) {
     var self = this;
+    var fromNodeId = this.current;
     var edge = this.edgesFrom(this.current).filter(function (e) {
       return e.from === nodeId || e.to === nodeId;
     })[0];
@@ -468,7 +469,7 @@ RPG.Explore = (function () {
     this.visited[nodeId] = true;
 
     var arrive = function () {
-      if (self.cb.onArrive) { self.cb.onArrive(nodeId, firstVisit, function () { self.render(); }); return; }
+      if (self.cb.onArrive) { self.cb.onArrive(nodeId, firstVisit, function () { self.render(); }, { from: fromNodeId, fastTravel: false }); return; }
       self.render();
     };
 
@@ -486,7 +487,7 @@ RPG.Explore = (function () {
     var firstVisit = !this.visited[nodeId];
     this.current = nodeId;
     this.visited[nodeId] = true;
-    if (this.cb.onArrive) { this.cb.onArrive(nodeId, firstVisit, function () { self.render(); }); return; }
+    if (this.cb.onArrive) { this.cb.onArrive(nodeId, firstVisit, function () { self.render(); }, { from: null, viaInterior: true, fastTravel: false }); return; }
     this.render();
   };
 
@@ -508,6 +509,55 @@ RPG.Explore = (function () {
   WorldMap.prototype.setCurrent = function (nodeId) {
     this.current = nodeId;
     this.visited[nodeId] = true;
+  };
+
+  // 訪問済みランドマーク間の最短歩数。ファストトラベルは操作を省くだけで、
+  // 世界の時間は徒歩の最短経路と同じだけ進む（PLAN.md §8-4）。
+  WorldMap.prototype.shortestTravelCost = function (fromId, toId) {
+    var ids = this.data.nodes.map(function (n) { return n.id; });
+    var dist = {}, used = {};
+    ids.forEach(function (id) { dist[id] = Infinity; });
+    dist[fromId] = 0;
+    while (true) {
+      var current = null;
+      ids.forEach(function (id) {
+        if (!used[id] && (current === null || dist[id] < dist[current])) current = id;
+      });
+      if (current === null || !isFinite(dist[current])) return Infinity;
+      if (current === toId) return dist[current];
+      used[current] = true;
+      this.edgesFrom(current).forEach(function (edge) {
+        var next = edge.from === current ? edge.to : edge.from;
+        var candidate = dist[current] + (edge.steps || 10);
+        if (candidate < dist[next]) dist[next] = candidate;
+      });
+    }
+  };
+
+  WorldMap.prototype.fastTravelCost = function (nodeId) {
+    var cost = this.shortestTravelCost(this.current, nodeId);
+    // ミラは常時同行なので、人間は最低2人（セオ＋ミラ）。鳥人が人間以上なら
+    // 鳥人が全員を運べ、資料どおり移動時間を半減する。
+    var party = this.game.party || [];
+    var birds = party.filter(function (c) { return c.isBirdPerson; }).length;
+    var humans = Math.max(2, party.filter(function (c) { return !c.isBirdPerson; }).length);
+    return birds >= humans ? Math.ceil(cost / 2) : cost;
+  };
+
+  WorldMap.prototype.fastTravelTo = function (nodeId) {
+    var self = this;
+    var node = this.nodeById(nodeId);
+    if (!node || !this.visited[nodeId] || node.fastTravel === false || nodeId === this.current) return;
+    var cost = this.fastTravelCost(nodeId);
+    if (!isFinite(cost)) return;
+    var fromNodeId = this.current;
+    this.game.steps += cost;
+    this.current = nodeId;
+    if (this.cb.onArrive) {
+      this.cb.onArrive(nodeId, false, function () { self.render(); }, { from: fromNodeId, fastTravel: true, cost: cost });
+      return;
+    }
+    this.render();
   };
 
   // ノードの種別ごとの簡易ピクトグラムアイコン
@@ -686,6 +736,26 @@ RPG.Explore = (function () {
     svg.appendChild(legend);
 
     wrap.appendChild(svg);
+
+    // すでに訪れたランドマークだけを移動先にする。通常の隣接移動と並べて
+    // 表示することで、「未知の場所へ飛ぶ」ことや経路を無視した徒歩移動と
+    // 混同させない。
+    var destinations = this.data.nodes.filter(function (node) {
+      return node.id !== self.current && self.visited[node.id] && node.fastTravel !== false;
+    });
+    if (destinations.length) {
+      var fastTravel = document.createElement("div");
+      fastTravel.className = "fast-travel-controls";
+      var heading = document.createElement("p");
+      heading.className = "prompt";
+      heading.textContent = "ファストトラベル（最短経路と同じ歩数を消費）";
+      fastTravel.appendChild(heading);
+      destinations.forEach(function (node) {
+        var cost = self.fastTravelCost(node.id);
+        fastTravel.appendChild(ctrlBtn(node.name + "へ（" + cost + "歩）", function () { self.fastTravelTo(node.id); }));
+      });
+      wrap.appendChild(fastTravel);
+    }
     this.el.appendChild(wrap);
   };
 

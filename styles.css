@@ -130,6 +130,8 @@ button {
 .automap-box { background: #100c08; border: 1px solid var(--border); padding: 4px; }
 .dungeon-controls { display: flex; gap: 0.5rem; align-items: center; }
 .worldmap { width: 100%; max-width: 420px; border: 1px solid var(--border); border-radius: 6px; background: #1a1612; }
+.fast-travel-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.45rem; }
+.fast-travel-controls .prompt { width: 100%; text-align: center; margin: 0; }
 .map-node text { pointer-events: none; }
 .map-node.clickable { cursor: pointer; stroke: none; }
 .map-node.clickable:hover { fill: rgba(240, 200, 96, 0.18); stroke: var(--accent); stroke-width: 2; }
