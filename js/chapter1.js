@@ -188,15 +188,18 @@ RPG.Chapter1 = (function () {
       ], next);
       return;
     }
-    if (id === "hairegion") {
-      if (!hairegionCleared) {
-        Story.play(app, [
-          { kind: "header", text: "廃区画" },
-          { kind: "narration", text: "崩れた区画の入り口に着いた。瓦礫に埋もれた道の先に何があるのかは、まだ分からない。" },
-        ], enterHairegion);
-      } else {
-        enterHairegion();
-      }
+    // 廃区画は初回だけ内部を歩かせる。二度目以降は、内部へ強制的に
+    // 戻すのではなく、ここに書いてある元々の設計どおり、ただの中継
+    // ノードとしてワールドマップ上に留まらせる。そうしないと、廃区画
+    // だけに繋がっている灰縁の集落へ二度と辿り着けなくなってしまう
+    // （廃区画に着くたび自動で内部へ潜ってしまい、隣接ノードを
+    // クリックできる「ワールドマップ上に立ち止まる瞬間」が
+    // 一度も存在しなくなるため）。
+    if (id === "hairegion" && !hairegionCleared) {
+      Story.play(app, [
+        { kind: "header", text: "廃区画" },
+        { kind: "narration", text: "崩れた区画の入り口に着いた。瓦礫に埋もれた道の先に何があるのかは、まだ分からない。" },
+      ], enterHairegion);
       return;
     }
     if (id === "michi" && firstVisit) { Story.play(app, roadBeats, afterRoad); return; }
