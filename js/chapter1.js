@@ -76,6 +76,10 @@ RPG.Chapter1 = (function () {
     zones: [
       { id: "danger1", kind: "danger", x: 441, y: 291, r: 28, encounterRate: 0.5, label: "危険な瓦礫の陰" },
       { id: "chest1", kind: "chest", x: 131, y: 197, r: 16, label: "宝箱" },
+      // 入ってきた側（灰縁の集落方面）へも、他の出口と同じくここを歩いて
+      // 踏まないと戻れない。広域マップのノードを直接クリックするだけでは
+      // 辿り着けない、この内部を経由してこそ意味のある道にする。
+      { id: "exit_haiberi", kind: "exit", to: "haiberi", x: 25, y: 555, r: 20, steps: 10, label: "灰縁の集落へ" },
       { id: "exit_yaketa", kind: "exit", to: "yaketa", x: 413, y: 47, r: 20, steps: 15, label: "焼けた集落跡方面（寄り道）" },
       { id: "exit_michi", kind: "exit", to: "michi", x: 853, y: 300, r: 24, steps: 30, label: "祭壇方面" },
     ],

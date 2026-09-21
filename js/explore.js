@@ -598,6 +598,55 @@ RPG.Explore = (function () {
     return m;
   }
 
+  // 一様に塗った矩形＋当たり判定のためだけの縁、では「ただの四角い原っぱ」に
+  // 見えてしまう。地面の質感（濃淡のむら）と、外周の不揃いな瓦礫の縁取りを
+  // 加えて、境界そのものは矩形のままでも見た目は崩れた廃墟らしくする。
+  // 毎回re-renderするたびに配置が変わると落ち着かないので、シード付き
+  // 疑似乱数でエリアごとに決まった配置を1回だけ作り、使い回す。
+  function seededRandom(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function buildGroundTexture(data) {
+    var rng = seededRandom(Math.floor(data.width * 7 + data.height * 13) || 1);
+    var patches = [];
+    var count = Math.round((data.width * data.height) / 9000);
+    for (var i = 0; i < count; i++) {
+      patches.push({
+        x: rng() * data.width, y: rng() * data.height,
+        r: 10 + rng() * 16, rot: Math.floor(rng() * 4),
+        dark: rng() < 0.5,
+      });
+    }
+    var edge = [];
+    var step = 46;
+    for (var x = 0; x < data.width; x += step) { edge.push({ x: x + rng() * 20, y: -4 + rng() * 10, r: 14 + rng() * 10 }); edge.push({ x: x + rng() * 20, y: data.height + 4 - rng() * 10, r: 14 + rng() * 10 }); }
+    for (var y = 0; y < data.height; y += step) { edge.push({ x: -4 + rng() * 10, y: y + rng() * 20, r: 14 + rng() * 10 }); edge.push({ x: data.width + 4 - rng() * 10, y: y + rng() * 20, r: 14 + rng() * 10 }); }
+    return { patches: patches, edge: edge };
+  }
+
+  function drawFreeAreaGround(svg, data, texture) {
+    svg.appendChild(el("rect", { x: 0, y: 0, width: data.width, height: data.height, fill: "#26221c" }));
+    texture.patches.forEach(function (p) {
+      var shape = RUBBLE_SHAPES[p.rot % RUBBLE_SHAPES.length];
+      svg.appendChild(el("polygon", {
+        points: pts18(p.x, p.y, p.r, shape),
+        fill: p.dark ? "#201c16" : "#2e2921", opacity: 0.6,
+      }));
+    });
+    // 外周を瓦礫でぼかし、まっすぐな矩形の縁に見えないようにする
+    // （歩ける範囲そのものは変えず、見た目だけを崩す）
+    texture.edge.forEach(function (p, i) {
+      var shape = RUBBLE_SHAPES[i % RUBBLE_SHAPES.length];
+      svg.appendChild(el("polygon", { points: pts18(p.x, p.y, p.r, shape), fill: "#1c1812", stroke: "#100c08", "stroke-width": 1 }));
+    });
+  }
+
   // ── ノード内部の自由移動エリア（グリッド不使用） ──
   // マス目には区切らず、クリックした座標へ直接歩く。位置は連続座標(x,y)で持ち、
   // 障害物・危険域・宝箱・出口は円形の当たり判定として定義する。
@@ -613,6 +662,7 @@ RPG.Explore = (function () {
     this.pos = { x: data.start.x, y: data.start.y };
     this.taken = initialTaken || {};
     this.insideZoneId = null;
+    this._groundTexture = buildGroundTexture(data);
   }
 
   // 画面に見える窓は固定サイズ。マップ（data.width/height）がこれより
@@ -864,7 +914,7 @@ RPG.Explore = (function () {
 
     var svg = el("svg", { viewBox: camX + " " + camY + " " + vw + " " + vh, class: "freearea", tabindex: "0" });
     this._svgEl = svg;
-    svg.appendChild(el("rect", { x: 0, y: 0, width: this.data.width, height: this.data.height, fill: "#26221c" }));
+    drawFreeAreaGround(svg, this.data, this._groundTexture);
 
     (this.data.obstacles || []).forEach(function (o, i) { drawFreeAreaObstacle(svg, o, i); });
     (this.data.zones || []).forEach(function (z) { if (!self.taken[z.id]) drawFreeAreaZone(svg, z); });
