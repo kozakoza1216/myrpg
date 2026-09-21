@@ -7,7 +7,14 @@ RPG.Story = (function () {
 
     function renderBeat() {
       var beat = beats[index];
-      if (!beat) {\n        // 会話クリックのイベント処理中に次の探索画面を同期描画すると、\n        // Android系ブラウザで入力イベントとDOM差し替えが競合して\n        // 「最後の文章から先へ進まない」状態になることがある。\n        // 会話終了後の画面遷移はイベント処理を抜けてから行う。\n        setTimeout(function () { onDone(); }, 0);\n        return;\n      }
+      if (!beat) {
+        // 会話クリックのイベント処理中に次の探索画面を同期描画すると、
+        // Android系ブラウザで入力イベントとDOM差し替えが競合して
+        // 「最後の文章から先へ進まない」状態になることがある。
+        // 会話終了後の画面遷移はイベント処理を抜けてから行う。
+        setTimeout(function () { onDone(); }, 0);
+        return;
+      }
       containerEl.innerHTML = "";
       var box = document.createElement("div");
 
