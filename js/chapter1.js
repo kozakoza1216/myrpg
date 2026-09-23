@@ -58,29 +58,65 @@ RPG.Chapter1 = (function () {
   // 画面の窓（480x320）より大きく作ってあるため、全体は一画面に収まらず、
   // プレイヤーを追いかけるカメラで実際に歩いて見て回ることになる。
   var HAIREGION_AREA = {
-    label: "廃区画",
+    label: "廃区画・下層街路",
     width: 900, height: 600,
     start: { x: 47, y: 525 },
+    entryPoints: { fromHigh: { x: 322, y: 369 } },
+    // 西の門から中央広場へ入り、北の寄り道と東の祭壇方面へ分岐する街路。
+    streetPaths: [
+      [[35,525],[175,510],[300,445],[435,410],[590,405],[850,300]],
+      [[300,445],[350,300],[413,62]],
+      [[435,410],[545,500],[735,515]],
+    ],
+    cityBlocks: [
+      { x:75,y:350,w:130,h:110 }, { x:90,y:105,w:170,h:145 }, { x:275,y:75,w:105,h:155 },
+      { x:465,y:70,w:150,h:165 }, { x:650,y:80,w:175,h:145 }, { x:610,y:285,w:165,h:105 },
+      { x:105,y:480,w:110,h:70 }, { x:410,y:475,w:105,h:88 }, { x:735,y:430,w:120,h:105 },
+    ],
     obstacles: [
-      { x: 225, y: 244, r: 20 },
-      { x: 413, y: 413, r: 24 },
-      { x: 619, y: 169, r: 18 },
-      { x: 169, y: 413, r: 14 },
-      { x: 488, y: 263, r: 16 },
-      { x: 713, y: 431, r: 15 },
-      { x: 320, y: 520, r: 18 },
-      { x: 620, y: 490, r: 16 },
-      { x: 780, y: 250, r: 14 },
+      { x:225,y:244,r:26 }, { x:413,y:413,r:25 }, { x:619,y:169,r:28 }, { x:169,y:413,r:22 },
+      { x:488,y:263,r:25 }, { x:713,y:431,r:23 }, { x:320,y:520,r:22 }, { x:620,y:490,r:23 },
+      { x:780,y:250,r:22 }, { x:265,y:365,r:18 }, { x:370,y:355,r:18 }, { x:535,y:365,r:24 },
+      { x:515,y:455,r:18 }, { x:695,y:365,r:20 }, { x:260,y:155,r:21 }, { x:398,y:145,r:18 },
     ],
     zones: [
-      { id: "danger1", kind: "danger", x: 441, y: 291, r: 28, encounterRate: 0.5, label: "危険な瓦礫の陰" },
-      { id: "chest1", kind: "chest", x: 131, y: 197, r: 16, label: "宝箱" },
+      { id: "danger1", kind: "danger", x: 441, y: 291, r: 30, encounterRate: 0.5, label: "崩落した交差路" },
+      { id: "danger2", kind: "danger", x: 695, y: 365, r: 28, encounterRate: 0.35, label: "見通しの悪い市場跡" },
+      { id: "chest1", kind: "chest", x: 131, y: 197, r: 16, label: "北の住居跡" },
+      { id: "chest2", kind: "chest", x: 735, y: 515, r: 16, label: "水路脇の荷箱" },
+      { id: "stairs_up", kind: "stairs", toLayer: "upper", entry: "fromStreet", x: 322, y: 365, r: 18, label: "崩れた高架への石段" },
       // 入ってきた側（灰縁の集落方面）へも、他の出口と同じくここを歩いて
       // 踏まないと戻れない。広域マップのノードを直接クリックするだけでは
       // 辿り着けない、この内部を経由してこそ意味のある道にする。
       { id: "exit_haiberi", kind: "exit", to: "haiberi", x: 25, y: 555, r: 20, steps: 10, label: "灰縁の集落へ" },
       { id: "exit_yaketa", kind: "exit", to: "yaketa", x: 413, y: 47, r: 20, steps: 15, label: "焼けた集落跡方面（寄り道）" },
       { id: "exit_michi", kind: "exit", to: "michi", x: 853, y: 300, r: 24, steps: 30, label: "祭壇方面" },
+    ],
+  };
+
+  // 下層と同じ廃区画を見下ろす高架歩道。短い足場をつなぐ危険な寄り道で、
+  // 下層の道路を進むだけでは見つからない報酬を置く。
+  var HAIREGION_UPPER_AREA = {
+    label: "廃区画・高架歩道",
+    width: 900, height: 600,
+    start: { x: 322, y: 340 },
+    entryPoints: { fromStreet: { x: 322, y: 340 } },
+    elevation: "high",
+    streetPaths: HAIREGION_AREA.streetPaths,
+    cityBlocks: HAIREGION_AREA.cityBlocks,
+    highWalkways: [
+      [[322,340],[445,265],[590,230],[760,205]],
+      [[445,265],[500,390],[650,440]],
+      [[590,230],[720,300],[820,295]],
+    ],
+    obstacles: [
+      { x:385,y:300,r:24 }, { x:520,y:310,r:20 }, { x:665,y:245,r:27 }, { x:740,y:255,r:20 },
+      { x:585,y:375,r:25 }, { x:700,y:395,r:27 }, { x:470,y:180,r:22 }, { x:800,y:350,r:20 },
+    ],
+    zones: [
+      { id: "upper_danger", kind: "danger", x: 590, y: 230, r: 30, encounterRate: 0.55, label: "崩れた連絡橋" },
+      { id: "upper_chest", kind: "chest", x: 760, y: 205, r: 16, label: "見張り台の遺品" },
+      { id: "stairs_down", kind: "stairs", toLayer: "street", entry: "fromHigh", x: 322, y: 340, r: 18, label: "下層街路へ戻る" },
     ],
   };
 
@@ -227,12 +263,14 @@ RPG.Chapter1 = (function () {
     next();
   }
 
-  function enterHairegion(fromNodeId) {
+  function enterHairegion(fromNodeId, layerId, entryId) {
     hairegionCleared = true;
-    var entry = HAIREGION_ENTRIES[fromNodeId] || HAIREGION_AREA.start;
-    var areaData = Object.assign({}, HAIREGION_AREA, { start: entry });
+    var areaTemplate = layerId === "upper" ? HAIREGION_UPPER_AREA : HAIREGION_AREA;
+    var entry = (areaTemplate.entryPoints && areaTemplate.entryPoints[entryId]) || HAIREGION_ENTRIES[fromNodeId] || areaTemplate.start;
+    var areaData = Object.assign({}, areaTemplate, { start: entry });
     hairegionArea = Explore.startFreeArea(app, areaData, game, {
       onExit: function (to) { worldMap.arriveAt(to); },
+      onStairs: function (toLayer, toEntry) { enterHairegion(null, toLayer, toEntry); },
       onChest: function (zoneId, next) {
         Story.play(app, [{ kind: "narration", text: "瓦礫の下から、色褪せた家族写真が一枚出てきた。誰のものかは、もう分からない。" }], next);
       },

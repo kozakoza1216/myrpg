@@ -799,6 +799,29 @@ RPG.Explore = (function () {
 
   function drawFreeAreaGround(svg, data, texture) {
     svg.appendChild(el("rect", { x: 0, y: 0, width: data.width, height: data.height, fill: "#26221c" }));
+    // 地下の洞窟ではなく、崩壊した人工都市の街路と建物区画を描く。
+    (data.streetPaths || []).forEach(function (points) {
+      var d = "M" + points.map(function (p) { return p[0] + " " + p[1]; }).join(" L");
+      svg.appendChild(el("path", { d: d, fill: "none", stroke: "#171511", "stroke-width": 58, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+      svg.appendChild(el("path", { d: d, fill: "none", stroke: "#4b453a", "stroke-width": 42, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+      svg.appendChild(el("path", { d: d, fill: "none", stroke: "#6b6252", "stroke-width": 3, "stroke-dasharray": "16 14", opacity: 0.7 }));
+    });
+    (data.cityBlocks || []).forEach(function (b, i) {
+      svg.appendChild(el("rect", { x: b.x, y: b.y, width: b.w, height: b.h, rx: 4, fill: i % 2 ? "#39342d" : "#443e35", stroke: "#16130f", "stroke-width": 3 }));
+      for (var wx = b.x + 12; wx < b.x + b.w - 8; wx += 19) {
+        if ((Math.floor(wx + b.y) / 19 + i) % 3 < 1) continue;
+        svg.appendChild(el("rect", { x: wx, y: b.y + 9 + (i % 2) * 7, width: 7, height: 10, fill: "#181613", opacity: 0.85 }));
+      }
+    });
+    if (data.elevation === "high") {
+      svg.appendChild(el("rect", { x: 0, y: 0, width: data.width, height: data.height, fill: "#8d9a9a", opacity: 0.08 }));
+      (data.highWalkways || []).forEach(function (points) {
+        var d = "M" + points.map(function (p) { return p[0] + " " + p[1]; }).join(" L");
+        svg.appendChild(el("path", { d: d, fill: "none", stroke: "#17130f", "stroke-width": 34, "stroke-linecap": "round" }));
+        svg.appendChild(el("path", { d: d, fill: "none", stroke: "#8a7960", "stroke-width": 22, "stroke-linecap": "round" }));
+        svg.appendChild(el("path", { d: d, fill: "none", stroke: "#c1aa7c", "stroke-width": 2, "stroke-dasharray": "5 8", opacity: 0.8 }));
+      });
+    }
     texture.patches.forEach(function (p) {
       var shape = RUBBLE_SHAPES[p.rot % RUBBLE_SHAPES.length];
       svg.appendChild(el("polygon", {
@@ -974,6 +997,11 @@ RPG.Explore = (function () {
       if (this.cb.onExit) this.cb.onExit(zone.to);
       return;
     }
+    if (zone.kind === "stairs") {
+      if (this.cb.onStairs) { this.cb.onStairs(zone.toLayer, zone.entry); return; }
+      this.attachKeyboard();
+      return;
+    }
     if (zone.kind === "chest") {
       this.taken[zone.id] = true;
       if (this.cb.onChest) this.cb.onChest(zone.id, function () { self.render(); });
@@ -1046,6 +1074,10 @@ RPG.Explore = (function () {
       g.appendChild(el("rect", { x: z.x - 9, y: z.y - 10, width: 4, height: 20, fill: "#d8a860" }));
       g.appendChild(el("rect", { x: z.x + 5, y: z.y - 10, width: 4, height: 20, fill: "#d8a860" }));
       g.appendChild(el("rect", { x: z.x - 11, y: z.y - 13, width: 22, height: 4, fill: "#d8a860" }));
+    } else if (z.kind === "stairs") {
+      for (var step = 0; step < 4; step++) {
+        g.appendChild(el("rect", { x: z.x - 13 + step * 3, y: z.y + 8 - step * 6, width: 26 - step * 6, height: 5, fill: "#8d7b5c", stroke: "#30291f", "stroke-width": 1 }));
+      }
     } else if (z.kind === "talk") {
       // 吹き出し（危険ではないNPC接触点）
       g.appendChild(el("rect", { x: z.x - 11, y: z.y - 10, width: 22, height: 15, rx: 4, fill: "#3a6bab", stroke: "#e8dcc8", "stroke-width": 1.5 }));
