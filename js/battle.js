@@ -2,7 +2,7 @@
 window.RPG = window.RPG || {};
 
 RPG.Battle = (function () {
-  var Data = RPG.Data, Engine = RPG.Engine, Picto = RPG.Picto;
+  var Data = RPG.Data, Engine = RPG.Engine;
   var ATB_MAX = 100;
 
   function createCombatant(defId, isEnemy) {
@@ -372,10 +372,9 @@ RPG.Battle = (function () {
     var self = this;
     list.forEach(function (c) {
       var box = document.createElement("div");
-      box.className = "combatant-box" + (c.defeated ? " defeated" : "");
-      var isDragon = c.defId === "kagari" && false; // 灰色竜専用(将来拡張)
-      var svg = isDragon ? Picto.renderDragon({ hpRatio: c.hp / c.maxHp }) : Picto.renderPicto(c, faction, { defeated: c.defeated, selected: self.pending && self.pending.target === c });
-      box.appendChild(svg);
+      // 戦闘画面には人物のピクトグラムを出さず、名前とゲージだけで示す。
+      // 狙いを付けている相手は、絵の代わりに枠の強調で分かるようにする。
+      box.className = "combatant-box" + (c.defeated ? " defeated" : "") + (self.pending && self.pending.target === c ? " selected" : "");
       var name = document.createElement("div");
       name.className = "combatant-name";
       name.textContent = c.name + (c.position === "back" ? "（後衛）" : "");

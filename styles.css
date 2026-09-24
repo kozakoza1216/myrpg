@@ -89,7 +89,7 @@ button {
 .combatant-box.defeated { opacity: 0.35; }
 .combatant-box.clickable { cursor: pointer; outline: 2px solid transparent; }
 .combatant-box.clickable:hover { outline-color: var(--accent); }
-.picto, .picto-dragon { display: block; margin: 0 auto; }
+.combatant-box.selected { outline: 2px solid var(--accent); }
 .combatant-name { font-weight: bold; margin: 0.2rem 0; font-size: 0.9rem; }
 .bar-track { position: relative; background: #100c08; border-radius: 4px; height: 14px; margin-bottom: 3px; overflow: hidden; }
 .bar-fill { height: 100%; transition: width 0.2s ease; }
@@ -135,8 +135,18 @@ button {
 .map-node text { pointer-events: none; }
 .map-node.clickable { cursor: pointer; stroke: none; }
 .map-node.clickable:hover { fill: rgba(240, 200, 96, 0.18); stroke: var(--accent); stroke-width: 2; }
-/* touch-action:none が無いと、なぞった時にブラウザ側のスクロール／ズームが
+/* 探索エリアはドット絵。canvasの解像度（1ドット＝1画素）のまま拡大し、
+   拡大時にぼかさない（image-rendering: pixelated）。
+   touch-action:none が無いと、なぞった時にブラウザ側のスクロール／ズームが
    優先されてしまい、スマホで移動操作が成立しない */
-.freearea { width: 100%; max-width: 480px; border: 1px solid var(--border); border-radius: 6px; cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; }
+.freearea-frame { position: relative; width: 100%; max-width: 480px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #0a0806; }
+.freearea { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; }
 .freearea:focus { outline: none; }
-.freearea-player { transition: transform 0.35s ease-out; }
+.freearea-label { position: absolute; transform: translateX(-50%); font-size: 11px; line-height: 1.3; color: #e8dcc8; background: rgba(10, 8, 6, 0.72); padding: 0 4px; border-radius: 2px; white-space: nowrap; pointer-events: none; }
+.freearea-label-danger { color: #f0a080; }
+.freearea-label-exit { color: #f0d090; }
+.freearea-label-stairs { color: #b8d0e0; }
+.layer-badge { position: absolute; top: 6px; right: 6px; background: rgba(10, 8, 6, 0.78); border: 1px solid var(--border); border-radius: 3px; padding: 2px 6px; font-size: 11px; line-height: 1.5; color: #7a6a52; pointer-events: none; }
+.layer-badge .layer-row.current { color: var(--accent); font-weight: bold; }
+@keyframes layer-banner { 0% { opacity: 0; } 15% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+.layer-banner { position: absolute; left: 0; right: 0; top: 38%; text-align: center; font-size: 1.3rem; letter-spacing: 0.2em; color: var(--accent); background: rgba(10, 8, 6, 0.7); padding: 0.4rem 0; pointer-events: none; opacity: 0; animation: layer-banner 1.8s ease-out forwards; }

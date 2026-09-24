@@ -7,26 +7,52 @@ RPG.Chapter1 = (function () {
 
   // 灰縁の集落。PLAN.md §7.5-2b「①日常：移動・会話・簡易戦闘のチュートリアル」に基づき、
   // くじが引かれる前に自由に歩ける（＝追放されたら二度と戻れない、ここでしか拾えないアイテムがある）。
+  // 地形はタイル単位（1タイル＝16ドット）で組む。座標もタイル単位。
   var HAIBERI_VILLAGE = {
     label: "灰縁の集落",
-    width: 480, height: 320,
-    start: { x: 240, y: 280 },
-    obstacles: [
-      { x: 240, y: 210, r: 20, kind: "hut" },
-      { x: 120, y: 230, r: 20, kind: "hut" },
-      { x: 350, y: 230, r: 18, kind: "hut" },
-      { x: 90, y: 110, r: 18, kind: "hut" },
-      { x: 260, y: 100, r: 18, kind: "hut" },
-      // 集落の家並みからは離れた、瓦礫の残る外れ（灰ネズミが出るのはここ）
-      { x: 60, y: 60, r: 16 },
-      { x: 40, y: 100, r: 12 },
-    ],
+    start: { tx: 19.5, ty: 25.5 },
+    tilemap: {
+      cols: 48, rows: 32, seed: 3, rubbleBase: "grass",
+      ops: [
+        { op: "fill", t: "grass" },
+        // 集落の家並みからは離れた、瓦礫の残る外れ（灰ネズミが出るのはここ）
+        { op: "disc", x: 4, y: 8, r: 6, t: "lot" },
+        { op: "disc", x: 2.5, y: 4.5, r: 1.8, t: "rubble" },
+        { op: "disc", x: 6.5, y: 8, r: 1.3, t: "rubble" },
+        { op: "disc", x: 2, y: 11.5, r: 1.2, t: "rubble" },
+        // 踏み固められた小道
+        { op: "line", pts: [[19.5, 25.5], [27.5, 25.5], [29.5, 16.5], [47, 16.5]], w: 3, t: "dirt" },
+        { op: "line", pts: [[29.5, 16.5], [22, 15]], w: 3, t: "dirt" },
+        { op: "line", pts: [[22, 15], [12.5, 11.5]], w: 3, t: "dirt" },
+        { op: "line", pts: [[27, 15.5], [26.5, 9.5]], w: 3, t: "dirt" },
+        { op: "line", pts: [[29.5, 16.5], [39.5, 8.5]], w: 3, t: "dirt" },
+        { op: "line", pts: [[19.5, 25.5], [9.5, 25.5]], w: 3, t: "dirt" },
+        { op: "line", pts: [[27.5, 25.5], [35.5, 26.5]], w: 3, t: "dirt" },
+        { op: "disc", x: 22, y: 15, r: 3.5, t: "dirt" },
+        // 集落を囲う柵。東の切れ目が広場への道
+        { op: "rect", x: 0, y: 0, w: 48, h: 1, t: "fence" },
+        { op: "rect", x: 0, y: 31, w: 48, h: 1, t: "fence" },
+        { op: "rect", x: 0, y: 0, w: 1, h: 32, t: "fence" },
+        { op: "rect", x: 47, y: 0, w: 1, h: 32, t: "fence" },
+        { op: "rect", x: 47, y: 14, w: 1, h: 5, t: "dirt" },
+        // 住居（いちばん南がセオの家）
+        { op: "hut", x: 16, y: 19, w: 6, h: 5 },
+        { op: "hut", x: 6, y: 20, w: 6, h: 5 },
+        { op: "hut", x: 32, y: 21, w: 6, h: 5 },
+        { op: "hut", x: 9, y: 6, w: 6, h: 5 },
+        { op: "hut", x: 23, y: 4, w: 6, h: 5 },
+        { op: "hut", x: 36, y: 3, w: 6, h: 5 },
+        { op: "well", x: 21, y: 13 },
+        { op: "tree", x: 3, y: 27 }, { op: "tree", x: 13, y: 28 }, { op: "tree", x: 44, y: 27 },
+        { op: "tree", x: 29, y: 29 }, { op: "tree", x: 44, y: 4 }, { op: "tree", x: 19, y: 2 }, { op: "tree", x: 33, y: 12 },
+      ],
+    },
     zones: [
-      { id: "well", kind: "talk", x: 230, y: 140, r: 20, label: "井戸端の老人",
+      { id: "well", kind: "talk", tx: 25, ty: 13.5, r: 18, label: "井戸端の老人",
         speaker: "竜読みの老人", text: "竜には逆らえん。くじは絶対だ……お前さんも、いずれわかる。" },
-      { id: "chest_shelf", kind: "chest", x: 400, y: 60, r: 16, label: "住居の棚" },
-      { id: "rat", kind: "encounter", x: 45, y: 170, r: 26, label: "集落の外れ・灰色の気配" },
-      { id: "exit_plaza", kind: "exit", to: "plaza", x: 420, y: 170, r: 22, steps: 5, label: "広場へ（くじの刻限）" },
+      { id: "chest_shelf", kind: "chest", tx: 41.5, ty: 9, r: 14, label: "住居の棚" },
+      { id: "rat", kind: "encounter", tx: 4, ty: 15.5, r: 30, label: "集落の外れ・灰色の気配" },
+      { id: "exit_plaza", kind: "exit", to: "plaza", tx: 46.5, ty: 16.5, r: 22, dir: "e", steps: 5, label: "広場へ（くじの刻限）" },
     ],
   };
 
@@ -52,71 +78,99 @@ RPG.Chapter1 = (function () {
     ],
   };
 
-  // 廃区画の内部。左から入り、複数の出口へ抜ける（歩数・エンカウントはここで消化する）。
+  // 廃区画の内部。西の門から入り、複数の出口へ抜ける（歩数・エンカウントはここで消化する）。
   // 「祭壇方面」は最終目的地の祭壇へ直接ではなく、途中の中継ノード（祭壇へ続く道＝michi）へ
   // 出る＝先で道がどう分岐していてもおかしくない、という含みを持たせる。
-  // 画面の窓（480x320）より大きく作ってあるため、全体は一画面に収まらず、
-  // プレイヤーを追いかけるカメラで実際に歩いて見て回ることになる。
+  // 街区はすべて建物で埋まっていて、歩けるのは切り開かれた街路だけ。
+  // 画面の窓（24×16タイル）よりずっと大きく、カメラで追いながら歩いて見て回る。
+  var HAIREGION_LAYERS = [
+    { id: "upper", name: "上層　高架歩道" },
+    { id: "street", name: "下層　街路" },
+  ];
   var HAIREGION_AREA = {
     label: "廃区画・下層街路",
-    width: 900, height: 600,
-    start: { x: 47, y: 525 },
-    entryPoints: { fromHigh: { x: 322, y: 369 } },
-    // 西の門から中央広場へ入り、北の寄り道と東の祭壇方面へ分岐する街路。
-    streetPaths: [
-      [[35,525],[175,510],[300,445],[435,410],[590,405],[850,300]],
-      [[300,445],[350,300],[413,62]],
-      [[435,410],[545,500],[735,515]],
-    ],
-    cityBlocks: [
-      { x:75,y:350,w:130,h:110 }, { x:90,y:105,w:170,h:145 }, { x:275,y:75,w:105,h:155 },
-      { x:465,y:70,w:150,h:165 }, { x:650,y:80,w:175,h:145 }, { x:610,y:285,w:165,h:105 },
-      { x:105,y:480,w:110,h:70 }, { x:410,y:475,w:105,h:88 }, { x:735,y:430,w:120,h:105 },
-    ],
-    obstacles: [
-      { x:225,y:244,r:26 }, { x:413,y:413,r:25 }, { x:619,y:169,r:28 }, { x:169,y:413,r:22 },
-      { x:488,y:263,r:25 }, { x:713,y:431,r:23 }, { x:320,y:520,r:22 }, { x:620,y:490,r:23 },
-      { x:780,y:250,r:22 }, { x:265,y:365,r:18 }, { x:370,y:355,r:18 }, { x:535,y:365,r:24 },
-      { x:515,y:455,r:18 }, { x:695,y:365,r:20 }, { x:260,y:155,r:21 }, { x:398,y:145,r:18 },
-    ],
+    layer: "street", layers: HAIREGION_LAYERS,
+    start: { tx: 5, ty: 66 },
+    // どこから入ってきたかで、区画内のどこに立つかが決まる
+    entryPoints: {
+      haiberi: { tx: 5, ty: 66 },
+      yaketa: { tx: 51, ty: 6 },
+      michi: { tx: 105, ty: 39 },
+      fromHigh: { tx: 40, ty: 45 },
+    },
+    tilemap: {
+      cols: 112, rows: 76, seed: 7,
+      ops: [
+        { op: "fill", t: "bldg" },
+        // 西の門から東の祭壇方面へ抜ける大通り
+        { op: "line", pts: [[-2, 66], [22, 65], [37, 56], [54, 52], [73, 51], [106, 38], [114, 38]], w: 12, t: "road" },
+        // 北の焼けた集落跡へ向かう通り
+        { op: "line", pts: [[37, 56], [44, 38], [51, 8], [51, -2]], w: 10, t: "road" },
+        // 南東の水路へ下りる通り
+        { op: "line", pts: [[54, 52], [68, 63], [92, 65]], w: 9, t: "road" },
+        // 北の住居跡へ入り込む路地と、その奥の中庭
+        { op: "line", pts: [[43, 36], [28, 29], [16, 25]], w: 7, t: "road" },
+        { op: "disc", x: 15, y: 24, r: 5, t: "lot" },
+        // 中央広場と市場跡
+        { op: "disc", x: 45, y: 52, r: 9, t: "plaza" },
+        { op: "disc", x: 86, y: 46, r: 7, t: "lot" },
+        // 水路
+        { op: "rect", x: 60, y: 70, w: 52, h: 6, t: "water" },
+        // 崩れて道を塞ぐ瓦礫（通りの幅は残る）
+        { op: "disc", x: 30, y: 61, r: 2.2, t: "rubble" }, { op: "disc", x: 48, y: 47, r: 2.5, t: "rubble" },
+        { op: "disc", x: 60, y: 53, r: 2, t: "rubble" }, { op: "disc", x: 80, y: 48, r: 2.2, t: "rubble" },
+        { op: "disc", x: 90, y: 44, r: 1.8, t: "rubble" }, { op: "disc", x: 49, y: 20, r: 2.5, t: "rubble" },
+        { op: "disc", x: 53, y: 27, r: 1.8, t: "rubble" }, { op: "disc", x: 75, y: 64, r: 2, t: "rubble" },
+        { op: "disc", x: 18, y: 63, r: 1.6, t: "rubble" }, { op: "disc", x: 97, y: 42, r: 2, t: "rubble" },
+        { op: "disc", x: 46, y: 33, r: 2, t: "rubble" }, { op: "disc", x: 24, y: 28, r: 1.4, t: "rubble" },
+        { op: "scatter", t: "rubble", on: ["road", "plaza", "lot"], count: 140, keep: 4 },
+      ],
+    },
     zones: [
-      { id: "danger1", kind: "danger", x: 441, y: 291, r: 30, encounterRate: 0.5, label: "崩落した交差路" },
-      { id: "danger2", kind: "danger", x: 695, y: 365, r: 28, encounterRate: 0.35, label: "見通しの悪い市場跡" },
-      { id: "chest1", kind: "chest", x: 131, y: 197, r: 16, label: "北の住居跡" },
-      { id: "chest2", kind: "chest", x: 735, y: 515, r: 16, label: "水路脇の荷箱" },
-      { id: "stairs_up", kind: "stairs", toLayer: "upper", entry: "fromStreet", x: 322, y: 365, r: 18, label: "崩れた高架への石段" },
+      { id: "danger1", kind: "danger", tx: 45, ty: 34, r: 70, encounterRate: 0.5, label: "崩落した交差路" },
+      { id: "danger2", kind: "danger", tx: 86, ty: 46, r: 80, encounterRate: 0.35, label: "見通しの悪い市場跡" },
+      { id: "chest1", kind: "chest", tx: 13.5, ty: 23, r: 14, label: "北の住居跡" },
+      { id: "chest2", kind: "chest", tx: 91, ty: 68.5, r: 14, label: "水路脇の荷箱" },
+      { id: "stairs_up", kind: "stairs", toLayer: "upper", entry: "fromStreet", tx: 40, ty: 45, r: 16, label: "崩れた高架への石段" },
       // 入ってきた側（灰縁の集落方面）へも、他の出口と同じくここを歩いて
       // 踏まないと戻れない。広域マップのノードを直接クリックするだけでは
       // 辿り着けない、この内部を経由してこそ意味のある道にする。
-      { id: "exit_haiberi", kind: "exit", to: "haiberi", x: 25, y: 555, r: 20, steps: 10, label: "灰縁の集落へ" },
-      { id: "exit_yaketa", kind: "exit", to: "yaketa", x: 413, y: 47, r: 20, steps: 15, label: "焼けた集落跡方面（寄り道）" },
-      { id: "exit_michi", kind: "exit", to: "michi", x: 853, y: 300, r: 24, steps: 30, label: "祭壇方面" },
+      { id: "exit_haiberi", kind: "exit", to: "haiberi", tx: 1.2, ty: 66, r: 22, dir: "w", steps: 10, label: "灰縁の集落へ" },
+      { id: "exit_yaketa", kind: "exit", to: "yaketa", tx: 51, ty: 1.4, r: 22, dir: "n", steps: 15, label: "焼けた集落跡方面（寄り道）" },
+      { id: "exit_michi", kind: "exit", to: "michi", tx: 110.8, ty: 38, r: 24, dir: "e", steps: 30, label: "祭壇方面" },
     ],
   };
 
-  // 下層と同じ廃区画を見下ろす高架歩道。短い足場をつなぐ危険な寄り道で、
-  // 下層の道路を進むだけでは見つからない報酬を置く。
+  // 下層と同じ廃区画を見下ろす高架歩道。下層の街並みは足元に暗く沈んで
+  // 見えるだけで、歩けるのは描かれた歩道と足場の上だけ（縁から先へは出られない）。
   var HAIREGION_UPPER_AREA = {
     label: "廃区画・高架歩道",
-    width: 900, height: 600,
-    start: { x: 322, y: 340 },
-    entryPoints: { fromStreet: { x: 322, y: 340 } },
-    elevation: "high",
-    streetPaths: HAIREGION_AREA.streetPaths,
-    cityBlocks: HAIREGION_AREA.cityBlocks,
-    highWalkways: [
-      [[322,340],[445,265],[590,230],[760,205]],
-      [[445,265],[500,390],[650,440]],
-      [[590,230],[720,300],[820,295]],
-    ],
-    obstacles: [
-      { x:385,y:300,r:24 }, { x:520,y:310,r:20 }, { x:665,y:245,r:27 }, { x:740,y:255,r:20 },
-      { x:585,y:375,r:25 }, { x:700,y:395,r:27 }, { x:470,y:180,r:22 }, { x:800,y:350,r:20 },
-    ],
+    layer: "upper", layers: HAIREGION_LAYERS,
+    start: { tx: 40, ty: 45 },
+    entryPoints: { fromStreet: { tx: 40, ty: 45 } },
+    underlay: HAIREGION_AREA,
+    tilemap: {
+      cols: 112, rows: 76, seed: 9,
+      ops: [
+        { op: "fill", t: "void" },
+        { op: "line", pts: [[40, 45], [55, 34], [73, 29], [95, 26]], w: 7, t: "walk" },
+        { op: "line", pts: [[55, 34], [62, 49], [81, 56]], w: 7, t: "walk" },
+        { op: "line", pts: [[73, 29], [90, 38], [102, 37]], w: 7, t: "walk" },
+        { op: "disc", x: 40, y: 45, r: 4, t: "deck" },
+        { op: "disc", x: 73, y: 29, r: 4.5, t: "deck" },
+        { op: "disc", x: 96, y: 25, r: 4, t: "deck" },
+        { op: "disc", x: 81, y: 56, r: 4, t: "deck" },
+        { op: "disc", x: 102, y: 37, r: 4, t: "deck" },
+        // 抜け落ちた歩道（穴の脇をすり抜けて進む）
+        { op: "disc", x: 65, y: 31, r: 1.6, t: "void" },
+        { op: "disc", x: 60, y: 45, r: 1.5, t: "void" },
+        { op: "disc", x: 88, y: 37, r: 1.4, t: "void" },
+      ],
+    },
     zones: [
-      { id: "upper_danger", kind: "danger", x: 590, y: 230, r: 30, encounterRate: 0.55, label: "崩れた連絡橋" },
-      { id: "upper_chest", kind: "chest", x: 760, y: 205, r: 16, label: "見張り台の遺品" },
-      { id: "stairs_down", kind: "stairs", toLayer: "street", entry: "fromHigh", x: 322, y: 340, r: 18, label: "下層街路へ戻る" },
+      { id: "upper_danger", kind: "danger", tx: 73, ty: 29, r: 72, encounterRate: 0.55, label: "崩れた連絡橋" },
+      { id: "upper_chest", kind: "chest", tx: 97, ty: 24.5, r: 14, label: "見張り台の遺品" },
+      { id: "stairs_down", kind: "stairs", toLayer: "street", entry: "fromHigh", tx: 40, ty: 45, r: 16, label: "下層街路へ戻る" },
     ],
   };
 
@@ -203,11 +257,6 @@ RPG.Chapter1 = (function () {
   var worldMap = null;
   var hairegionArea = null;
   var hairegionCleared = false;
-  var HAIREGION_ENTRIES = {
-    haiberi: { x: 47, y: 525 },
-    yaketa: { x: 413, y: 92 },
-    michi: { x: 806, y: 300 },
-  };
   // 廃区画も祭壇と同じく、出口から出た後にノードとしてクリックし直しても
   // 中へ戻れなくなっていた。取得済みの宝箱等の状態を保ったまま再入場
   // できるように記憶しておく。
@@ -266,8 +315,8 @@ RPG.Chapter1 = (function () {
   function enterHairegion(fromNodeId, layerId, entryId) {
     hairegionCleared = true;
     var areaTemplate = layerId === "upper" ? HAIREGION_UPPER_AREA : HAIREGION_AREA;
-    var entry = (areaTemplate.entryPoints && areaTemplate.entryPoints[entryId]) || HAIREGION_ENTRIES[fromNodeId] || areaTemplate.start;
-    var areaData = Object.assign({}, areaTemplate, { start: entry });
+    var entry = areaTemplate.entryPoints[entryId] || areaTemplate.entryPoints[fromNodeId] || areaTemplate.start;
+    var areaData = Object.assign({}, areaTemplate, { start: entry, arrivedByStairs: !!entryId });
     hairegionArea = Explore.startFreeArea(app, areaData, game, {
       onExit: function (to) { worldMap.arriveAt(to); },
       onStairs: function (toLayer, toEntry) { enterHairegion(null, toLayer, toEntry); },
