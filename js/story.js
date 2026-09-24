@@ -6,6 +6,7 @@ RPG.Story = (function () {
     var index = 0;
     // いま映している背景（場面の見出しなどの bg で切り替わり、次に変わるまで続く）
     var bgId = null;
+    var lastFig = null;
 
     function renderBeat() {
       var beat = beats[index];
@@ -32,6 +33,15 @@ RPG.Story = (function () {
         stage.appendChild(frame);
         containerEl.appendChild(stage);
         if (beat.kind !== "choice") frame.onclick = advance;
+        // 喋っている人物の青い影を、背景の上に重ねる
+        var figId = beat.figure || null;
+        var fig = figId && RPG.Scenes.figureFor ? RPG.Scenes.figureFor(figId) : (beat.speaker && RPG.Scenes.figureForSpeaker ? RPG.Scenes.figureForSpeaker(beat.speaker) : null);
+        if (fig) {
+          // 同じ人物が続けて喋る間は出し直しの動きを付けない
+          fig.classList.toggle("fig-enter", fig !== lastFig);
+          frame.appendChild(fig);
+        }
+        lastFig = fig;
       }
       var box = document.createElement("div");
 

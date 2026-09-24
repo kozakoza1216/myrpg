@@ -224,7 +224,7 @@ RPG.Chapter1 = (function () {
     villageArea = Explore.startFreeArea(app, HAIBERI_VILLAGE, game, {
       onExit: function () { Story.play(app, kujiBeats, afterKuji); },
       onTalk: function (zone, next) {
-        Story.play(app, [{ speaker: zone.speaker, text: zone.text }], next);
+        Story.play(app, [{ speaker: zone.speaker, text: zone.text, bg: "village" }], next);
       },
       onChest: function (zoneId, next) {
         var seo = game.party[0];
@@ -282,7 +282,7 @@ RPG.Chapter1 = (function () {
     // （終盤、集落長トキ本人が門で直接拒む場面と矛盾しないように）。
     if (id === "haiberi") {
       Story.play(app, [
-        { kind: "narration", text: "門番が槍の柄で道を塞いだ。" },
+        { kind: "narration", bg: "gateClosed", text: "門番が槍の柄で道を塞いだ。" },
         { speaker: "門番", text: "集落長の命だ。追放された者を通すわけにはいかない。" },
       ], next);
       return;
