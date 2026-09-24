@@ -63,6 +63,13 @@ button {
   background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
   padding: 1.2rem 1.5rem; cursor: pointer; min-height: 4rem;
 }
+/* 会話の背景絵（横から見た一枚絵）。絵の下に文章の欄、見出しは絵に重ねる */
+.story-stage { display: flex; flex-direction: column; gap: 10px; }
+.scene-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #000; cursor: pointer; }
+.scene-bg { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+.scene-header.over-bg { position: absolute; inset: 0; padding: 0 0 1.8rem; display: flex; flex-direction: column; justify-content: flex-end; }
+.scene-header.over-bg .scene-header-label { font-size: 1.05rem; letter-spacing: 0.12em; padding: 0.45rem 0.6rem; background: rgba(10, 8, 6, 0.66); border-color: rgba(216, 168, 96, 0.5); }
+.scene-header.over-bg .story-hint { position: absolute; right: 10px; bottom: 6px; color: #b8a888; text-shadow: 0 1px 2px #000; }
 .story-box.dialogue .speaker { color: var(--accent); font-weight: bold; margin-bottom: 0.4rem; }
 .story-box p { margin: 0; white-space: pre-wrap; }
 .story-hint { text-align: right; color: #6a5638; font-size: 0.85rem; margin-top: 0.6rem; }

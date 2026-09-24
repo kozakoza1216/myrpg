@@ -4,6 +4,8 @@ window.RPG = window.RPG || {};
 RPG.Story = (function () {
   function play(containerEl, beats, onDone) {
     var index = 0;
+    // いま映している背景（場面の見出しなどの bg で切り替わり、次に変わるまで続く）
+    var bgId = null;
 
     function renderBeat() {
       var beat = beats[index];
@@ -16,10 +18,25 @@ RPG.Story = (function () {
         return;
       }
       containerEl.innerHTML = "";
+      if (beat.bg !== undefined) bgId = beat.bg;
+      // 背景の絵があれば、絵を上に、文章の欄をその下に置く。
+      // 場面の見出しは、絵の上に重ねて出す。絵をタップしても先へ進む。
+      var bgCanvas = bgId && RPG.Scenes ? RPG.Scenes.canvasFor(bgId) : null;
+      var stage = containerEl, frame = null;
+      if (bgCanvas) {
+        stage = document.createElement("div");
+        stage.className = "story-stage";
+        frame = document.createElement("div");
+        frame.className = "scene-frame";
+        frame.appendChild(bgCanvas);
+        stage.appendChild(frame);
+        containerEl.appendChild(stage);
+        if (beat.kind !== "choice") frame.onclick = advance;
+      }
       var box = document.createElement("div");
 
       if (beat.kind === "header") {
-        box.className = "scene-header";
+        box.className = "scene-header" + (frame ? " over-bg" : "");
         var label = document.createElement("div");
         label.className = "scene-header-label";
         label.textContent = beat.text;
@@ -76,7 +93,8 @@ RPG.Story = (function () {
         box.appendChild(nextBtn);
         box.onclick = advance;
       }
-      containerEl.appendChild(box);
+      if (frame && beat.kind === "header") { box.onclick = null; frame.appendChild(box); }
+      else stage.appendChild(box);
     }
 
     function advance() {

@@ -210,9 +210,9 @@ RPG.Chapter1 = (function () {
   }
 
   var wakeBeats = [
-    { kind: "header", text: "第一章　灰縁（はいべり）の集落" },
+    { kind: "header", text: "第一章　灰縁（はいべり）の集落", bg: "village" },
     { kind: "narration", text: "人工天井の裂け目から薄暮が差し込む。二つに割れた月が、いつまでも同じ高さで止まっている。竜の脅威圏の縁に築かれた小さな集落――灰縁。" },
-    { kind: "header", text: "セオの住居" },
+    { kind: "header", text: "セオの住居", bg: "house" },
     { speaker: "ミラ", text: "セオ、起きて。今日は「くじ」の日でしょ。寝坊したら承知しないから。" },
     { kind: "choice", prompt: "（ミラに何と返す？　――何を選んでも、話の筋は変わらない）", options: ["「わかってる。今起きる」", "「……くじ、か」と呟く", "何も言わず起き上がる"] },
     { kind: "choice", prompt: "ミラは肩をすくめて、先に外へ出ていった。棚には〈干し肉〉と〈古びた回復薬〉が置かれている。戸口を出ると、くじの刻限まではまだ間があった。", options: ["外へ出る"] },
@@ -238,19 +238,19 @@ RPG.Chapter1 = (function () {
   }
 
   var kujiBeats = [
-    { kind: "header", text: "集落中央広場・くじ" },
+    { kind: "header", text: "集落中央広場・くじ", bg: "plaza" },
     { kind: "narration", text: "招竜派の祭司カガリが、儀式めいた仕草で木札の箱を掲げる。集落中が息を呑んで見守る。" },
     { speaker: "カガリ", text: "此度の供物は……セオ、お前だ。" },
     { kind: "narration", text: "どよめきが走る。連行しようとする信徒たちの手が伸びる――その時だった。" },
     { speaker: "ミラ", text: "待って。……私が行く。" },
     { kind: "narration", text: "ミラが割って入り、信徒の手を自ら取った。止める間もなく、彼女は祭壇へ向けて連れ去られていく。" },
     { speaker: "カガリ", text: "殊勝な心がけだ。竜もきっと喜ぶだろう。" },
-    { kind: "header", text: "集落長の家" },
+    { kind: "header", text: "集落長の家", bg: "chief" },
     { kind: "choice", prompt: "集落長トキに詰め寄る。", options: ["「ミラを取り戻しに行く」", "「見過ごせるわけがないだろう」"] },
     { kind: "narration", text: "トキは長く沈黙した後、絞り出すように言った。" },
     { speaker: "集落長トキ", text: "くじは絶対だ。逆らえば、集落ごと竜に潰される。……行くなら、二度と帰ってくるな。" },
     { kind: "narration", text: "追放。それが答えだった。家に戻ると、誰の仕業か〈携行食×3〉が黙って置かれていた。" },
-    { kind: "header", text: "集落の門" },
+    { kind: "header", text: "集落の門", bg: "gate" },
     { kind: "narration", text: "門を出ると、荒れ果てた広域の景色が広がった。目的地は招竜の祭壇。もう振り返る場所はない。" },
   ];
 
@@ -291,7 +291,7 @@ RPG.Chapter1 = (function () {
       var enter = function () { enterHairegion(travel && travel.from); };
       if (!hairegionCleared) {
         Story.play(app, [
-          { kind: "header", text: "廃区画" },
+          { kind: "header", text: "廃区画", bg: "ruins" },
           { kind: "narration", text: "崩れた区画の入り口に着いた。瓦礫に埋もれた道の先に何があるのかは、まだ分からない。" },
         ], enter);
       } else {
@@ -330,7 +330,7 @@ RPG.Chapter1 = (function () {
   }
 
   var roadBeats = [
-    { kind: "header", text: "祭壇へ続く隘路" },
+    { kind: "header", text: "祭壇へ続く隘路", bg: "narrow" },
     { kind: "narration", text: "赤い羽を持つ鳥人が、前触れもなく道を塞いだ。絶滅したはずの種族が、目の前に立っている。素足のまま瓦礫を踏みしめ、鋭い目でセオを見据える。" },
     { speaker: "赤い鳥人", text: "そこを通してもらう。お前に用はないが、邪魔なら退かす。" },
   ];
@@ -344,7 +344,7 @@ RPG.Chapter1 = (function () {
   }
 
   var teamUpBeats = [
-    { kind: "narration", text: "セオは膝をつく。勝てる相手ではなかった。だが鳥人はとどめを刺さず、剣を収めた。" },
+    { kind: "narration", bg: "narrow", text: "セオは膝をつく。勝てる相手ではなかった。だが鳥人はとどめを刺さず、剣を収めた。" },
     { speaker: "赤い鳥人", text: "……招竜派の祭壇に用があるのはこっちも同じだ。今は敵対する理由がないだけだ。" },
     { kind: "choice", prompt: "利害が一致した、ということらしい。", options: ["「好都合だ」と手を貸す", "黙って頷く"] },
     { kind: "narration", text: "こうして二人は、目的の違う共闘を始めた。祭壇の入口はすぐそこだった。" },
@@ -401,7 +401,7 @@ RPG.Chapter1 = (function () {
   }
 
   var kagariPreBeats = [
-    { kind: "header", text: "招竜の祭壇" },
+    { kind: "header", text: "招竜の祭壇", bg: "shrine" },
     { kind: "narration", text: "祭壇の奥、儀式の間近くで信徒たちが最後の詠唱を始めていた。カガリがミラを見下ろしている。" },
     { speaker: "カガリ", text: "此度の供物は、思いのほか良い声で鳴きそうだ。" },
   ];
@@ -414,7 +414,7 @@ RPG.Chapter1 = (function () {
   }
 
   var kagariPostBeats = [
-    { kind: "narration", text: "カガリは崩れ落ちた。儀式は止まり、ミラの拘束が解かれる。" },
+    { kind: "narration", bg: "shrine", text: "カガリは崩れ落ちた。儀式は止まり、ミラの拘束が解かれる。" },
     { speaker: "ミラ", text: "……なんで来たの、セオ。" },
     { kind: "choice", prompt: "ミラの問いに答える。", options: ["「置いて生きろって？　できるわけないだろ」", "「決まってるだろ」とだけ言う"] },
     { kind: "narration", text: "ミラは何か言いかけて、結局は小さく笑っただけだった。" },
@@ -429,7 +429,7 @@ RPG.Chapter1 = (function () {
   }
 
   var endBeats = [
-    { kind: "header", text: "灰縁の集落・門" },
+    { kind: "header", text: "灰縁の集落・門", bg: "gateClosed" },
     { kind: "narration", text: "帰り着いた門は、開かなかった。" },
     { speaker: "集落長トキ", text: "帰ってくるなと言ったはずだ。" },
     { speaker: "ミラ", text: "上等じゃない。こっちから願い下げよ。" },
