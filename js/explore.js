@@ -897,319 +897,812 @@ RPG.Explore = (function () {
     return c;
   }
 
-  // 建物の屋根色（区画ごとに違う建物に見えるよう、何棟分かの色を使い回す）
-  var ROOF_COLORS = [["#3a342c", "#2e2922", "#4a4338"], ["#34302b", "#29251f", "#453f36"], ["#3d3530", "#2f2823", "#4e443c"], ["#333530", "#282a25", "#43463f"]];
+  // ── 地形の描画（高画質） ──
+  // 地図の座標・当たり判定・道幅は16ドット＝1タイルのまま変えず、描く細かさ
+  // だけを3倍（1タイル＝48画素）にする。模様は画素ごとに計算し、どのタイルの
+  // 境目でも途切れない継ぎ目なしのノイズを使うので、格子状の繰り返しが出ない。
+  // 光は左上から当て、建物などの背の高いものは右下へ影を落とす。
+  var RES = 3;
+  var TP = TILE * RES;            // 1タイルの画素数
+  var CHUNK_T = 8;                // 描き溜めておく塊の一辺（タイル数）
+  var CHUNK_P = CHUNK_T * TP;
+  var CHUNK_KEEP = 30;            // 手元に残しておく塊の数（古いものから捨てる）
 
-  function isWalk(grid, x, y) { return WALKABLE[grid.get(x, y)] === true; }
+  var BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  function dith(x, y) { return (BAYER4[((y & 3) << 2) | (x & 3)] + 0.5) / 16 - 0.5; }
 
-  function drawGroundRoad(ctx, ox, oy, x, y, grid) {
-    px(ctx, "#4a443a", ox, oy, TILE, TILE);
-    for (var i = 0; i < 7; i++) {
-      var h = hash2(x * 7 + i, y * 3 + i, 11);
-      px(ctx, h < 0.5 ? "#433d34" : "#534c41", ox + Math.floor(hash2(x, y, i) * 16), oy + Math.floor(hash2(y, x, i + 5) * 16), 1, 1);
-    }
-    var r = hash2(x, y, 3);
-    if (r < 0.07) {
-      // ひび割れ
-      var cx = ox + 3 + Math.floor(hash2(x, y, 4) * 8), cy = oy + 3 + Math.floor(hash2(x, y, 5) * 6);
-      for (var k = 0; k < 7; k++) { px(ctx, "#2c2822", cx, cy); cx += 1; cy += (hash2(x + k, y, 6) < 0.5) ? 1 : 0; }
-    } else if (r < 0.12) {
-      // 小石
-      var sx = ox + 2 + Math.floor(hash2(x, y, 8) * 11), sy = oy + 2 + Math.floor(hash2(x, y, 9) * 11);
-      px(ctx, "#6a6150", sx, sy, 2, 2); px(ctx, "#2c2822", sx, sy + 2, 2, 1);
-    }
-  }
-  function drawGroundPlaza(ctx, ox, oy, x, y) {
-    px(ctx, "#5a5244", ox, oy, TILE, TILE);
-    for (var row = 0; row < 2; row++) {
-      var off = ((y + row) % 2) * 4;
-      px(ctx, "#463f34", ox, oy + row * 8, TILE, 1);
-      px(ctx, "#463f34", ox + off, oy + row * 8, 1, 8);
-      px(ctx, "#463f34", ox + off + 8, oy + row * 8, 1, 8);
-      px(ctx, "#655c4c", ox + off + 1, oy + row * 8 + 1, 6, 1);
-    }
-    if (hash2(x, y, 21) < 0.1) px(ctx, "#2e2922", ox + 9, oy + 1, 7, 7);
-  }
-  function drawGroundLot(ctx, ox, oy, x, y) {
-    px(ctx, "#3b352c", ox, oy, TILE, TILE);
-    for (var i = 0; i < 10; i++) {
-      var c = hash2(x, y, i + 30) < 0.5 ? "#2e2922" : "#4c4538";
-      px(ctx, c, ox + Math.floor(hash2(x, y, i + 40) * 15), oy + Math.floor(hash2(x, y, i + 50) * 15), hash2(x, y, i) < 0.3 ? 2 : 1, 1);
-    }
-  }
-  function drawGroundGrass(ctx, ox, oy, x, y) {
-    px(ctx, "#3a3a26", ox, oy, TILE, TILE);
-    for (var i = 0; i < 6; i++) {
-      var gx = ox + Math.floor(hash2(x, y, i + 60) * 14), gy = oy + 2 + Math.floor(hash2(x, y, i + 70) * 12);
-      px(ctx, "#4f4e30", gx, gy, 1, 2); px(ctx, "#4f4e30", gx + 1, gy - 1, 1, 2);
-      px(ctx, "#2c2c1c", ox + Math.floor(hash2(x, y, i + 80) * 16), oy + Math.floor(hash2(x, y, i + 90) * 16));
-    }
-  }
-  function drawGroundDirt(ctx, ox, oy, x, y, grid) {
-    px(ctx, "#5a4a34", ox, oy, TILE, TILE);
-    for (var i = 0; i < 8; i++) {
-      px(ctx, hash2(x, y, i + 100) < 0.5 ? "#4a3c2a" : "#6a5840", ox + Math.floor(hash2(x, y, i + 110) * 16), oy + Math.floor(hash2(x, y, i + 120) * 16));
-    }
-    // 草地との境目は、まっすぐな線にせず草をはみ出させる
-    var nb = [[0, -1], [0, 1], [-1, 0], [1, 0]];
-    nb.forEach(function (d, j) {
-      if (grid.get(x + d[0], y + d[1]) !== TT.grass) return;
-      for (var k = 0; k < 16; k += 2) {
-        var depth = 1 + Math.floor(hash2(x * 3 + k, y * 5 + j, 130) * 3);
-        if (d[1] === -1) px(ctx, "#3a3a26", ox + k, oy, 2, depth);
-        if (d[1] === 1) px(ctx, "#3a3a26", ox + k, oy + 16 - depth, 2, depth);
-        if (d[0] === -1) px(ctx, "#3a3a26", ox, oy + k, depth, 2);
-        if (d[0] === 1) px(ctx, "#3a3a26", ox + 16 - depth, oy + k, depth, 2);
+  // 256×256で端どうしがつながる（敷き詰めても継ぎ目の出ない）ノイズ
+  function tileableNoise(base, octaves, seed) {
+    var N = 256, out = new Float32Array(N * N), total = 0;
+    for (var o = 0; o < octaves; o++) {
+      var cell = base >> o, L = N / cell, amp = Math.pow(0.55, o);
+      total += amp;
+      var lat = new Float32Array(L * L);
+      for (var i = 0; i < L * L; i++) lat[i] = hash2(i % L, Math.floor(i / L), seed * 17 + o);
+      for (var y = 0; y < N; y++) {
+        var gy = y / cell, iy = Math.floor(gy), fy = gy - iy;
+        fy = fy * fy * (3 - 2 * fy);
+        var r0 = (iy % L) * L, r1 = ((iy + 1) % L) * L;
+        for (var x = 0; x < N; x++) {
+          var gx = x / cell, ix = Math.floor(gx), fx = gx - ix;
+          fx = fx * fx * (3 - 2 * fx);
+          var c0 = ix % L, c1 = (ix + 1) % L;
+          var a = lat[r0 + c0] + (lat[r0 + c1] - lat[r0 + c0]) * fx;
+          var b = lat[r1 + c0] + (lat[r1 + c1] - lat[r1 + c0]) * fx;
+          out[y * N + x] += (a + (b - a) * fy) * amp;
+        }
       }
-    });
-  }
-
-  // 壁際の足元に落ちる影（建物・柵などの固いものに接している側）
-  function drawContactShadow(ctx, ox, oy, x, y, grid) {
-    if (!isWalk(grid, x, y - 1) && grid.get(x, y - 1) !== TT.void && grid.get(x, y - 1) !== -1) px(ctx, "rgba(0,0,0,0.35)", ox, oy, TILE, 3);
-    if (!isWalk(grid, x - 1, y) && grid.get(x - 1, y) !== TT.void && grid.get(x - 1, y) !== -1) px(ctx, "rgba(0,0,0,0.25)", ox, oy, 2, TILE);
-  }
-
-  function drawBuilding(ctx, ox, oy, x, y, grid) {
-    var bx = Math.floor(x / 7), by = Math.floor(y / 6);
-    var pal = ROOF_COLORS[Math.floor(hash2(bx, by, 200) * ROOF_COLORS.length)];
-    var belowWalk = isWalk(grid, x, y + 1) || grid.get(x, y + 1) === TT.water;
-    var below2Walk = !belowWalk && (isWalk(grid, x, y + 2) || grid.get(x, y + 2) === TT.water) && grid.get(x, y + 1) === grid.get(x, y);
-    if (belowWalk || below2Walk) {
-      // 正面の壁（窓の並ぶ面）。下が道なら1段目、2つ下が道なら2段目
-      px(ctx, "#4a4238", ox, oy, TILE, TILE);
-      px(ctx, "#3e372e", ox, oy + (belowWalk ? 0 : 15), TILE, 1);
-      [3, 10].forEach(function (wx, i) {
-        var broken = hash2(x, y, 210 + i) < 0.3;
-        px(ctx, "#15120f", ox + wx, oy + 4, 4, 6);
-        if (broken) px(ctx, "#6a7a80", ox + wx + 1, oy + 5, 1, 1);
-        else px(ctx, "#2a2a2c", ox + wx, oy + 4, 4, 1);
-        px(ctx, "#5a5246", ox + wx - 1, oy + 10, 6, 1);
-      });
-      if (belowWalk) px(ctx, "#2e2922", ox, oy + 13, TILE, 3);
-      if (!isBldgLike(grid, x - 1, y)) px(ctx, "#241f19", ox, oy, 1, TILE);
-      if (!isBldgLike(grid, x + 1, y)) px(ctx, "#241f19", ox + 15, oy, 1, TILE);
-      if (hash2(x, y, 220) < 0.12) { px(ctx, "#2a241d", ox + 5, oy + 1, 1, 12); px(ctx, "#2a241d", ox + 6, oy + 6, 1, 7); }
-      return;
     }
-    // 屋根（上から見下ろした屋上）
-    px(ctx, pal[0], ox, oy, TILE, TILE);
-    for (var i = 0; i < 5; i++) px(ctx, pal[1], ox + Math.floor(hash2(x, y, i + 230) * 16), oy + Math.floor(hash2(x, y, i + 240) * 16), 2, 1);
-    if (x % 7 === 0) px(ctx, "#1c1814", ox, oy, 1, TILE);
-    if (y % 6 === 0) px(ctx, "#1c1814", ox, oy, TILE, 1);
-    if (isWalk(grid, x, y - 1)) px(ctx, pal[2], ox, oy, TILE, 2);
-    if (isWalk(grid, x - 1, y)) px(ctx, "#1c1814", ox, oy, 2, TILE);
-    if (isWalk(grid, x + 1, y)) px(ctx, "#1c1814", ox + 14, oy, 2, TILE);
-    var d = hash2(x, y, 250);
-    if (d < 0.06) { px(ctx, "#0e0c0a", ox + 4, oy + 5, 7, 5); px(ctx, "#1c1814", ox + 5, oy + 10, 5, 1); }
-    else if (d < 0.14) { px(ctx, pal[1], ox + 5, oy + 5, 5, 5); px(ctx, pal[2], ox + 5, oy + 5, 5, 1); }
+    // 平均に寄りがちな値を、0〜1いっぱいに広げる
+    for (var k = 0; k < out.length; k++) out[k] = Math.max(0, Math.min(1, (out[k] / total - 0.5) * 2.2 + 0.5));
+    return out;
   }
-  function isBldgLike(grid, x, y) { var t = grid.get(x, y); return t === TT.bldg || t === -1; }
-
-  // 瓦礫の山。隣も瓦礫ならそちらへ切れ目なく続け、瓦礫でない側だけ
-  // 縁をガタガタに欠けさせる（ひとつずつ置いた判子に見えないように）。
-  var RUBBLE_SHADES = ["#5e5244", "#6e6050", "#4e443a", "#7a6c5a", "#564b3f"];
-  function drawRubble(ctx, ox, oy, x, y, grid, base) {
-    if (base === "grass") drawGroundGrass(ctx, ox, oy, x, y); else drawGroundRoad(ctx, ox, oy, x, y, grid);
-    var R = TT.rubble;
-    var up = grid.get(x, y - 1) === R, dn = grid.get(x, y + 1) === R, lf = grid.get(x - 1, y) === R, rt = grid.get(x + 1, y) === R;
-    for (var py = 0; py < 16; py++) for (var pxx = 0; pxx < 16; pxx++) {
-      var gx = x * 16 + pxx, gy = y * 16 + py;
-      var iT = up ? -9 : 1 + Math.floor(hash2(gx >> 1, y, 310) * 4);
-      var iB = dn ? -9 : 1 + Math.floor(hash2(gx >> 1, y, 311) * 3);
-      var iL = lf ? -9 : 1 + Math.floor(hash2(x, gy >> 1, 312) * 4);
-      var iR = rt ? -9 : 1 + Math.floor(hash2(x, gy >> 1, 313) * 4);
-      var dT = py - iT, dB = 15 - iB - py, dL = pxx - iL, dR = 15 - iR - pxx;
-      var d = Math.min(dT, dB, dL, dR);
-      if (d < 0) continue;
-      var row = Math.floor(gy / 3);
-      var bx = Math.floor((gx + (row % 2) * 2) / 4);
-      var c = RUBBLE_SHADES[Math.floor(hash2(bx, row, 320) * RUBBLE_SHADES.length)];
-      if ((gx + (row % 2) * 2) % 4 === 0 || gy % 3 === 0) c = "#2e2820";
-      else if ((gx + (row % 2) * 2) % 4 === 1 && gy % 3 === 1) c = "#8a7c68";
-      if (d === 0) c = dB === 0 ? "#1a1612" : "#241f19";
-      px(ctx, c, ox + pxx, oy + py);
+  var NOISE = null;
+  function noiseTex() {
+    if (!NOISE) NOISE = { a: tileableNoise(64, 4, 1), b: tileableNoise(8, 2, 2), c: tileableNoise(128, 3, 3) };
+    return NOISE;
+  }
+  function nz(tex, x, y) { return tex[((y & 255) << 8) | (x & 255)]; }
+  // 画素ごとに何度も引く乱数は、毎回計算せず256×256の表から引く（seedごとに別の表）
+  var RND = {};
+  function rnd(x, y, seed) {
+    var t = RND[seed];
+    if (!t) {
+      t = RND[seed] = new Float32Array(65536);
+      for (var i = 0; i < 65536; i++) t[i] = hash2(i & 255, i >> 8, seed * 7 + 1);
     }
-    // 突き出た鉄骨
-    if (hash2(x, y, 303) < 0.18) { px(ctx, "#6a4a38", ox + 4, oy + 1, 1, 7); px(ctx, "#8a5a40", ox + 5, oy + 1, 1, 2); px(ctx, "#6a4a38", ox + 9, oy + 3, 5, 1); }
+    return t[((y & 255) << 8) | (x & 255)];
   }
 
-  // 建物に接する道の端は歩道（敷石と縁石）にして、街路の輪郭を見せる
-  function isSidewalk(grid, x, y) {
-    if (grid.get(x, y) !== TT.road) return false;
-    return [[0, -1], [0, 1], [-1, 0], [1, 0]].some(function (d) { return grid.get(x + d[0], y + d[1]) === TT.bldg; });
-  }
-  function drawSidewalk(ctx, ox, oy, x, y, grid) {
-    px(ctx, "#5c5548", ox, oy, TILE, TILE);
-    px(ctx, "#4a443a", ox, oy + 7, TILE, 1); px(ctx, "#4a443a", ox + (y % 2) * 8, oy, 1, 7); px(ctx, "#4a443a", ox + 8 - (y % 2) * 8, oy + 8, 1, 8);
-    if (hash2(x, y, 330) < 0.15) px(ctx, "#3a352c", ox + 1 + Math.floor(hash2(x, y, 331) * 7), oy + 9, 6, 6);
-    [[0, -1, 0, 0, 16, 2], [0, 1, 0, 14, 16, 2], [-1, 0, 0, 0, 2, 16], [1, 0, 14, 0, 2, 16]].forEach(function (e) {
-      var t = grid.get(x + e[0], y + e[1]);
-      if (t === TT.road && !isSidewalk(grid, x + e[0], y + e[1])) { px(ctx, "#77705e", ox + e[2], oy + e[3], e[4], e[5]); }
-    });
+  function rampOf(list) { return list.map(function (h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; }); }
+  var RP = {
+    asphalt: rampOf(["#26231f", "#2f2b26", "#38342e", "#423d36", "#4c463e", "#575047"]),
+    crack: rampOf(["#161412", "#1e1b18"]),
+    sidewalk: rampOf(["#3a362f", "#46413a", "#524c43", "#5e574d", "#6a6356", "#777062"]),
+    cobble: rampOf(["#2a2722", "#37332c", "#443f37", "#524c42", "#60594d", "#6e6658", "#7c7363"]),
+    lot: rampOf(["#26221c", "#2f2a22", "#39332a", "#443c31", "#4f463a"]),
+    grass: rampOf(["#1f2214", "#272b18", "#30351d", "#3a4023", "#454b2a", "#515832"]),
+    blade: rampOf(["#58602f", "#666e38"]),
+    dirt: rampOf(["#33291d", "#3e3223", "#4a3c2a", "#564633", "#62513c", "#6e5c45"]),
+    water: rampOf(["#0b1417", "#0f1b1f", "#142329", "#1a2c33", "#22383f", "#2c4750"]),
+    wall: rampOf(["#2a2621", "#35302a", "#403a33", "#4b443c", "#564e45", "#61594f", "#6d6459"]),
+    roof: rampOf(["#23201c", "#2b2723", "#332f2a", "#3c3731", "#454039", "#4f4941"]),
+    parapet: rampOf(["#3a352f", "#4a443c", "#5a5349", "#6a6256", "#7a7163"]),
+    glass: rampOf(["#0a0d10", "#10161b", "#172028", "#1f2c36", "#3a4c58"]),
+    stone: rampOf(["#1c1814", "#2a241e", "#3a332b", "#4b4237", "#5d5244", "#706352", "#847561"]),
+    brick: rampOf(["#2a1a14", "#3e261c", "#523226", "#663f30", "#7a4c3a"]),
+    rust: rampOf(["#3a1e12", "#5a2e18", "#7a4222"]),
+    deck: rampOf(["#403a31", "#4c453b", "#585046", "#655c51", "#72685c", "#7f7567", "#8c8272"]),
+    steel: rampOf(["#34342f", "#3f3f39", "#4a4a43", "#56564e", "#636359", "#707065"]),
+    rail: rampOf(["#2a2218", "#5a4a32", "#8a7450", "#b09a70"]),
+    thatch: rampOf(["#3a2c18", "#4a3820", "#5a4628", "#6c5532", "#7e643c", "#907448"]),
+    plank: rampOf(["#2e2214", "#3c2c1a", "#4a3822", "#58442a", "#665033", "#745c3c"]),
+  };
+  var o4 = [0, 0, 0, 255];
+  function pick(ramp, t, x, y) {
+    var n = ramp.length;
+    var i = Math.floor((t + dith(x, y) / n) * n);
+    var c = ramp[i < 0 ? 0 : i >= n ? n - 1 : i];
+    o4[0] = c[0]; o4[1] = c[1]; o4[2] = c[2]; o4[3] = 255;
   }
 
-  function drawWater(ctx, ox, oy, x, y, grid) {
-    px(ctx, "#1c2a2e", ox, oy, TILE, TILE);
-    for (var r = 0; r < 4; r++) {
-      var wy = oy + 2 + r * 4, wx = ox + ((x * 5 + r * 7 + y * 3) % 12);
-      px(ctx, "#2e4a50", wx, wy, 4, 1);
+  var TALL = {}; TALL[TT.bldg] = 1; TALL[TT.hut] = 1;
+  var LOW = {}; LOW[TT.rubble] = 1; LOW[TT.fence] = 1; LOW[TT.well] = 1; LOW[TT.tree] = 1;
+  var GROUND = {}; [TT.road, TT.plaza, TT.lot, TT.grass, TT.dirt].forEach(function (t) { GROUND[t] = 1; });
+  var SOFT = {}; [TT.road, TT.plaza, TT.lot, TT.grass, TT.dirt, TT.rubble].forEach(function (t) { SOFT[t] = 1; });
+  // 背の高いものの右下に落ちる影と、低いものの足元のくすみ
+  function castShade(c, lx, ly) {
+    var s = 0, e = TP - 1;
+    if (TALL[c.up]) s = Math.max(s, 0.42 * (1 - ly / 30));
+    if (TALL[c.lf]) s = Math.max(s, 0.34 * (1 - lx / 22));
+    if (TALL[c.ul] && !TALL[c.up] && !TALL[c.lf]) s = Math.max(s, 0.34 * (1 - Math.hypot(lx, ly) / 26));
+    if (LOW[c.up]) s = Math.max(s, 0.26 * (1 - ly / 12));
+    if (LOW[c.lf]) s = Math.max(s, 0.22 * (1 - lx / 10));
+    if (TALL[c.rt] || LOW[c.rt]) s = Math.max(s, 0.12 * (1 - (e - lx) / 6));
+    if (TALL[c.dn] || LOW[c.dn]) s = Math.max(s, 0.12 * (1 - (e - ly) / 6));
+    return s > 0 ? s : 0;
+  }
+
+  // 小石：cell画素ごとに一粒あるかどうか。2=光の当たる面 1=石 -1=石の影 0=なし
+  function pebble(wx, wy, cell, dens, seed) {
+    var cx = Math.floor(wx / cell), cy = Math.floor(wy / cell);
+    if (rnd(cx, cy, seed) >= dens) return 0;
+    var px0 = cx * cell + 2 + rnd(cx, cy, seed + 1) * (cell - 4), py0 = cy * cell + 2 + rnd(cx, cy, seed + 2) * (cell - 4);
+    var r = 1.3 + rnd(cx, cy, seed + 3) * 1.8;
+    var dx = wx + 0.5 - px0, dy = wy + 0.5 - py0, d2 = dx * dx + dy * dy;
+    if (d2 > r * r) return (d2 < (r + 1.4) * (r + 1.4) && dx + dy > 0) ? -1 : 0;
+    return dx + dy < -r * 0.4 ? 2 : 1;
+  }
+
+  // 石畳用の区画分け（一番近い点・二番目に近い点までの距離）
+  var WR = { d1: 0, d2: 0, fx: 0, fy: 0, id: 0 };
+  function worley(wx, wy, cell, seed) {
+    var cx = Math.floor(wx / cell), cy = Math.floor(wy / cell);
+    var d1 = 1e9, d2 = 1e9;
+    for (var j = -1; j <= 1; j++) for (var i = -1; i <= 1; i++) {
+      var gx = cx + i, gy = cy + j;
+      var fx = (gx + 0.2 + rnd(gx, gy, seed) * 0.6) * cell, fy = (gy + 0.2 + rnd(gx, gy, seed + 1) * 0.6) * cell;
+      var d = (wx + 0.5 - fx) * (wx + 0.5 - fx) + (wy + 0.5 - fy) * (wy + 0.5 - fy);
+      if (d < d1) { d2 = d1; d1 = d; WR.fx = fx; WR.fy = fy; WR.id = (gx & 255) | ((gy & 255) << 8); }
+      else if (d < d2) d2 = d;
     }
-    if (grid.get(x, y - 1) !== TT.water) { px(ctx, "#6a6150", ox, oy, TILE, 2); px(ctx, "#15120f", ox, oy + 2, TILE, 1); }
+    WR.d1 = Math.sqrt(d1); WR.d2 = Math.sqrt(d2);
+    return WR;
   }
 
-  // 上層の足場（高架歩道）。足場の外側には手すりを付け、そこが縁だと分かるようにする
-  function drawWalkway(ctx, ox, oy, x, y, grid, deck) {
+  // ── 素材ごとの画素の色 ──
+  function shRoad(c, lx, ly, wx, wy) {
+    var N = noiseTex();
+    var t = 0.5 + (nz(N.c, wx >> 1, wy >> 1) - 0.5) * 0.55 + (nz(N.b, wx, wy) - 0.5) * 0.3;
+    if (nz(N.a, (wx >> 1) + 97, (wy >> 1) + 31) > 0.7) t -= 0.14;          // 油じみ・水たまりの跡
+    var p = pebble(wx, wy, 11, 0.05, 5);
+    if (p) t += p === 2 ? 0.3 : p === 1 ? 0.18 : -0.16;
+    t -= castShade(c, lx, ly);
+    pick(RP.asphalt, t, wx, wy);
+  }
+
+  function shSidewalk(c, lx, ly, wx, wy) {
+    var N = noiseTex();
+    var sx = Math.floor(wx / 24), sy = Math.floor(wy / 24), mx = wx - sx * 24, my = wy - sy * 24;
+    var t;
+    if (mx === 0 || my === 0) t = 0.1;
+    else {
+      t = 0.55 + (rnd(sx, sy, 41) - 0.5) * 0.25 + (nz(N.b, wx, wy) - 0.5) * 0.25 + (nz(N.c, wx >> 1, wy >> 1) - 0.5) * 0.2;
+      if (mx === 1 || my === 1) t += 0.12;
+      if (mx === 23 || my === 23) t -= 0.12;
+      if (rnd(sx, sy, 42) < 0.1 && Math.abs(mx - my - 3) < 1) t = 0.08;   // 割れた敷石
+      if (rnd(sx, sy, 43) < 0.04) t -= 0.25;                              // 抜けた敷石
+    }
+    // 縁石（ふつうの車道に接する辺）
+    var e = TP - 1;
+    if (c.curbDn && ly >= e - 6) t = ly >= e - 3 ? 0.18 : 0.8;
+    if (c.curbUp && ly <= 5) t = ly <= 1 ? 0.15 : 0.75;
+    if (c.curbLf && lx <= 4) t = lx <= 1 ? 0.2 : 0.72;
+    if (c.curbRt && lx >= e - 4) t = lx >= e - 1 ? 0.15 : 0.62;
+    t -= castShade(c, lx, ly);
+    pick(RP.sidewalk, t, wx, wy);
+  }
+
+  function shPlaza(c, lx, ly, wx, wy) {
+    var N = noiseTex();
+    var w = worley(wx, wy, 13, 61);
+    var t;
+    if (w.d2 - w.d1 < 1.6) t = 0.08;
+    else {
+      t = 0.52 + (rnd(w.id & 255, w.id >> 8, 62) - 0.5) * 0.3 + (nz(N.b, wx, wy) - 0.5) * 0.2;
+      t += -((wx - w.fx) + (wy - w.fy)) / 13 * 0.28;                        // 丸く盛り上がった石の光
+      if (rnd(w.id & 255, w.id >> 8, 63) < 0.06) t -= 0.3;                              // 欠けた石
+    }
+    t -= castShade(c, lx, ly);
+    pick(RP.cobble, t, wx, wy);
+  }
+
+  function shLot(c, lx, ly, wx, wy) {
+    var N = noiseTex();
+    var t = 0.5 + (nz(N.a, wx, wy) - 0.5) * 0.6 + (nz(N.b, wx, wy) - 0.5) * 0.35;
+    t -= castShade(c, lx, ly);
+    var p = pebble(wx, wy, 7, 0.22, 71);
+    if (p) {
+      if (p === -1) t -= 0.18;
+      else {
+        // 砕けた煉瓦のかけらも混じる
+        var cx = Math.floor(wx / 7), cy = Math.floor(wy / 7);
+        if (rnd(cx, cy, 72) < 0.3) { pick(RP.brick, p === 2 ? 0.85 : 0.6, wx, wy); return; }
+        pick(RP.stone, p === 2 ? 0.8 : 0.6, wx, wy); return;
+      }
+    }
+    pick(RP.lot, t, wx, wy);
+  }
+
+  function shGrass(c, lx, ly, wx, wy) {
+    var N = noiseTex();
+    var t = 0.5 + (nz(N.c, wx >> 1, wy >> 1) - 0.5) * 0.5 + (nz(N.a, wx, wy) - 0.5) * 0.35;
+    // 草の葉：3画素幅の列ごとに、ずらした高さで短い葉を立てる
+    // 草の葉：ばらばらの位置に短い葉を1本ずつ立てる（縦縞に並ばないよう、列ごとにずらす）
+    var sh = castShade(c, lx, ly);
+    var gx = Math.floor(wx / 4), gy = Math.floor((wy + rnd(gx, 7, 80) * 11) / 11);
+    var bxp = gx * 4 + Math.floor(rnd(gx, gy, 81) * 4), byp = gy * 11 + Math.floor(rnd(gx, gy, 84) * 5) - Math.floor(rnd(gx, 7, 80) * 11);
+    var bl = 3 + Math.floor(rnd(gx, gy, 85) * 3);
+    if (rnd(gx, gy, 82) < 0.5 - sh && wy >= byp && wy < byp + bl) {
+      var lean = Math.floor((wy - byp) * (rnd(gx, gy, 86) - 0.5));
+      if (wx === bxp - lean) { if (wy === byp) { pick(RP.blade, 0.9, wx, wy); return; } t += 0.32; }
+      else if (wx === bxp - lean + 1) t -= 0.1;
+    }
+    var p = pebble(wx, wy, 17, 0.03, 83);
+    if (p) { pick(RP.stone, p === 2 ? 0.75 : p === 1 ? 0.55 : 0.2, wx, wy); return; }
+    t -= sh;
+    pick(RP.grass, t, wx, wy);
+  }
+
+  function shDirt(c, lx, ly, wx, wy) {
+    var N = noiseTex();
+    var t = 0.5 + (nz(N.a, wx, wy) - 0.5) * 0.5 + (nz(N.b, wx, wy) - 0.5) * 0.35;
+    if (nz(N.a, (wx >> 1) + 11, wy * 2) > 0.72) t -= 0.12;                  // 踏み固めた轍
+    var p = pebble(wx, wy, 9, 0.1, 91);
+    if (p) t += p === 2 ? 0.3 : p === 1 ? 0.15 : -0.15;
+    t -= castShade(c, lx, ly);
+    pick(RP.dirt, t, wx, wy);
+  }
+
+  function shWater(c, lx, ly, wx, wy) {
+    var N = noiseTex();
+    var t = 0.45 + (nz(N.c, wx >> 1, wy >> 1) - 0.5) * 0.3;
+    var rip = Math.sin((wy + nz(N.a, wx >> 1, wy) * 26) * 0.33 + wx * 0.04);
+    if (rip > 0.93) t += 0.45; else if (rip > 0.8) t += 0.2;
+    if (c.up !== TT.water) {
+      // 石積みの岸と、岸の下に落ちる影
+      if (ly < 7) { pick(RP.stone, ly < 2 ? 0.75 : ly < 5 ? 0.55 : 0.12, wx, wy); return; }
+      if (ly < 22) t -= 0.35 * (1 - (ly - 7) / 15);
+    }
+    pick(RP.water, t, wx, wy);
+  }
+
+  // 建物の正面（街路に面した壁）。k＝下から何階目か（1が地上階）
+  function shFacade(c, lx, ly, wx, wy) {
+    var N = noiseTex();
+    var e = TP - 1;
+    var t = 0.5 + (nz(N.a, wx, wy >> 3) - 0.5) * 0.35 + (nz(N.b, wx, wy) - 0.5) * 0.25;   // 縦に流れた汚れ
+    if (ly <= 3) t = ly <= 1 ? 0.78 : 0.2;                                               // 階の境の出っ張り
+    var style = c.style;
+    var wins = style === 0 ? [[6, 20], [28, 42]] : style === 1 ? [[8, 40]] : [[4, 14], [19, 29], [34, 44]];
+    var door = c.k === 1 && hash2(c.tx, c.ty, 301) < 0.18;
+    if (door && lx >= 14 && lx <= 33 && ly >= 9) {
+      // 入口：奥の暗がりと、上の梁
+      if (ly <= 11 || lx <= 15 || lx >= 32) { pick(RP.wall, ly <= 11 ? 0.2 : 0.3, wx, wy); return; }
+      pick(RP.glass, 0.1 + (1 - (ly - 12) / 36) * 0.15, wx, wy); return;
+    }
+    for (var i = 0; i < wins.length; i++) {
+      var a = wins[i][0], b = wins[i][1];
+      if (lx < a || lx > b || ly < 10 || ly > 36) continue;
+      if (ly >= 34) { pick(RP.parapet, ly === 34 ? 0.9 : 0.35, wx, wy); return; }   // 窓台
+      if (lx === a || lx === b || ly === 10) { pick(RP.wall, 0.12, wx, wy); return; } // 窓枠の影
+      var st = hash2(c.tx * 3 + i, c.ty, 302);
+      if (st < 0.3) {
+        // 割れた窓：ギザギザの穴と残ったガラス片
+        var edge = nz(N.b, wx * 2, wy * 2) * 6;
+        if (lx - a < edge || b - lx < edge * 0.7 || ly - 10 < edge * 0.8) { pick(RP.glass, 0.72, wx, wy); return; }
+        pick(RP.glass, 0.02, wx, wy); return;
+      }
+      if (st < 0.42) {
+        // 板で塞いだ窓
+        var plank = Math.floor((ly - 11) / 6);
+        pick(RP.plank, ((ly - 11) % 6 === 5 ? 0.1 : 0.55) + (rnd(plank, c.tx, 303) - 0.5) * 0.3, wx, wy); return;
+      }
+      var gl = 0.35 + (1 - (ly - 10) / 26) * 0.25;
+      if (Math.abs((lx - a) - (ly - 10) * 0.6 - 3) < 1.5) gl = 0.95;               // 空の映り込み
+      pick(RP.glass, gl, wx, wy); return;
+    }
+    if (c.k === 1 && ly >= e - 5) t = 0.18;                                          // 地面際の土台
+    if (c.edgeL && lx <= 2) t += 0.25;
+    if (c.edgeR && lx >= e - 3) t -= 0.3;
+    if (c.seamL && lx <= 1) t = 0.05;
+    pick(RP.wall, t, wx, wy);
+  }
+
+  // 屋上。区画（7×6タイル）ごとに別の建物として、縁に立ち上がり（パラペット）を付ける
+  function shRoof(c, lx, ly, wx, wy) {
+    var N = noiseTex();
+    var e = TP - 1, lip = 6;
+    var t = 0.5 + c.tint + (nz(N.a, wx, wy) - 0.5) * 0.3 + (nz(N.b, wx, wy) - 0.5) * 0.2;
+    if ((wx % 24 === 0 || wy % 24 === 0)) t -= 0.12;                                  // 屋上の目地
+    if (nz(N.c, (wx >> 1) + 70, (wy >> 1) + 10) > 0.74) t -= 0.18;                    // 雨水の溜まった跡
+    var inU = c.lipU && ly < lip, inD = c.lipD && ly > e - lip, inL = c.lipL && lx < lip, inR = c.lipR && lx > e - lip;
+    if (inU || inD || inL || inR) {
+      var d = Math.min(inU ? ly : 99, inD ? e - ly : 99, inL ? lx : 99, inR ? e - lx : 99);
+      var pt = d <= 0 ? 0.1 : d <= 2 ? 0.85 : 0.55;
+      if (inD && d > 2) pt = 0.35;
+      pick(RP.parapet, pt + (nz(N.b, wx, wy) - 0.5) * 0.2, wx, wy); return;
+    }
+    // 立ち上がりの内側に落ちる影
+    if (c.lipU && ly < lip + 5) t -= 0.22;
+    if (c.lipL && lx < lip + 4) t -= 0.16;
+    var ob = c.roofObj;
+    if (ob === 1 && lx >= 14 && lx <= 33 && ly >= 14 && ly <= 30) {
+      // 換気塔
+      if (ly <= 16) { pick(RP.parapet, 0.85, wx, wy); return; }
+      pick(RP.parapet, lx <= 16 ? 0.7 : lx >= 31 ? 0.2 : ((lx - 14) % 4 === 0 ? 0.25 : 0.5), wx, wy); return;
+    }
+    if (ob === 1 && lx >= 16 && lx <= 38 && ly > 30 && ly <= 35) t -= 0.3;
+    if (ob === 2) {
+      // 抜け落ちた屋根の穴
+      var hd = Math.hypot(lx - 24, (ly - 24) * 1.2) + (nz(N.b, wx * 2, wy * 2) - 0.5) * 8;
+      if (hd < 11) { pick(RP.glass, hd > 9 ? 0.2 : 0.0, wx, wy); return; }
+      if (hd < 14) t -= 0.25;
+    }
+    pick(RP.roof, t, wx, wy);
+  }
+
+  // 瓦礫：石・煉瓦の塊を積み重ねた山。塊ごとに丸みの陰影を付ける
+  function shRubble(c, lx, ly, wx, wy, base) {
+    var N = noiseTex();
+    var e = TP - 1;
+    var w = worley(wx, wy, 9, 111);
+    var r = 9 * 0.55 * (0.75 + rnd(w.id & 255, w.id >> 8, 112) * 0.5);
+    if (c.rebar && Math.abs((lx - 8) * 0.5 - (ly - 6)) < 0.9 && lx < 34) { pick(RP.rust, 0.5 + (lx % 5 === 0 ? 0.4 : 0), wx, wy); return; }
+    if (w.d1 > r) { pick(RP.stone, 0.0, wx, wy); return; }
+    var nx = (wx + 0.5 - w.fx) / r, ny = (wy + 0.5 - w.fy) / r;
+    var light = -(nx * 0.6 + ny * 0.8);
+    var t = 0.5 + light * 0.42 + (rnd(w.id & 255, w.id >> 8, 113) - 0.5) * 0.25 + (nz(N.b, wx, wy) - 0.5) * 0.15;
+    if (rnd(w.id & 255, w.id >> 8, 114) < 0.28) pick(RP.brick, t, wx, wy); else pick(RP.stone, t * 0.85 + 0.15, wx, wy);
+  }
+
+  // 高架の歩道。縁（下が抜けている側）には手すりを付ける
+  function shWalk(c, lx, ly, wx, wy, deck) {
+    var N = noiseTex();
+    var e = TP - 1;
+    var t;
     if (deck) {
-      px(ctx, "#6e6a5e", ox, oy, TILE, TILE);
-      px(ctx, "#5a574c", ox, oy + 7, TILE, 1); px(ctx, "#5a574c", ox + 7, oy, 1, TILE);
-      [[2, 2], [12, 2], [2, 12], [12, 12]].forEach(function (p) { px(ctx, "#8e8a7a", ox + p[0], oy + p[1]); });
+      var dm = ((wx + wy) % 8 === 0 && (wx - wy) % 8 !== 0) || ((wx - wy + 800) % 8 === 0 && (wx + wy) % 8 !== 0);
+      t = 0.5 + (nz(N.a, wx, wy) - 0.5) * 0.3 + (dm ? 0.22 : 0);
+      if (wx % 24 === 0 || wy % 24 === 0) t = 0.15;
+      if ((wx % 24 === 3 || wx % 24 === 21) && (wy % 24 === 3 || wy % 24 === 21)) t = 0.95;   // 鋲
     } else {
-      px(ctx, "#7d7060", ox, oy, TILE, TILE);
-      for (var i = 0; i < 4; i++) px(ctx, "#6a5e50", ox, oy + i * 4 + 3, TILE, 1);
-      for (var j = 0; j < 5; j++) px(ctx, hash2(x, y, j + 400) < 0.5 ? "#8c7f6c" : "#665a4c", ox + Math.floor(hash2(x, y, j + 410) * 16), oy + Math.floor(hash2(x, y, j + 420) * 16));
-      if (hash2(x, y, 430) < 0.08) { px(ctx, "#4a4034", ox + 4, oy + 6, 6, 1); px(ctx, "#4a4034", ox + 9, oy + 7, 3, 1); }
+      t = 0.5 + (nz(N.a, wx, wy) - 0.5) * 0.35 + (nz(N.b, wx, wy) - 0.5) * 0.3;
+      if (wx % 48 === 0 || wy % 48 === 0) t = 0.12;                                          // 継ぎ目
+      if (nz(N.c, (wx >> 1) + 30, (wy >> 1) + 90) > 0.72) t -= 0.15;
     }
-    var edge = function (dx, dy) { return grid.get(x + dx, y + dy) === TT.void || grid.get(x + dx, y + dy) === -1; };
-    if (edge(0, -1)) { px(ctx, "#3a3128", ox, oy, TILE, 2); for (var a = 0; a < 16; a += 4) px(ctx, "#b09a70", ox + a, oy, 1, 2); px(ctx, "#b09a70", ox, oy, TILE, 1); }
-    if (edge(0, 1)) { px(ctx, "#3a3128", ox, oy + 13, TILE, 3); px(ctx, "#b09a70", ox, oy + 13, TILE, 1); for (var b = 0; b < 16; b += 4) px(ctx, "#b09a70", ox + b, oy + 13, 1, 3); }
-    if (edge(-1, 0)) { px(ctx, "#3a3128", ox, oy, 2, TILE); px(ctx, "#b09a70", ox, oy, 1, TILE); }
-    if (edge(1, 0)) { px(ctx, "#3a3128", ox + 14, oy, 2, TILE); px(ctx, "#b09a70", ox + 15, oy, 1, TILE); }
+    // 手すり：縁から 0-2 画素は影、3-5 は縁石、6-8 に柱と横木
+    var dists = [c.vU ? ly : 99, c.vD ? e - ly : 99, c.vL ? lx : 99, c.vR ? e - lx : 99];
+    var d = Math.min(dists[0], dists[1], dists[2], dists[3]);
+    if (d <= 9) {
+      var along = (d === dists[0] || d === dists[1]) ? wx : wy;
+      if (d <= 1) { pick(RP.rail, 0.05, wx, wy); return; }
+      if (d <= 4) { pick(RP.rail, d === 2 ? 0.95 : 0.6, wx, wy); return; }
+      if (d <= 7 && along % 12 < 3) { pick(RP.rail, along % 12 === 0 ? 0.95 : 0.55, wx, wy); return; }
+      if (d === 7) { pick(RP.rail, 0.85, wx, wy); return; }
+      if (d <= 9) t -= 0.2;
+    }
+    pick(deck ? RP.steel : RP.deck, t, wx, wy);
   }
 
-  function drawHut(ctx, ox, oy, x, y, grid) {
-    var belowOpen = grid.get(x, y + 1) !== TT.hut;
-    var below2Open = !belowOpen && grid.get(x, y + 2) !== TT.hut;
-    if (belowOpen || below2Open) {
-      // 木の板壁
-      px(ctx, "#6a5236", ox, oy, TILE, TILE);
-      for (var i = 0; i < 16; i += 4) px(ctx, "#4a3824", ox + i, oy, 1, TILE);
-      px(ctx, "#7a6242", ox, oy + (belowOpen ? 0 : 8), TILE, 1);
-      if (belowOpen) px(ctx, "#3a2c1c", ox, oy + 14, TILE, 2);
-      if (below2Open) { px(ctx, "#15120f", ox + 5, oy + 5, 6, 5); px(ctx, "#8a6a40", ox + 5, oy + 10, 6, 1); }
-      if (grid.get(x - 1, y) !== TT.hut) px(ctx, "#2a2014", ox, oy, 1, TILE);
-      if (grid.get(x + 1, y) !== TT.hut) px(ctx, "#2a2014", ox + 15, oy, 1, TILE);
+  function shHut(c, lx, ly, wx, wy) {
+    var N = noiseTex();
+    var e = TP - 1;
+    if (c.hk > 0) {
+      // 板壁（縦板と木目）。下が開いていれば地面際、2段目なら窓
+      var plank = Math.floor(wx / 9), px9 = wx - plank * 9;
+      var t = 0.5 + (rnd(plank, 0, 501) - 0.5) * 0.25 + (nz(N.a, wx * 3, wy >> 2) - 0.5) * 0.35;
+      if (px9 === 0) t = 0.05; else if (px9 === 1) t += 0.18;
+      if (c.hk === 1 && ly >= e - 4) t = 0.12;
+      if (c.hk === 2 && ly <= 3) t = ly <= 1 ? 0.1 : 0.7;                                 // 軒下の梁
+      if (c.hk === 2 && lx >= 12 && lx <= 35 && ly >= 14 && ly <= 34) {
+        if (lx <= 13 || lx >= 34 || ly <= 15 || ly >= 33) { pick(RP.plank, 0.8, wx, wy); return; }
+        pick(RP.glass, 0.15 + (lx === 24 || ly === 24 ? 0.4 : 0), wx, wy); return;
+      }
+      if (c.hl && lx <= 2) t -= 0.2;
+      if (c.hr && lx >= e - 2) t -= 0.35;
+      pick(RP.plank, t, wx, wy);
       return;
     }
-    // 藁葺き屋根
-    px(ctx, "#7a6038", ox, oy, TILE, TILE);
-    for (var k = -16; k < 16; k += 4) for (var t = 0; t < 16; t++) { var xx = k + t; if (xx >= 0 && xx < 16) px(ctx, "#5a4428", ox + xx, oy + t); }
-    px(ctx, "#8e7448", ox, oy + 2 + Math.floor(hash2(x, y, 500) * 4), TILE, 1);
-    if (grid.get(x, y - 1) !== TT.hut) px(ctx, "#a08450", ox, oy, TILE, 2);
-    if (grid.get(x - 1, y) !== TT.hut) px(ctx, "#3a2c1c", ox, oy, 2, TILE);
-    if (grid.get(x + 1, y) !== TT.hut) px(ctx, "#3a2c1c", ox + 14, oy, 2, TILE);
+    // 藁葺き屋根：段ごとに重ねた藁の房
+    var row = Math.floor((wy + Math.floor(nz(N.b, wx, 0) * 3)) / 12), ry = wy - row * 12;
+    var t2 = 0.55 + (nz(N.a, wx * 3, wy >> 1) - 0.5) * 0.45 + (ry < 3 ? 0.18 : ry > 9 ? -0.28 : 0);
+    if (c.hu) t2 += ly < 4 ? 0.2 : 0;
+    if (c.hl && lx < 4) t2 -= 0.25;
+    if (c.hr && lx > e - 4) t2 -= 0.35;
+    pick(RP.thatch, t2, wx, wy);
   }
 
-  function drawFence(ctx, ox, oy, x, y, grid) {
-    drawGroundGrass(ctx, ox, oy, x, y);
-    var vert = grid.get(x, y - 1) === TT.fence || grid.get(x, y + 1) === TT.fence;
-    var horiz = grid.get(x - 1, y) === TT.fence || grid.get(x + 1, y) === TT.fence;
+  function shFence(c, lx, ly, wx, wy) {
+    shGrass(c, lx, ly, wx, wy);
+    var vert = c.up === TT.fence || c.dn === TT.fence;
+    var horiz = c.lf === TT.fence || c.rt === TT.fence;
     if (horiz || !vert) {
-      px(ctx, "#4a3824", ox, oy + 6, TILE, 2); px(ctx, "#4a3824", ox, oy + 11, TILE, 2);
-      [1, 7, 13].forEach(function (sx) { px(ctx, "#6a5236", ox + sx, oy + 2, 2, 13); px(ctx, "#2a2014", ox + sx, oy + 15, 2, 1); px(ctx, "#8a6a40", ox + sx, oy + 2, 2, 1); });
+      var pp = lx % 16;
+      if (pp >= 5 && pp <= 10 && ly >= 6 && ly <= 44) { pick(RP.plank, pp === 5 ? 0.85 : pp >= 9 ? 0.2 : 0.55, wx, wy); if (ly <= 7) pick(RP.plank, 0.95, wx, wy); return; }
+      if ((ly >= 16 && ly <= 20) || (ly >= 30 && ly <= 34)) { pick(RP.plank, ly === 16 || ly === 30 ? 0.8 : 0.4, wx, wy); return; }
+      if (ly >= 45 && ly <= 47 && pp >= 4 && pp <= 12) { o4[0] *= 0.65; o4[1] *= 0.65; o4[2] *= 0.65; }
     }
     if (vert) {
-      px(ctx, "#4a3824", ox + 6, oy, 2, TILE); px(ctx, "#4a3824", ox + 10, oy, 2, TILE);
-      [2, 10].forEach(function (sy) { px(ctx, "#6a5236", ox + 7, oy + sy, 4, 4); px(ctx, "#8a6a40", ox + 7, oy + sy, 4, 1); });
+      if (lx >= 18 && lx <= 22 || lx >= 28 && lx <= 32) { pick(RP.plank, lx === 18 || lx === 28 ? 0.8 : 0.4, wx, wy); return; }
+      var pq = ly % 24;
+      if (lx >= 15 && lx <= 35 && pq >= 6 && pq <= 12) { pick(RP.plank, pq === 6 ? 0.9 : 0.55, wx, wy); return; }
     }
   }
 
-  function drawTileAt(ctx, grid, x, y, spec) {
-    var t = grid.get(x, y);
-    var ox = x * TILE, oy = y * TILE;
-    switch (t) {
-      case TT.road:
-        if (isSidewalk(grid, x, y)) drawSidewalk(ctx, ox, oy, x, y, grid); else drawGroundRoad(ctx, ox, oy, x, y, grid);
-        drawContactShadow(ctx, ox, oy, x, y, grid); break;
-      case TT.plaza: drawGroundPlaza(ctx, ox, oy, x, y); drawContactShadow(ctx, ox, oy, x, y, grid); break;
-      case TT.lot: drawGroundLot(ctx, ox, oy, x, y); drawContactShadow(ctx, ox, oy, x, y, grid); break;
-      case TT.grass: drawGroundGrass(ctx, ox, oy, x, y); drawContactShadow(ctx, ox, oy, x, y, grid); break;
-      case TT.dirt: drawGroundDirt(ctx, ox, oy, x, y, grid); drawContactShadow(ctx, ox, oy, x, y, grid); break;
-      case TT.bldg: drawBuilding(ctx, ox, oy, x, y, grid); break;
-      case TT.rubble: drawRubble(ctx, ox, oy, x, y, grid, spec.rubbleBase); break;
-      case TT.water: drawWater(ctx, ox, oy, x, y, grid); break;
-      case TT.walk: drawWalkway(ctx, ox, oy, x, y, grid, false); break;
-      case TT.deck: drawWalkway(ctx, ox, oy, x, y, grid, true); break;
-      case TT.hut: drawHut(ctx, ox, oy, x, y, grid); break;
-      case TT.fence: drawFence(ctx, ox, oy, x, y, grid); break;
-      case TT.well: case TT.tree: drawGroundGrass(ctx, ox, oy, x, y); break;
-      default: break; // void：何も描かない（下の層が透けて見える）
+  // タイルごとの、描画に使う周りの情報（隣が何か、何階目の壁か、など）
+  function tileCtx(grid, tx, ty) {
+    var g = grid.get;
+    var c = {
+      t: g(tx, ty), tx: tx, ty: ty,
+      up: g(tx, ty - 1), dn: g(tx, ty + 1), lf: g(tx - 1, ty), rt: g(tx + 1, ty),
+      ul: g(tx - 1, ty - 1), ur: g(tx + 1, ty - 1), dl: g(tx - 1, ty + 1), dr: g(tx + 1, ty + 1),
+    };
+    var B = TT.bldg;
+    if (c.t === TT.road) {
+      var sw = function (x, y) { if (g(x, y) !== TT.road) return false; return g(x, y - 1) === B || g(x, y + 1) === B || g(x - 1, y) === B || g(x + 1, y) === B; };
+      c.side = sw(tx, ty);
+      if (c.side) {
+        c.curbUp = c.up === TT.road && !sw(tx, ty - 1); c.curbDn = c.dn === TT.road && !sw(tx, ty + 1);
+        c.curbLf = c.lf === TT.road && !sw(tx - 1, ty); c.curbRt = c.rt === TT.road && !sw(tx + 1, ty);
+      }
+    } else if (c.t === B) {
+      var open = function (t) { return WALKABLE[t] === true || t === TT.water || t === TT.rubble; };
+      c.k = 0;
+      for (var k = 1; k <= 3; k++) {
+        var below = g(tx, ty + k);
+        if (open(below)) { c.k = k; break; }
+        if (below !== B) break;
+      }
+      var bid = Math.floor(tx / 7) * 131 + Math.floor(ty / 6);
+      c.style = Math.floor(hash2(bid, 0, 310) * 3);
+      c.tint = (hash2(bid, 1, 311) - 0.5) * 0.2;
+      var sameB = function (x, y) { return g(x, y) === B && Math.floor(x / 7) === Math.floor(tx / 7) && Math.floor(y / 6) === Math.floor(ty / 6); };
+      if (c.k > 0) {
+        c.edgeL = !(g(tx - 1, ty) === B); c.edgeR = !(g(tx + 1, ty) === B);
+        c.seamL = tx % 7 === 0 && g(tx - 1, ty) === B;
+      } else {
+        var isFac = function (x, y) { if (g(x, y) !== B) return false; for (var k2 = 1; k2 <= 3; k2++) { var bb = g(x, y + k2); if (open(bb)) return true; if (bb !== B) return false; } return false; };
+        c.lipU = !sameB(tx, ty - 1) || isFac(tx, ty - 1);
+        c.lipD = !sameB(tx, ty + 1) || isFac(tx, ty + 1);
+        c.lipL = !sameB(tx - 1, ty) || isFac(tx - 1, ty);
+        c.lipR = !sameB(tx + 1, ty) || isFac(tx + 1, ty);
+        var ro = hash2(tx, ty, 320);
+        c.roofObj = ro < 0.05 ? 1 : ro < 0.08 ? 2 : 0;
+      }
+    } else if (c.t === TT.rubble) {
+      var R = TT.rubble;
+      c.rU = c.up === R; c.rD = c.dn === R; c.rL = c.lf === R; c.rR = c.rt === R;
+      c.rebar = hash2(tx, ty, 330) < 0.2;
+    } else if (c.t === TT.walk || c.t === TT.deck) {
+      var voidish = function (t) { return t === TT.void || t === -1; };
+      c.vU = voidish(c.up); c.vD = voidish(c.dn); c.vL = voidish(c.lf); c.vR = voidish(c.rt);
+    } else if (c.t === TT.well || c.t === TT.tree) {
+      // 井戸や木の足元は、周りの地面と同じ素材で描く（土の広場なら土）
+      var cnt = {};
+      [c.up, c.dn, c.lf, c.rt, c.ul, c.ur, c.dl, c.dr].forEach(function (t) { if (GROUND[t]) cnt[t] = (cnt[t] || 0) + 1; });
+      c.base = TT.grass;
+      var bestN = 0;
+      Object.keys(cnt).forEach(function (k) { if (cnt[k] > bestN) { bestN = cnt[k]; c.base = +k; } });
+    } else if (c.t === TT.hut) {
+      var H2 = TT.hut;
+      c.hk = c.dn !== H2 ? 1 : (g(tx, ty + 2) !== H2 ? 2 : 0);
+      c.hu = c.up !== H2; c.hl = c.lf !== H2; c.hr = c.rt !== H2;
+    }
+    return c;
+  }
+
+  function shadeTile(c, lx, ly, wx, wy, spec) {
+    switch (c.t) {
+      case TT.road: if (c.side) shSidewalk(c, lx, ly, wx, wy); else shRoad(c, lx, ly, wx, wy); return true;
+      case TT.plaza: shPlaza(c, lx, ly, wx, wy); return true;
+      case TT.lot: shLot(c, lx, ly, wx, wy); return true;
+      case TT.grass: shGrass(c, lx, ly, wx, wy); return true;
+      case TT.well: case TT.tree:
+        if (c.base === TT.dirt) shDirt(c, lx, ly, wx, wy); else if (c.base === TT.lot) shLot(c, lx, ly, wx, wy); else shGrass(c, lx, ly, wx, wy);
+        return true;
+      case TT.dirt: shDirt(c, lx, ly, wx, wy); return true;
+      case TT.water: shWater(c, lx, ly, wx, wy); return true;
+      case TT.bldg: if (c.k > 0) shFacade(c, lx, ly, wx, wy); else shRoof(c, lx, ly, wx, wy); return true;
+      case TT.rubble: shRubble(c, lx, ly, wx, wy, spec.rubbleBase); return true;
+      case TT.walk: shWalk(c, lx, ly, wx, wy, false); return true;
+      case TT.deck: shWalk(c, lx, ly, wx, wy, true); return true;
+      case TT.hut: shHut(c, lx, ly, wx, wy); return true;
+      case TT.fence: shFence(c, lx, ly, wx, wy); return true;
+      default: return false;   // void：何も描かない
     }
   }
 
-  function drawMapObject(ctx, o) {
-    var ox = o.x * TILE, oy = o.y * TILE;
+  // ── 地面に置かれた物（扉・井戸・枯れ木） ──
+  function drawObjectHD(ctx, o) {
+    var ox = o.x * TP, oy = o.y * TP;
+    var P = function (c, x, y, w, h) { ctx.fillStyle = c; ctx.fillRect(ox + x, oy + y, w, h); };
     if (o.kind === "door") {
-      px(ctx, "#2a2014", ox + 4, oy + 3, 8, 13);
-      px(ctx, "#4a3420", ox + 5, oy + 4, 6, 12);
-      px(ctx, "#c8a060", ox + 9, oy + 10, 1, 1);
+      // 小屋の扉：板戸と枠、取っ手
+      P("#1e160c", 11, -30, 26, 78);
+      P("#3a2a18", 14, -27, 20, 75);
+      for (var i = 0; i < 4; i++) { P(i % 2 ? "#4a3620" : "#523c24", 14 + i * 5, -27, 5, 75); P("#2a1e10", 14 + i * 5, -27, 1, 75); }
+      P("#5a4428", 14, -10, 20, 3); P("#5a4428", 14, 22, 20, 3);
+      P("#c8a060", 29, 8, 3, 3); P("#6a5028", 29, 11, 3, 1);
+      P("#6a5236", 9, -33, 30, 4); P("#8a6a40", 9, -33, 30, 1);
     } else if (o.kind === "well") {
-      px(ctx, "rgba(0,0,0,0.35)", ox + 2, oy + 26, 30, 5);
-      px(ctx, "#5a564c", ox + 3, oy + 8, 26, 20);
-      px(ctx, "#101418", ox + 7, oy + 11, 18, 11);
-      px(ctx, "#2a3a44", ox + 9, oy + 16, 8, 1);
-      for (var i = 0; i < 26; i += 5) { px(ctx, "#7a7466", ox + 3 + i, oy + 8, 4, 2); px(ctx, "#3a3730", ox + 3 + i, oy + 24, 4, 1); }
-      px(ctx, "#4a3824", ox + 3, oy - 4, 2, 14); px(ctx, "#4a3824", ox + 27, oy - 4, 2, 14);
-      px(ctx, "#6a5236", ox + 1, oy - 6, 30, 3);
-      px(ctx, "#8a8a80", ox + 15, oy - 3, 1, 9);
-      px(ctx, "#6a5236", ox + 13, oy + 5, 5, 4);
+      // 石積みの井戸（2×2タイル）
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.beginPath(); ctx.ellipse(ox + 52, oy + 84, 44, 12, 0, 0, Math.PI * 2); ctx.fill();
+      for (var y = 0; y < 60; y++) for (var x = 0; x < 84; x++) {
+        var ex = (x - 42) / 42, ey = (y - 24) / 26;
+        var dd = ex * ex + ey * ey;
+        if (dd > 1) continue;
+        var inner = ((x - 42) / 32) * ((x - 42) / 32) + ((y - 20) / 16) * ((y - 20) / 16);
+        var gx = ox + 6 + x, gy = oy + 26 + y;
+        if (inner < 1) {
+          pick(RP.water, 0.1 + (y < 12 ? 0.3 * (1 - y / 12) : 0) + (Math.abs(x - 52) < 5 && y > 18 && y < 22 ? 0.5 : 0), gx, gy);
+        } else {
+          var w = worley(gx, gy, 8, 601);
+          var t = w.d2 - w.d1 < 1.3 ? 0.08 : 0.55 - ((gx - w.fx) + (gy - w.fy)) / 8 * 0.3 + (y > 30 ? -0.2 : 0.1);
+          pick(RP.stone, t, gx, gy);
+        }
+        ctx.fillStyle = "rgb(" + o4[0] + "," + o4[1] + "," + o4[2] + ")";
+        ctx.fillRect(gx, gy, 1, 1);
+      }
+      // 屋根の梁と滑車
+      P("#2a1e10", 10, -14, 7, 58); P("#4a3824", 11, -14, 5, 58); P("#5e4830", 11, -14, 2, 58);
+      P("#2a1e10", 79, -14, 7, 58); P("#4a3824", 80, -14, 5, 58); P("#5e4830", 80, -14, 2, 58);
+      P("#2a1e10", 4, -22, 88, 10); P("#6a5236", 5, -21, 86, 7); P("#8a6a40", 5, -21, 86, 2);
+      P("#3a3a36", 44, -12, 8, 8); P("#6a6a60", 45, -11, 3, 3);
+      P("#8a8478", 47, -4, 1, 30);
+      P("#3a2c18", 41, 24, 13, 11); P("#5a4428", 42, 25, 11, 3); P("#6a5236", 42, 28, 2, 7);
     } else if (o.kind === "tree") {
-      px(ctx, "rgba(0,0,0,0.35)", ox + 2, oy + 12, 12, 4);
-      px(ctx, "#3a2c1c", ox + 6, oy - 8, 4, 22);
-      px(ctx, "#4a3824", ox + 7, oy - 8, 1, 22);
-      [[0, -12, 7, 1], [-1, -13, 2, 2], [9, -10, 6, 1], [13, -12, 2, 2], [4, -18, 2, 8], [9, -20, 2, 10], [2, -5, 5, 1], [10, -3, 4, 1]].forEach(function (b) {
-        px(ctx, "#3a2c1c", ox + b[0], oy + b[1], b[2], b[3]);
+      // 枯れ木：幹と、左右に張り出した細い枝
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.beginPath(); ctx.ellipse(ox + 28, oy + 42, 20, 6, 0, 0, Math.PI * 2); ctx.fill();
+      var bark = function (x, y, w, h) { P("#1e160e", x, y, w, h); if (w > 2) P("#3a2c1c", x + 1, y, Math.max(1, w - 3), h); if (w > 4) P("#4e3c28", x + 1, y, 1, h); };
+      bark(18, -40, 12, 84);
+      P("#2a2014", 16, 38, 16, 6);
+      var br = [[29, -30, 16, 4, 1], [42, -40, 4, 12, 0], [8, -20, 11, 4, 1], [5, -32, 4, 14, 0], [22, -62, 4, 24, 0], [26, -54, 12, 3, 1], [36, -62, 3, 10, 0], [12, -50, 10, 3, 1], [11, -58, 3, 9, 0], [29, -12, 10, 3, 1]];
+      br.forEach(function (b) { bark(b[0], b[1], b[2], b[3]); });
+    }
+  }
+
+  // ひび割れ：タイルごとに乱数で、短い折れ線を1本（ときどき枝分かれ）引く。
+  // 暗い割れ目の右下に明るい縁を付けて、左上からの光で凹んで見せる。
+  // 隣のタイルから伸びてくるひびも拾うため、塊の周り1タイル分も調べる。
+  var CRACK_ON = {}; CRACK_ON[TT.road] = 0.2; CRACK_ON[TT.plaza] = 0.12; CRACK_ON[TT.lot] = 0.08; CRACK_ON[TT.walk] = 0.16;
+  function paintCracks(D, grid, cx, cy) {
+    var bx = cx * CHUNK_P, by = cy * CHUNK_P;
+    var mark = function (x, y, f) {
+      var lx = x - bx, ly = y - by;
+      if (lx < 0 || ly < 0 || lx >= CHUNK_P || ly >= CHUNK_P) return;
+      var t = grid.get(Math.floor(x / TP), Math.floor(y / TP));
+      if (!CRACK_ON[t]) return;
+      var i = (ly * CHUNK_P + lx) * 4;
+      D[i] *= f; D[i + 1] *= f; D[i + 2] *= f;
+      if (f > 1) { D[i] = Math.min(255, D[i]); D[i + 1] = Math.min(255, D[i + 1]); D[i + 2] = Math.min(255, D[i + 2]); }
+    };
+    var line = function (x, y, ang, len, seed) {
+      for (var k = 0; k < len; k++) {
+        ang += (hash2(seed, k, 911) - 0.5) * 0.9;
+        x += Math.cos(ang); y += Math.sin(ang);
+        var ix = Math.round(x), iy = Math.round(y);
+        mark(ix, iy, 0.45); mark(ix + 1, iy + 1, 1.18);
+        if (k > 4 && k < len - 6 && hash2(seed, k, 912) < 0.05) line(x, y, ang + (hash2(seed, k, 913) < 0.5 ? 0.9 : -0.9), Math.floor(len * 0.4), seed * 31 + k);
+      }
+    };
+    for (var ty = cy * CHUNK_T - 1; ty <= (cy + 1) * CHUNK_T; ty++) for (var tx = cx * CHUNK_T - 1; tx <= (cx + 1) * CHUNK_T; tx++) {
+      var t = grid.get(tx, ty), dens = CRACK_ON[t];
+      if (!dens || hash2(tx, ty, 901) >= dens) continue;
+      var seed = tx * 977 + ty * 131;
+      line(tx * TP + 6 + hash2(tx, ty, 902) * 36, ty * TP + 6 + hash2(tx, ty, 903) * 36, hash2(tx, ty, 904) * 6.283, 16 + Math.floor(hash2(tx, ty, 905) * 30), seed);
+    }
+  }
+
+  // ── 地形を塊ごとに描き溜める ──
+  function TerrainBundle(data) {
+    var spec = data.tilemap;
+    var protect = (data.zones || []).concat([data.start]).concat(Object.keys(data.entryPoints || {}).map(function (k) { return data.entryPoints[k]; }))
+      .map(function (p) { var q = toPx(p); return { x: q.x / TILE, y: q.y / TILE }; });
+    this.spec = spec;
+    this.grid = buildTileGrid(spec, protect);
+    this.w = this.grid.cols * TILE;
+    this.h = this.grid.rows * TILE;
+    this.lower = data.underlay ? getTileBundle(data.underlay) : null;
+    // 瓦礫の山は、タイルの並びそのままだと四角く見えるので、周り3×3タイルの
+    // 平均でぼかした「瓦礫の濃さ」を境目の判定に使い、丸い山にする
+    var g = this.grid, den = new Float32Array(g.cols * g.rows);
+    for (var y = 0; y < g.rows; y++) for (var x = 0; x < g.cols; x++) {
+      var n = 0;
+      for (var j = -1; j <= 1; j++) for (var i = -1; i <= 1; i++) if (g.get(x + i, y + j) === TT.rubble) n++;
+      den[y * g.cols + x] = n / 9;
+    }
+    this.rubbleDen = function (x, y) { return (x < 0 || y < 0 || x >= g.cols || y >= g.rows) ? 0 : den[y * g.cols + x]; };
+    this.chunks = {};
+    this.order = [];
+  }
+
+  // 塊は、描き上がるまで何フレームかに分けて少しずつ描く（入った瞬間に
+  // 画面が固まらないように）。描き上がっていない所には、タイルの平均色を
+  // ぼかした仮の絵を出しておく。
+  TerrainBundle.prototype.entry = function (cx, cy) {
+    var key = cx + "," + cy;
+    var e = this.chunks[key];
+    if (e) {
+      var i = this.order.indexOf(key);
+      if (i >= 0) { this.order.splice(i, 1); this.order.push(key); }
+      return e;
+    }
+    e = this.chunks[key] = { cx: cx, cy: cy, cv: null, img: null, next: 0, done: false, cache: {} };
+    this.order.push(key);
+    var self = this;
+    while (this.order.length > CHUNK_KEEP) {
+      var old = this.order[0];
+      if (this._wanted && this._wanted[old]) break;
+      this.order.shift(); delete self.chunks[old];
+    }
+    return e;
+  };
+
+  // 塊eを、deadline（performance.now()の値）まで描き進める。描き上がったらtrue
+  TerrainBundle.prototype.work = function (e, deadline) {
+    if (e.done) return true;
+    var grid = this.grid, spec = this.spec;
+    var lowerD = null;
+    if (this.lower) {
+      var le = this.lower.entry(e.cx, e.cy);
+      if (!le.done && !this.lower.work(le, deadline)) return false;
+      if (!e.lowerD) e.lowerD = le.cv.getContext("2d").getImageData(0, 0, CHUNK_P, CHUNK_P).data;
+      lowerD = e.lowerD;
+    }
+    if (!e.cv) { e.cv = makeCanvas(CHUNK_P, CHUNK_P); e.img = e.cv.getContext("2d").createImageData(CHUNK_P, CHUNK_P); }
+    var D = e.img.data, cx = e.cx, cy = e.cy;
+    var N = noiseTex();
+    var ctxCache = e.cache;
+    var getC = function (tx, ty) { var k = (ty + 2) * 4096 + tx + 2; return ctxCache[k] || (ctxCache[k] = tileCtx(grid, tx, ty)); };
+    var walkable = function (tx, ty) { return WALKABLE[grid.get(tx, ty)] === true; };
+    while (e.next < CHUNK_T * CHUNK_T) {
+      if (performance.now() > deadline) return false;
+      var ty0 = Math.floor(e.next / CHUNK_T), tx0 = e.next % CHUNK_T;
+      e.next++;
+      var tx = cx * CHUNK_T + tx0, ty = cy * CHUNK_T + ty0;
+      if (tx >= grid.cols || ty >= grid.rows) continue;
+      var c = getC(tx, ty);
+      // 地面（と瓦礫）の境目は、タイルの角ばった形のままにせず、周りの
+      // タイル中心4点から素材の割合を補間して、なめらかな曲線で分ける。
+      // 当たり判定はタイルのままなので、壁や建物の形はここでは変えない。
+      var smooth = SOFT[c.t] && [c.up, c.dn, c.lf, c.rt, c.ul, c.ur, c.dl, c.dr].some(function (t) { return SOFT[t] && t !== c.t; });
+      for (var ly = 0; ly < TP; ly++) for (var lx = 0; lx < TP; lx++) {
+        var wx = tx * TP + lx, wy = ty * TP + ly;
+        var use = c, rubbleNear = 0;
+        if (smooth) {
+          var fx = wx / TP - 0.5, fy = wy / TP - 0.5;
+          var i0 = Math.floor(fx), j0 = Math.floor(fy), ax = fx - i0, ay = fy - j0;
+          // 周り4点のタイル中心から、素材ごとの割合を出す（配列を作らずに済ませる）
+          var t00 = grid.get(i0, j0), t10 = grid.get(i0 + 1, j0), t01 = grid.get(i0, j0 + 1), t11 = grid.get(i0 + 1, j0 + 1);
+          var w00 = (1 - ax) * (1 - ay), w10 = ax * (1 - ay), w01 = (1 - ax) * ay, w11 = ax * ay;
+          if (!SOFT[t00]) w00 = 0; if (!SOFT[t10]) w10 = 0; if (!SOFT[t01]) w01 = 0; if (!SOFT[t11]) w11 = 0;
+          var tot = w00 + w10 + w01 + w11;
+          var best = c.t, bestW = -9, bi = tx, bj = ty;
+          for (var q = 0; q < 4; q++) {
+            var tq = q === 0 ? t00 : q === 1 ? t10 : q === 2 ? t01 : t11;
+            if (!SOFT[tq] || tq === TT.rubble) continue;
+            var wv = ((t00 === tq ? w00 : 0) + (t10 === tq ? w10 : 0) + (t01 === tq ? w01 : 0) + (t11 === tq ? w11 : 0)) / tot
+              + (nz(N.a, wx * 2 + tq * 37, wy * 2 + tq * 53) - 0.5) * 0.45;
+            if (wv > bestW) { bestW = wv; best = tq; bi = i0 + (q & 1); bj = j0 + (q >> 1); }
+          }
+          // 瓦礫かどうかは、ぼかした濃さで決める（地面の候補が無い所は瓦礫のまま）
+          var rd = this.rubbleDen;
+          var rwd = rd(i0, j0) * (1 - ax) * (1 - ay) + rd(i0 + 1, j0) * ax * (1 - ay) + rd(i0, j0 + 1) * (1 - ax) * ay + rd(i0 + 1, j0 + 1) * ax * ay;
+          var R = TT.rubble;
+          var rwi = (t00 === R ? (1 - ax) * (1 - ay) : 0) + (t10 === R ? ax * (1 - ay) : 0) + (t01 === R ? (1 - ax) * ay : 0) + (t11 === R ? ax * ay : 0);
+          // 瓦礫タイルそのものの位置（必ず山が見える）と、ぼかした濃さ（角が丸くなる）を半々に混ぜる
+          var rw = 0.5 * rwi + 0.5 * Math.min(1, rwd * 2);
+          rw += (nz(N.a, wx * 2 + 311, wy * 2 + 97) - 0.5) * 0.3 + (nz(N.c, wx + 311, wy + 97) - 0.5) * 0.25;
+          rubbleNear = rw;
+          if (rw > 0.42 || bestW === -9) { best = TT.rubble; bi = -1; }
+          if (best === TT.rubble && c.t !== TT.rubble) {
+            for (var q3 = 0; q3 < 4; q3++) {
+              var tr = q3 === 0 ? t00 : q3 === 1 ? t10 : q3 === 2 ? t01 : t11;
+              if (tr === TT.rubble) { bi = i0 + (q3 & 1); bj = j0 + (q3 >> 1); break; }
+            }
+            if (bi === -1) { best = c.t; bi = tx; bj = ty; }   // 近くに瓦礫のタイルが無ければ地面のまま
+          }
+          if (best === TT.rubble && c.t === TT.rubble) { bi = tx; bj = ty; }
+          if (best !== c.t && best !== TT.rubble) {
+            // その素材を持つ一番近いタイル（4点のうち、この画素に近い側を優先）
+            var ni = ax < 0.5 ? i0 : i0 + 1, nj = ay < 0.5 ? j0 : j0 + 1;
+            if (grid.get(ni, nj) === best) { bi = ni; bj = nj; }
+            use = getC(bi, bj);
+          } else if (best === TT.rubble && c.t !== TT.rubble) use = getC(bi, bj);
+        }
+        var di = ((ty0 * TP + ly) * CHUNK_P + tx0 * TP + lx) * 4;
+        if (shadeTile(use, wx - use.tx * TP, wy - use.ty * TP, wx, wy, spec)) {
+          // 瓦礫の山のすぐ脇の地面は、山の影で暗くする
+          if (use.t !== TT.rubble && rubbleNear > 0.22) { var f = 1 - Math.min(0.35, (rubbleNear - 0.22) * 1.6); o4[0] *= f; o4[1] *= f; o4[2] *= f; }
+          D[di] = o4[0]; D[di + 1] = o4[1]; D[di + 2] = o4[2]; D[di + 3] = 255;
+          continue;
+        }
+        // 上の層の、足場の無い所：下の層を暗く沈めて見せる
+        if (lowerD) {
+          var r = lowerD[di] * 0.34 + 3, g = lowerD[di + 1] * 0.37 + 5, b = lowerD[di + 2] * 0.46 + 10;
+          // 足場の影（左上から光が当たるので、右下へずれて落ちる）
+          var sx = Math.floor((wx - 30) / TP), sy = Math.floor((wy - 54) / TP);
+          if (walkable(sx, sy)) { r *= 0.5; g *= 0.5; b *= 0.55; }
+          // 足場を支える柱
+          for (var k = 0; k <= 2; k++) {
+            var pty = ty - k;
+            if (walkable(tx, pty) && !walkable(tx, pty + 1) && (tx + pty) % 5 === 0) {
+              var py = wy - (pty + 1) * TP, pxl = lx;
+              if (py >= 0 && py < 78 && pxl >= 15 && pxl < 33) {
+                var pt = pxl < 19 ? 0.75 : pxl >= 28 ? 0.15 : 0.45;
+                pt -= py / 78 * 0.3;
+                pick(RP.parapet, pt, wx, wy);
+                r = o4[0] * 0.8; g = o4[1] * 0.8; b = o4[2] * 0.85;
+              }
+            }
+          }
+          D[di] = r; D[di + 1] = g; D[di + 2] = b; D[di + 3] = 255;
+        } else {
+          D[di] = 10; D[di + 1] = 8; D[di + 2] = 6; D[di + 3] = 255;
+        }
+      }
+    }
+    paintCracks(D, grid, cx, cy);
+    var ctx = e.cv.getContext("2d");
+    ctx.putImageData(e.img, 0, 0);
+    // 地面に置かれた物は、この塊にかかる分だけ描く（はみ出す木の枝も隣の塊に描かれる）
+    ctx.save();
+    ctx.translate(-cx * CHUNK_P, -cy * CHUNK_P);
+    grid.objects.forEach(function (o) {
+      var ox = o.x * TP, oy = o.y * TP;
+      if (ox + TP * 3 < cx * CHUNK_P || ox - TP > (cx + 1) * CHUNK_P || oy + TP * 3 < cy * CHUNK_P || oy - TP * 2 > (cy + 1) * CHUNK_P) return;
+      drawObjectHD(ctx, o);
+    });
+    ctx.restore();
+    e.img = null; e.cache = null; e.lowerD = null;
+    e.done = true;
+    return true;
+  };
+
+  // 描き上がる前に見せる仮の絵（1タイル＝1画素の平均色を、ぼかして引き伸ばす）
+  var PREVIEW_COLOR = {};
+  PREVIEW_COLOR[TT.road] = "#3a3630"; PREVIEW_COLOR[TT.plaza] = "#4e4940"; PREVIEW_COLOR[TT.lot] = "#39332a";
+  PREVIEW_COLOR[TT.grass] = "#30351d"; PREVIEW_COLOR[TT.dirt] = "#4a3c2a"; PREVIEW_COLOR[TT.water] = "#142329";
+  PREVIEW_COLOR[TT.bldg] = "#38332d"; PREVIEW_COLOR[TT.rubble] = "#3e362d"; PREVIEW_COLOR[TT.walk] = "#5e564a";
+  PREVIEW_COLOR[TT.deck] = "#50504a"; PREVIEW_COLOR[TT.hut] = "#5a4628"; PREVIEW_COLOR[TT.fence] = "#3a3524";
+  PREVIEW_COLOR[TT.well] = "#30351d"; PREVIEW_COLOR[TT.tree] = "#30351d"; PREVIEW_COLOR[TT.void] = "#0c0e12";
+  TerrainBundle.prototype.preview = function () {
+    if (this._preview) return this._preview;
+    var g = this.grid, cv = makeCanvas(g.cols, g.rows), ctx = cv.getContext("2d");
+    for (var y = 0; y < g.rows; y++) for (var x = 0; x < g.cols; x++) { ctx.fillStyle = PREVIEW_COLOR[g.get(x, y)] || "#0a0806"; ctx.fillRect(x, y, 1, 1); }
+    return (this._preview = cv);
+  };
+
+  // 窓（地図単位）に映る分の地形を貼る。描き上がっていない塊は仮の絵で埋める
+  TerrainBundle.prototype.blit = function (ctx, cam) {
+    var x0 = cam.x * RES, y0 = cam.y * RES, w = cam.vw * RES, h = cam.vh * RES;
+    var wanted = {}, missing = false;
+    for (var cy = Math.floor(y0 / CHUNK_P); cy * CHUNK_P < y0 + h; cy++) for (var cx = Math.floor(x0 / CHUNK_P); cx * CHUNK_P < x0 + w; cx++) {
+      if (cx * CHUNK_T >= this.grid.cols || cy * CHUNK_T >= this.grid.rows) continue;
+      wanted[cx + "," + cy] = true;
+      var e = this.entry(cx, cy);
+      if (e.done) { ctx.drawImage(e.cv, cx * CHUNK_P - x0, cy * CHUNK_P - y0); continue; }
+      missing = true;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(this.preview(), cx * CHUNK_T, cy * CHUNK_T, CHUNK_T, CHUNK_T, cx * CHUNK_P - x0, cy * CHUNK_P - y0, CHUNK_P, CHUNK_P);
+      ctx.imageSmoothingEnabled = false;
+    }
+    this._wanted = wanted;
+    this._visible = Object.keys(wanted);
+    return missing;
+  };
+
+  // 見えている塊を優先して、残りの時間で周りの塊も先に描いておく。
+  // 見えている塊が1つでも描き上がったら true（描き直しが要る）
+  TerrainBundle.prototype.pump = function (budgetMs) {
+    var deadline = performance.now() + budgetMs;
+    var changed = false, self = this;
+    var vis = this._visible || [];
+    for (var i = 0; i < vis.length; i++) {
+      var e = this.entry(+vis[i].split(",")[0], +vis[i].split(",")[1]);
+      if (e.done) continue;
+      if (this.work(e, deadline)) changed = true;
+      if (performance.now() > deadline) return { changed: changed, pending: true, ring: true };
+    }
+    // 周り一回り
+    var ring = [];
+    vis.forEach(function (k) {
+      var p = k.split(","), x = +p[0], y = +p[1];
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+        var nx = x + d[0], ny = y + d[1];
+        if (nx < 0 || ny < 0 || nx * CHUNK_T >= self.grid.cols || ny * CHUNK_T >= self.grid.rows) return;
+        var nk = nx + "," + ny;
+        if (!self._wanted[nk] && ring.indexOf(nk) < 0) ring.push(nk);
       });
+    });
+    var ringPending = false;
+    for (var j = 0; j < ring.length; j++) {
+      var q = ring[j].split(","), en = this.entry(+q[0], +q[1]);
+      if (en.done) continue;
+      ringPending = true;
+      if (!this.work(en, deadline)) return { changed: changed, pending: false, ring: true };
     }
-  }
+    return { changed: changed, pending: false, ring: ringPending };
+  };
 
-  // 上の層に描き込む、下の層の街並み（暗く沈め、足場の影と支柱を落とす）
-  function paintUnderlay(ctx, lowerCanvas, grid, w, h) {
-    ctx.drawImage(lowerCanvas, 0, 0);
-    ctx.fillStyle = "rgba(6,8,12,0.62)";
-    ctx.fillRect(0, 0, w, h);
-    // 下の層は網目状に暗くして、手前の足場とは別の高さにあると見せる
-    ctx.fillStyle = "rgba(0,0,0,0.25)";
-    for (var y = 0; y < h; y += 2) ctx.fillRect(0, y, w, 1);
-    var shadow = makeCanvas(w, h), sctx = shadow.getContext("2d");
-    sctx.fillStyle = "#000";
-    for (var ty = 0; ty < grid.rows; ty++) for (var tx = 0; tx < grid.cols; tx++) {
-      if (WALKABLE[grid.get(tx, ty)]) sctx.fillRect(tx * TILE + 10, ty * TILE + 18, TILE, TILE);
-    }
-    ctx.globalAlpha = 0.5;
-    ctx.drawImage(shadow, 0, 0);
-    ctx.globalAlpha = 1;
-    // 足場を支える柱（足場の下端から、下の層へ向かって伸びる）
-    for (var py = 0; py < grid.rows; py++) for (var pxx = 0; pxx < grid.cols; pxx++) {
-      if (!WALKABLE[grid.get(pxx, py)] || WALKABLE[grid.get(pxx, py + 1)]) continue;
-      if ((pxx + py) % 5 !== 0) continue;
-      px(ctx, "#2c2822", pxx * TILE + 5, py * TILE + 16, 6, 26);
-      px(ctx, "#3e382e", pxx * TILE + 5, py * TILE + 16, 2, 26);
-    }
-  }
-
-  // 地形の描画は重いので、エリアの設計図ごとに1回だけ作って使い回す
+  // 地形の設計図ごとに1回だけ作って使い回す
   // （階段で層を行き来したり、ノードに入り直したりしても作り直さない）。
   function getTileBundle(data) {
     var spec = data.tilemap;
-    if (spec._bundle) return spec._bundle;
-    // 入口・ゾーンの位置は、どの入口から入ってきたかに関わらず同じ地形に
-    // なるよう、エリアの定義そのものから集める
-    var protect = (data.zones || []).concat([data.start]).concat(Object.keys(data.entryPoints || {}).map(function (k) { return data.entryPoints[k]; }))
-      .map(function (p) { var q = toPx(p); return { x: q.x / TILE, y: q.y / TILE }; });
-    var grid = buildTileGrid(spec, protect);
-    var w = grid.cols * TILE, h = grid.rows * TILE;
-    var canvas = makeCanvas(w, h);
-    var ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#0a0806";
-    ctx.fillRect(0, 0, w, h);
-    if (data.underlay) {
-      var lower = getTileBundle(data.underlay);
-      paintUnderlay(ctx, lower.canvas, grid, w, h);
-    }
-    for (var y = 0; y < grid.rows; y++) for (var x = 0; x < grid.cols; x++) drawTileAt(ctx, grid, x, y, spec);
-    grid.objects.forEach(function (o) { drawMapObject(ctx, o); });
-    spec._bundle = { grid: grid, canvas: canvas, w: w, h: h };
+    if (!spec._bundle) spec._bundle = new TerrainBundle(data);
     return spec._bundle;
   }
 
@@ -1276,48 +1769,66 @@ RPG.Explore = (function () {
       signR: spriteCanvas(SIGN_RIGHT, SIGN_PAL),
       signL: spriteCanvas(SIGN_RIGHT, SIGN_PAL, true),
     };
-    // 上り階段（2×2タイル）：奥へ向かって段が上がっていく
-    var up = makeCanvas(32, 32), u = up.getContext("2d");
-    px(u, "#2a241d", 0, 0, 32, 32);
-    for (var i = 0; i < 6; i++) {
-      var y = 27 - i * 5;
-      px(u, "#a89878", 4, y, 24, 2);
-      px(u, "#6a5e4a", 4, y + 2, 24, 3);
+    // 階段は地形と同じ細かさ（1タイル＝48画素）で描く。2×2タイル分。
+    var S = 2 * TP;
+    var up = makeCanvas(S, S), u = up.getContext("2d");
+    for (var y = 0; y < S; y++) for (var x = 0; x < S; x++) {
+      if (x < 12 || x >= S - 12) {
+        // 両脇の石積みの袖壁
+        var w = worley(x + 500, y + 500, 10, 701);
+        pick(RP.stone, w.d2 - w.d1 < 1.3 ? 0.05 : 0.6 - ((x + 500 - w.fx) + (y + 500 - w.fy)) / 10 * 0.3 - (x >= S - 12 ? 0.2 : 0), x, y);
+      } else {
+        // 奥（上）へ向かって段が上がる。手前の段ほど明るく大きい
+        var st = Math.floor((S - 1 - y) / 13), sy = (S - 1 - y) - st * 13;
+        var t = sy >= 9 ? 0.85 - st * 0.04 : 0.42 - (8 - sy) * 0.02 - st * 0.03;
+        if (x < 15) t -= 0.2;
+        pick(RP.stone, t + (hash2(x, y, 702) - 0.5) * 0.12, x, y);
+      }
+      u.fillStyle = "rgb(" + o4[0] + "," + o4[1] + "," + o4[2] + ")";
+      u.fillRect(x, y, 1, 1);
     }
-    px(u, "#4a4034", 0, 0, 4, 32); px(u, "#4a4034", 28, 0, 4, 32);
-    px(u, "#6a5e4a", 0, 0, 1, 32); px(u, "#1a1410", 31, 0, 1, 32);
-    px(u, "#e8dcc8", 15, 2, 2, 1); px(u, "#e8dcc8", 14, 3, 4, 1); px(u, "#e8dcc8", 13, 4, 6, 1);
+    u.fillStyle = "#e8dcc8";
+    for (var i = 0; i < 5; i++) u.fillRect(S / 2 - i, 3 + i, i * 2 + 1, 1);
     zoneSprites.stairsUp = up;
-    // 下り階段：床に開いた口から、段が暗がりへ下りていく
-    var dn = makeCanvas(32, 32), d = dn.getContext("2d");
-    px(d, "#3a3128", 0, 0, 32, 32);
-    for (var j = 0; j < 6; j++) {
-      var shade = [0x8a, 0x74, 0x60, 0x4c, 0x38, 0x26][j];
-      var c = "rgb(" + shade + "," + Math.round(shade * 0.9) + "," + Math.round(shade * 0.75) + ")";
-      px(d, c, 4, 2 + j * 5, 24, 3);
-      px(d, "#15120f", 4, 5 + j * 5, 24, 2);
+    // 下り階段：足場に開いた口から、段が暗がりへ下りていく
+    var dn = makeCanvas(S, S), d = dn.getContext("2d");
+    for (var y2 = 0; y2 < S; y2++) for (var x2 = 0; x2 < S; x2++) {
+      var t2;
+      if (y2 < 6 || x2 < 6 || x2 >= S - 6) t2 = (y2 < 2 || x2 < 2 || x2 >= S - 2) ? 0.95 : 0.55;
+      else {
+        var st2 = Math.floor((y2 - 6) / 15), sy2 = (y2 - 6) - st2 * 15;
+        t2 = (sy2 < 4 ? 0.7 : 0.4) - st2 * 0.13;
+        if (x2 < 12) t2 -= 0.15;
+      }
+      pick(y2 < 6 || x2 < 6 || x2 >= S - 6 ? RP.rail : RP.stone, Math.max(0, t2), x2, y2);
+      d.fillStyle = "rgb(" + o4[0] + "," + o4[1] + "," + o4[2] + ")";
+      d.fillRect(x2, y2, 1, 1);
     }
-    px(d, "#b09a70", 0, 0, 32, 1); px(d, "#b09a70", 0, 0, 1, 32); px(d, "#b09a70", 31, 0, 1, 32);
-    px(d, "#e8dcc8", 13, 26, 6, 1); px(d, "#e8dcc8", 14, 27, 4, 1); px(d, "#e8dcc8", 15, 28, 2, 1);
+    d.fillStyle = "#e8dcc8";
+    for (var j = 0; j < 5; j++) d.fillRect(S / 2 - (4 - j), S - 12 + j, (4 - j) * 2 + 1, 1);
     zoneSprites.stairsDown = dn;
     return zoneSprites;
   }
 
   // 危険域：地面に赤い網目（ディザ）を掛けて、踏み込む範囲そのものを示す
-  function makeDangerOverlay(r, encounter) {
+  function makeDangerOverlay(r0, encounter) {
+    // 地形と同じ細かさ（RES倍）で作り、描く時は地図単位の大きさに合わせて貼る
+    var r = r0 * RES;
     var size = Math.ceil(r * 2) + 2;
     var c = makeCanvas(size, size), ctx = c.getContext("2d");
     var cx = size / 2, cy = size / 2;
     for (var y = 0; y < size; y++) for (var x = 0; x < size; x++) {
       var d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
       if (d > r) continue;
-      if (d > r - 1.5) { if ((x + y) % 3 === 0) px(ctx, encounter ? "#a05a28" : "#b04020", x, y); continue; }
-      if ((x + y * 3) % 6 === 0) px(ctx, encounter ? "rgba(200,136,80,0.55)" : "rgba(224,96,44,0.55)", x, y);
+      if (d > r - 2.5) { if ((x + y) % 4 < 2) px(ctx, encounter ? "#a05a28" : "#c04a24", x, y); continue; }
+      if ((x + y * 3) % 7 === 0 && (x - y) % 3 !== 0) px(ctx, encounter ? "rgba(200,136,80,0.45)" : "rgba(224,96,44,0.55)", x, y);
     }
     if (encounter) {
       [[-6, -3], [4, 4], [-1, 9]].forEach(function (p) {
-        var fx = Math.round(cx + p[0]), fy = Math.round(cy + p[1]);
-        px(ctx, "#c88850", fx, fy, 3, 3); px(ctx, "#c88850", fx - 1, fy - 2, 1, 1); px(ctx, "#c88850", fx + 1, fy - 2, 1, 1); px(ctx, "#c88850", fx + 3, fy - 2, 1, 1);
+        var fx = Math.round(cx + p[0] * RES), fy = Math.round(cy + p[1] * RES);
+        // 足跡：肉球と4本の指
+        px(ctx, "#c88850", fx, fy, 7, 6); px(ctx, "#a06a38", fx, fy + 5, 7, 1);
+        [[-2, -4], [1, -6], [5, -6], [8, -4]].forEach(function (t) { px(ctx, "#c88850", fx + t[0], fy + t[1], 3, 3); });
       });
     }
     return c;
@@ -1578,9 +2089,14 @@ RPG.Explore = (function () {
     var ctx = cv.getContext("2d");
     ctx.imageSmoothingEnabled = false;
     var cam = this.cameraViewBox();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = "#0a0806";
-    ctx.fillRect(0, 0, cam.vw, cam.vh);
-    ctx.drawImage(this.map.canvas, cam.x, cam.y, cam.vw, cam.vh, 0, 0, cam.vw, cam.vh);
+    ctx.fillRect(0, 0, cam.vw * RES, cam.vh * RES);
+    this.map.blit(ctx, cam);
+    this.schedulePump();
+    // ここから先は地図の単位で描き、描画側で3倍に拡大する
+    ctx.setTransform(RES, 0, 0, RES, 0, 0);
+    ctx.imageSmoothingEnabled = false;
     var sprites = getZoneSprites();
     var self = this;
     this.zones.forEach(function (z) {
@@ -1589,12 +2105,12 @@ RPG.Explore = (function () {
       if (sx < -z.r - 40 || sy < -z.r - 40 || sx > cam.vw + z.r + 40 || sy > cam.vh + z.r + 40) return;
       if (z.kind === "danger" || z.kind === "encounter") {
         var ov = self._dangerOverlays[z.id] || (self._dangerOverlays[z.id] = makeDangerOverlay(z.r, z.kind === "encounter"));
-        ctx.drawImage(ov, sx - Math.floor(ov.width / 2), sy - Math.floor(ov.height / 2));
+        ctx.drawImage(ov, sx - ov.width / 2 / RES, sy - ov.height / 2 / RES, ov.width / RES, ov.height / RES);
       } else if (z.kind === "chest") {
         px(ctx, "rgba(0,0,0,0.35)", sx - 7, sy + 4, 15, 3);
         ctx.drawImage(sprites.chest, sx - 7, sy - 6);
       } else if (z.kind === "stairs") {
-        ctx.drawImage(z.toLayer === "upper" ? sprites.stairsUp : sprites.stairsDown, sx - 16, sy - 16);
+        ctx.drawImage(z.toLayer === "upper" ? sprites.stairsUp : sprites.stairsDown, sx - 16, sy - 16, 32, 32);
       } else if (z.kind === "exit") {
         var sign = z.dir === "w" ? sprites.signL : sprites.signR;
         px(ctx, "rgba(0,0,0,0.35)", sx - 5, sy + 1, 11, 3);
@@ -1615,6 +2131,21 @@ RPG.Explore = (function () {
     px(ctx, "rgba(0,0,0,0.4)", hx - 5, hy, 10, 2);
     ctx.drawImage(hero[frame], hx - 6, hy - 15);
     this.placeLabels(cam);
+  };
+
+  // 地形の塊を、1フレームあたり数ミリ秒ずつ描き進める。見えている所が
+  // 描き上がるたびに画面を描き直し、その後は周りの塊を先回りして描いておく。
+  FreeArea.prototype.schedulePump = function () {
+    if (this._pumpRaf) return;
+    var self = this;
+    var step = function () {
+      self._pumpRaf = null;
+      if (!self._canvasEl || !document.body.contains(self._canvasEl)) return;
+      var r = self.map.pump(8);
+      if (r.changed) { self._pumpRaf = -1; self.draw(); self._pumpRaf = null; }
+      if (r.pending || r.ring) self._pumpRaf = requestAnimationFrame(step);
+    };
+    this._pumpRaf = requestAnimationFrame(step);
   };
 
   // 目印の名前は、ドット絵の中に小さく描くと読めないので、画面の上に
@@ -1706,8 +2237,8 @@ RPG.Explore = (function () {
     frameEl.style.aspectRatio = cam.vw + " / " + cam.vh;
     var cv = document.createElement("canvas");
     cv.className = "freearea";
-    cv.width = cam.vw;
-    cv.height = cam.vh;
+    cv.width = cam.vw * RES;
+    cv.height = cam.vh * RES;
     cv.tabIndex = 0;
     frameEl.appendChild(cv);
     this._canvasEl = cv;

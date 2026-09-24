@@ -139,7 +139,7 @@ button {
    拡大時にぼかさない（image-rendering: pixelated）。
    touch-action:none が無いと、なぞった時にブラウザ側のスクロール／ズームが
    優先されてしまい、スマホで移動操作が成立しない */
-.freearea-frame { position: relative; width: 100%; max-width: 480px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #0a0806; }
+.freearea-frame { position: relative; width: 100%; max-width: 720px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #0a0806; }
 .freearea { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; }
 .freearea:focus { outline: none; }
 .freearea-label { position: absolute; transform: translateX(-50%); font-size: 11px; line-height: 1.3; color: #e8dcc8; background: rgba(10, 8, 6, 0.72); padding: 0 4px; border-radius: 2px; white-space: nowrap; pointer-events: none; }
