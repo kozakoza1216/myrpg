@@ -898,12 +898,28 @@ RPG.Explore = (function () {
     if (zone) this.enterZone(zone);
   };
 
+  // 画面（クライアント）座標を、今のカメラ位置を踏まえたマップ座標に直す。
+  // カメラは歩くたびに動くので、毎フレーム計算し直す必要がある。
+  FreeArea.prototype.screenToMap = function (clientX, clientY) {
+    var svg = this._svgEl;
+    if (!svg) return null;
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    var cam = this.cameraViewBox();
+    return {
+      x: cam.x + (clientX - rect.left) * (cam.vw / rect.width),
+      y: cam.y + (clientY - rect.top) * (cam.vh / rect.height),
+    };
+  };
+
+  // 指定地点へ「歩いて」向かう。以前はここで座標を直接書き換えて瞬間移動して
+  // いたため、障害物の向こう側を指定するだけで素通りできてしまっていた。
+  // 目的地として覚えておき、tick()で毎フレーム少しずつ進む形にすることで、
+  // 途中に障害物があればそこで自然に止まる。
   FreeArea.prototype.moveTo = function (tx, ty) {
     if (this.isBlocked(tx, ty)) { this.flash("そこには進めない。"); return; }
-    if (this._playerEl) this._playerEl.style.transition = "transform 0.25s ease-out";
-    this.pos = { x: tx, y: ty };
-    this.updateHudAndPlayer();
-    this.checkZone(tx, ty);
+    this._walkTarget = { x: tx, y: ty };
+    this.ensureLoop();
   };
 
   var KEYMAP = {
@@ -931,13 +947,71 @@ RPG.Explore = (function () {
     document.addEventListener("keyup", this._onKeyUp);
   };
 
+  // 画面をなぞっている間、指（マウス）の位置へ向かって歩き続ける。
+  // タップして指定した場所へ瞬間移動する方式は、マップが画面に収まって
+  // いる前提でしか成立しない（画面外は指定しようがない）ため、
+  // 「なぞった方向へ歩き続け、カメラがついてくる」形にする。
+  FreeArea.prototype.attachPointer = function (svg) {
+    var self = this;
+    this._pointerActive = false;
+    this._pointerScreen = null;
+
+    svg.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      svg.focus();
+      if (svg.setPointerCapture) { try { svg.setPointerCapture(e.pointerId); } catch (err) { /* 捕捉できなくても追従自体は動く */ } }
+      self._pointerActive = true;
+      self._pointerScreen = { x: e.clientX, y: e.clientY };
+      self._walkTarget = null;
+      self._pointerMoved = false;
+      self.ensureLoop();
+    });
+
+    svg.addEventListener("pointermove", function (e) {
+      if (!self._pointerActive) return;
+      e.preventDefault();
+      var prev = self._pointerScreen;
+      if (prev && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) > 2) self._pointerMoved = true;
+      self._pointerScreen = { x: e.clientX, y: e.clientY };
+    });
+
+    var release = function (e) {
+      if (!self._pointerActive) return;
+      self._pointerActive = false;
+      // なぞらずに軽く触れただけ（タップ）なら、その地点まで歩いて向かう。
+      // なぞった場合は指を離した時点で止まる。
+      if (!self._pointerMoved) {
+        var p = self.screenToMap(e.clientX, e.clientY);
+        if (p && !self.isBlocked(p.x, p.y)) { self._walkTarget = p; self.ensureLoop(); }
+      }
+      self._pointerScreen = null;
+    };
+    svg.addEventListener("pointerup", release);
+    svg.addEventListener("pointercancel", release);
+  };
+
+  // キーボードとポインタ、両方の入力を止める（画面遷移や会話に入る時など）。
   FreeArea.prototype.detachKeyboard = function () {
-    if (!this._kbAttached) return;
+    this._pointerActive = false;
+    this._pointerScreen = null;
+    this._walkTarget = null;
+    if (!this._kbAttached) {
+      if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
+      return;
+    }
     this._kbAttached = false;
     document.removeEventListener("keydown", this._onKeyDown);
     document.removeEventListener("keyup", this._onKeyUp);
     if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
     this._keys = {};
+  };
+
+  // 何らかの入力で移動中かどうか（キー押下／画面をなぞっている最中／
+  // タップで指定した目的地へ向かっている途中）。
+  FreeArea.prototype.isMoving = function () {
+    var k = this._keys;
+    if (k && (k.up || k.down || k.left || k.right)) return true;
+    return !!(this._pointerActive || this._walkTarget);
   };
 
   FreeArea.prototype.ensureLoop = function () {
@@ -950,27 +1024,57 @@ RPG.Explore = (function () {
       var dt = Math.min(0.05, (t - last) / 1000);
       last = t;
       self.tick(dt);
-      var k = self._keys;
-      if (k && (k.up || k.down || k.left || k.right)) self._raf = requestAnimationFrame(frame);
+      if (self.isMoving()) self._raf = requestAnimationFrame(frame);
       else self._raf = null;
     }
     this._raf = requestAnimationFrame(frame);
   };
 
-  // 矢印キー/WASD押下中は毎フレーム連続座標で移動する（マス目には一切吸着しない）。
+  // このフレームで進むべき向き。キー入力が最優先で、無ければ
+  // なぞっている指の位置、それも無ければタップで指定した目的地へ向かう。
+  // 指を画面端に置いたままにすると、カメラが追従するぶん目標地点も
+  // 前へずれ続けるので、そのまま画面外へ歩いていける。
+  FreeArea.prototype.currentMoveDir = function () {
+    var k = this._keys || {};
+    var kx = (k.right ? 1 : 0) - (k.left ? 1 : 0);
+    var ky = (k.down ? 1 : 0) - (k.up ? 1 : 0);
+    if (kx || ky) {
+      var klen = Math.hypot(kx, ky) || 1;
+      return { dx: kx / klen, dy: ky / klen, target: null };
+    }
+    var target = null;
+    if (this._pointerActive && this._pointerScreen) {
+      target = this.screenToMap(this._pointerScreen.x, this._pointerScreen.y);
+    } else if (this._walkTarget) {
+      target = this._walkTarget;
+    }
+    if (!target) return null;
+    var dx = target.x - this.pos.x, dy = target.y - this.pos.y;
+    var len = Math.hypot(dx, dy);
+    if (len < 3) { this._walkTarget = null; return null; }
+    return { dx: dx / len, dy: dy / len, target: target, dist: len };
+  };
+
+  // 毎フレーム連続座標で移動する（マス目には一切吸着しない）。
+  // 1フレーム分ずつ刻んで判定するので、障害物を飛び越えることはない。
   FreeArea.prototype.tick = function (dt) {
-    var k = this._keys;
-    var dx = (k.right ? 1 : 0) - (k.left ? 1 : 0);
-    var dy = (k.down ? 1 : 0) - (k.up ? 1 : 0);
-    if (!dx && !dy) return;
-    var len = Math.hypot(dx, dy) || 1;
+    var dir = this.currentMoveDir();
+    if (!dir) return;
     var speed = 130;
+    var step = speed * dt;
+    if (dir.dist !== undefined) step = Math.min(step, dir.dist);
+    // ループ初回フレームは dt=0 なので進む距離も0になる。ここで
+    // 「進めなかった＝阻まれている」と判定してしまうと、歩き出す前に
+    // 目的地を破棄してしまうため、距離0のフレームは何も判定しない。
+    if (step <= 0) return;
     var moved = 0;
-    var nx = this.pos.x + (dx / len) * speed * dt;
+    var nx = this.pos.x + dir.dx * step;
     if (!this.isBlocked(nx, this.pos.y)) { moved += Math.abs(nx - this.pos.x); this.pos.x = nx; }
-    var ny = this.pos.y + (dy / len) * speed * dt;
+    var ny = this.pos.y + dir.dy * step;
     if (!this.isBlocked(this.pos.x, ny)) { moved += Math.abs(ny - this.pos.y); this.pos.y = ny; }
-    if (moved <= 0) return;
+    // 目的地へ向かっていて一歩も進めない＝何かに阻まれている。
+    // そのままだと永久に足踏みし続けるので、目的地を捨てて止まる。
+    if (moved <= 0) { this._walkTarget = null; return; }
     this.updateHudAndPlayer();
     this.checkZone(this.pos.x, this.pos.y);
   };
@@ -1124,13 +1228,7 @@ RPG.Explore = (function () {
     svg.appendChild(pg);
     this._playerEl = pg;
 
-    svg.onclick = function (evt) {
-      var rect = svg.getBoundingClientRect();
-      var x = camX + (evt.clientX - rect.left) * (vw / rect.width);
-      var y = camY + (evt.clientY - rect.top) * (vh / rect.height);
-      self.moveTo(x, y);
-      svg.focus();
-    };
+    this.attachPointer(svg);
 
     wrap.appendChild(svg);
 
@@ -1143,7 +1241,7 @@ RPG.Explore = (function () {
 
     var hint = document.createElement("p");
     hint.className = "footnote";
-    hint.textContent = "矢印キー／WASDで移動。クリックした場所へ直接歩くこともできます。";
+    hint.textContent = "画面をなぞると、その方向へ歩き続けます（指を止めた場所で停止）。タップした地点へ歩くことも、矢印キー／WASDで動くこともできます。";
     wrap.appendChild(hint);
 
     this.el.appendChild(wrap);

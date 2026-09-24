@@ -135,6 +135,8 @@ button {
 .map-node text { pointer-events: none; }
 .map-node.clickable { cursor: pointer; stroke: none; }
 .map-node.clickable:hover { fill: rgba(240, 200, 96, 0.18); stroke: var(--accent); stroke-width: 2; }
-.freearea { width: 100%; max-width: 480px; border: 1px solid var(--border); border-radius: 6px; cursor: crosshair; }
+/* touch-action:none が無いと、なぞった時にブラウザ側のスクロール／ズームが
+   優先されてしまい、スマホで移動操作が成立しない */
+.freearea { width: 100%; max-width: 480px; border: 1px solid var(--border); border-radius: 6px; cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; }
 .freearea:focus { outline: none; }
 .freearea-player { transition: transform 0.35s ease-out; }
