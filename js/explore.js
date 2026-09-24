@@ -851,8 +851,13 @@ RPG.Explore = (function () {
     this.cb = callbacks || {};
     this.pos = { x: data.start.x, y: data.start.y };
     this.taken = initialTaken || {};
-    this.insideZoneId = null;
     this._groundTexture = buildGroundTexture(data);
+    // 階段で層を移ると、到着地点が移動先の階段ゾーンの内側になる。
+    // ここを空で始めると一歩動いた瞬間に「階段に入った」と判定され、
+    // 元の層へ送り返され続ける。開始地点のゾーンには既に入っている扱いにし、
+    // 一度離れてから踏み直したときだけ発動させる。
+    var startZone = this.zoneAt(this.pos.x, this.pos.y);
+    this.insideZoneId = startZone ? startZone.id : null;
   }
 
   // 画面に見える窓は固定サイズ。マップ（data.width/height）がこれより
