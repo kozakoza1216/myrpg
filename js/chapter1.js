@@ -174,6 +174,46 @@ RPG.Chapter1 = (function () {
     ],
   };
 
+  // 灰縁の集落の外縁。追放された後に集落へ戻ろうとすると、ここに出る。
+  // 柵の外の灰の野原で、柵越しに集落の家並みが見える。閉ざされた門の前には
+  // 門番が立っていて、門に近づいた時にだけ拒まれる（そのまま引き返すしかない）。
+  var OUTSKIRTS_AREA = {
+    label: "灰縁の集落・外縁",
+    start: { tx: 50, ty: 35 },
+    entryPoints: { hairegion: { tx: 50, ty: 35 } },
+    tilemap: {
+      cols: 56, rows: 40, seed: 21, rubbleBase: "grass",
+      ops: [
+        { op: "fill", t: "grass" },
+        // 柵の内側（入れない）：集落の家並み
+        { op: "hut", x: 5, y: 0, w: 6, h: 5 }, { op: "hut", x: 15, y: 1, w: 6, h: 4 },
+        { op: "hut", x: 37, y: 0, w: 6, h: 5 }, { op: "hut", x: 46, y: 1, w: 5, h: 4 },
+        { op: "tree", x: 33, y: 3 },
+        // 灰の積もった荒れ地
+        { op: "disc", x: 10, y: 30, r: 7, t: "lot" }, { op: "disc", x: 40, y: 21, r: 6, t: "lot" }, { op: "disc", x: 22, y: 36, r: 4, t: "lot" },
+        // 門から東の廃区画へ延びる道と、脇道
+        { op: "line", pts: [[27.5, 7], [27.5, 18], [40, 28], [57, 35]], w: 4, t: "dirt" },
+        { op: "line", pts: [[27.5, 18], [14, 26]], w: 3, t: "dirt" },
+        // 集落を囲う柵と、閉ざされた門
+        { op: "rect", x: 0, y: 6, w: 56, h: 1, t: "fence" },
+        { op: "gate", x: 26, y: 6, w: 4 },
+        // 外縁の果て：崩れた瓦礫の土手（東の道だけが開いている）
+        { op: "line", pts: [[0.5, 7], [0.5, 40]], w: 3, t: "rubble" },
+        { op: "line", pts: [[0, 39], [56, 39]], w: 3, t: "rubble" },
+        { op: "line", pts: [[55.5, 7], [55.5, 31]], w: 2.4, t: "rubble" },
+        { op: "disc", x: 18, y: 14, r: 1.8, t: "rubble" }, { op: "disc", x: 44, y: 12, r: 2.2, t: "rubble" },
+        { op: "disc", x: 33, y: 31, r: 1.6, t: "rubble" }, { op: "disc", x: 8, y: 18, r: 2, t: "rubble" },
+        { op: "scatter", t: "rubble", on: ["grass", "lot"], count: 50, keep: 4 },
+        { op: "tree", x: 6, y: 11 }, { op: "tree", x: 21, y: 24 }, { op: "tree", x: 36, y: 15 }, { op: "tree", x: 47, y: 18 },
+        { op: "tree", x: 12, y: 35 }, { op: "tree", x: 45, y: 29 }, { op: "tree", x: 30, y: 36 },
+      ],
+    },
+    zones: [
+      { id: "gate_guard", kind: "talk", sprite: "guard", tx: 27.5, ty: 8.6, r: 26, label: "集落の門", pushBack: { tx: 27.5, ty: 13 } },
+      { id: "exit_hairegion", kind: "exit", to: "hairegion", tx: 55.2, ty: 35, r: 24, dir: "e", steps: 10, label: "廃区画方面へ" },
+    ],
+  };
+
   // 招竜の祭壇＝入口の外殿（ground）と、カガリと対峙する奥の内殿（inner）の2階層。
   // inner の階段は、カガリを倒した後は「外へ出る」に化ける（もう外殿を歩き直す必要はない）。
   var SHRINE_FLOORS = {
@@ -267,6 +307,7 @@ RPG.Chapter1 = (function () {
       onArrive: onWorldArrive,
       onReenter: function (id, next) {
         if (id === "hairegion") { enterHairegion(); return; }
+        if (id === "haiberi") { enterOutskirts(); return; }
         next();
       },
       onEncounter: function (enemyId, next) {
@@ -280,13 +321,7 @@ RPG.Chapter1 = (function () {
     // という説明のつかない物理現象ではなく、集落長の命を受けた門番が
     // 実際に押し戻す、という筋の通った拒絶にする
     // （終盤、集落長トキ本人が門で直接拒む場面と矛盾しないように）。
-    if (id === "haiberi") {
-      Story.play(app, [
-        { kind: "narration", bg: "gateClosed", text: "門番が槍の柄で道を塞いだ。" },
-        { speaker: "門番", text: "集落長の命だ。追放された者を通すわけにはいかない。" },
-      ], next);
-      return;
-    }
+    if (id === "haiberi") { enterOutskirts(); return; }
     if (id === "hairegion") {
       var enter = function () { enterHairegion(travel && travel.from); };
       if (!hairegionCleared) {
@@ -310,6 +345,24 @@ RPG.Chapter1 = (function () {
     // 再入場させる。
     if (id === "saidan") { enterShrineFloor(shrineFloorId); return; }
     next();
+  }
+
+  // 集落の外縁を歩く。門に近づくと門番に拒まれ、門の前から押し戻される。
+  // 帰り道は、東の「廃区画方面へ」を歩いて抜けるしかない。
+  var outskirtsArea = null;
+  function enterOutskirts() {
+    outskirtsArea = Explore.startFreeArea(app, OUTSKIRTS_AREA, game, {
+      onExit: function (to) { worldMap.arriveAt(to); },
+      onTalk: function (zone, next) {
+        Story.play(app, [
+          { kind: "narration", bg: "gateClosed", text: "門番が槍の柄で道を塞いだ。" },
+          { speaker: "門番", text: "集落長の命だ。追放された者を通すわけにはいかない。" },
+        ], function () {
+          if (zone.pushBack) outskirtsArea.pos = { x: zone.pushBack.tx * 16, y: zone.pushBack.ty * 16 };
+          next();
+        });
+      },
+    });
   }
 
   function enterHairegion(fromNodeId, layerId, entryId) {

@@ -863,6 +863,11 @@ RPG.Explore = (function () {
         set(op.x, op.y, TT.tree);
         objects.push({ kind: "tree", x: op.x, y: op.y });
       }
+      // 門：柵の一部を、閉ざされた門扉にする（通れない）
+      if (op.op === "gate") {
+        for (x = op.x; x < op.x + op.w; x++) set(x, op.y, TT.fence);
+        objects.push({ kind: "gate", x: op.x, y: op.y, w: op.w });
+      }
     });
     return { cols: cols, rows: rows, g: g, objects: objects, get: get };
   }
@@ -1425,6 +1430,23 @@ RPG.Explore = (function () {
       P("#3a3a36", 44, -12, 8, 8); P("#6a6a60", 45, -11, 3, 3);
       P("#8a8478", 47, -4, 1, 30);
       P("#3a2c18", 41, 24, 13, 11); P("#5a4428", 42, 25, 11, 3); P("#6a5236", 42, 28, 2, 7);
+    } else if (o.kind === "gate") {
+      // 閉ざされた門：左右の太い門柱、上の梁、縦板の門扉2枚と横木・鉄の帯
+      var gw = o.w * TP;
+      P("#140e08", 0, -66, 14, 114); P("#2e2216", 2, -64, 10, 112); P("#3e2e1e", 3, -64, 3, 112);
+      P("#140e08", gw - 14, -66, 14, 114); P("#2a1e14", gw - 12, -64, 10, 112); P("#3a2a1a", gw - 11, -64, 3, 112);
+      P("#140e08", -6, -74, gw + 12, 12); P("#4a3824", -4, -72, gw + 8, 8); P("#6a5236", -4, -72, gw + 8, 2);
+      for (var gx = 14; gx < gw - 14; gx += 9) {
+        var sh = ((gx / 9) | 0) % 3;
+        P("#1e160c", gx, -60, 9, 108);
+        P(sh === 0 ? "#4a3620" : sh === 1 ? "#523c24" : "#44321c", gx + 1, -60, 8, 108);
+        P("#5e4830", gx + 1, -60, 2, 108);
+      }
+      P("#140e08", gw / 2 - 1, -60, 3, 108);
+      [-44, -6, 30].forEach(function (by) { P("#2a1e10", 14, by, gw - 28, 7); P("#5a4428", 14, by, gw - 28, 2); });
+      [-40, -2, 34].forEach(function (by) { for (var bx = 20; bx < gw - 20; bx += 22) { P("#6a6a66", bx, by, 3, 3); P("#2a2a28", bx + 1, by + 2, 2, 1); } });
+      P("#3a3a36", gw / 2 - 12, 6, 24, 6); P("#7a7a74", gw / 2 - 12, 6, 24, 1);
+      ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(ox, oy + 48, gw, 8);
     } else if (o.kind === "tree") {
       // 枯れ木：幹と、左右に張り出した細い枝
       ctx.fillStyle = "rgba(0,0,0,0.3)";
@@ -1626,7 +1648,8 @@ RPG.Explore = (function () {
     ctx.translate(-cx * CHUNK_P, -cy * CHUNK_P);
     grid.objects.forEach(function (o) {
       var ox = o.x * TP, oy = o.y * TP;
-      if (ox + TP * 3 < cx * CHUNK_P || ox - TP > (cx + 1) * CHUNK_P || oy + TP * 3 < cy * CHUNK_P || oy - TP * 2 > (cy + 1) * CHUNK_P) return;
+      var ow = ((o.w || 2) + 1) * TP;
+      if (ox + ow < cx * CHUNK_P || ox - TP > (cx + 1) * CHUNK_P || oy + TP * 3 < cy * CHUNK_P || oy - TP * 2 > (cy + 1) * CHUNK_P) return;
       drawObjectHD(ctx, o);
     });
     ctx.restore();
@@ -1756,6 +1779,12 @@ RPG.Explore = (function () {
     "...kwwwwk.t.", "..kookkook.t", ".koooooooskt", ".kooOooOook.", ".kooOooOoot.", ".kooOooOoot.",
     ".koooooooot.", ".kOOOOOOOOt.", ".kkkkkkkkkt.", "..........t.",
   ];
+  var GUARD_PAL = { k: "#1a1410", m: "#6a6a70", M: "#9a9aa0", s: "#d8b088", e: "#1a1410", a: "#4a5a6a", A: "#6a7a8a", b: "#5a4020", p: "#3a3a44", f: "#3a2c1c", t: "#8a6a40", T: "#b8b8c0" };
+  var GUARD = [
+    "..........T.", "....kkkk..t.", "...kmmmmk.t.", "..kmMmmmmkt.", "..kmssssmkt.", "..ksesseskt.", "...kssssk.t.",
+    "..kaaaaaakt.", ".kaAaaaaAst.", ".kaaaaaaakt.", ".kbbbbbbbkt.", "..kppppppkt.", "..kppkkppkt.", "..kpk..kpkt.",
+    "..kpk..kpkt.", "..kfk..kfkt.", "..kkk..kkkt.",
+  ];
   var CHEST_PAL = { k: "#1a1410", y: "#a8823c", Y: "#8a6a30", m: "#7a5a28", M: "#5a4020", g: "#e0c060" };
   var CHEST = [".kkkkkkkkkkkk.", "kyyyyyyyyyyyyk", "kyYyyyyyyyyYyk", "kkkkkkggkkkkkk", "kmmmmmggmmmmmk", "kmmmmmkkmmmmmk", "kmMmmmmmmmmMmk", "kmMmmmmmmmmMmk", "kMMMMMMMMMMMMk", ".kkkkkkkkkkkk."];
   var SIGN_PAL = { k: "#1a1410", b: "#8a6a40", B: "#6a5236", a: "#e8dcc8", p: "#4a3824" };
@@ -1768,6 +1797,7 @@ RPG.Explore = (function () {
     if (zoneSprites) return zoneSprites;
     zoneSprites = {
       elder: spriteCanvas(ELDER, ELDER_PAL),
+      guard: spriteCanvas(GUARD, GUARD_PAL),
       chest: spriteCanvas(CHEST, CHEST_PAL),
       signR: spriteCanvas(SIGN_RIGHT, SIGN_PAL),
       signL: spriteCanvas(SIGN_RIGHT, SIGN_PAL, true),
@@ -2121,7 +2151,8 @@ RPG.Explore = (function () {
         if (z.dir === "n") { px(ctx, "#e8dcc8", sx - 1, sy - 20, 2, 1); px(ctx, "#e8dcc8", sx - 2, sy - 19, 4, 1); px(ctx, "#e8dcc8", sx - 3, sy - 18, 6, 1); }
       } else if (z.kind === "talk") {
         px(ctx, "rgba(0,0,0,0.35)", sx - 5, sy, 11, 3);
-        ctx.drawImage(sprites.elder, sx - 6, sy - 15);
+        if (z.sprite === "guard") ctx.drawImage(sprites.guard, sx - 6, sy - 16);
+        else ctx.drawImage(sprites.elder, sx - 6, sy - 15);
       }
     });
     var hero = getHeroSprites()[this.facing];
