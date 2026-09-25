@@ -302,28 +302,52 @@ RPG.Chapter1 = (function () {
   // できるように記憶しておく。
   var hairegionTaken = {};
 
+  // ワールドマップは、ファストトラベルの時にしか開かない。ふだんの移動は、
+  // エリアの出口を歩いて抜けると、つながった先の場所へそのまま入る。
+  // 地図そのもの（現在地・訪れた場所・ファストトラベルの歩数計算）は
+  // 画面に出さずに持っておく。
   function afterKuji() {
-    worldMap = Explore.startWorldMap(app, WORLD, game, {
-      onArrive: onWorldArrive,
-      onReenter: function (id, next) {
-        if (id === "hairegion") { enterHairegion(); return; }
-        if (id === "haiberi") { enterOutskirts(); return; }
-        next();
-      },
-      onEncounter: function (enemyId, next) {
-        runBattle([enemyId || "straggler_bandit"], "はぐれ賊", false, next);
-      },
+    worldMap = Explore.createWorldMap(app, WORLD, game, {
+      fastTravelOnly: true,
+      onArrive: function (id) { enterPlace(id, null); },
+      onCancel: function () { if (resumePlace) resumePlace(); },
+    });
+    // くじの後、門を出たそのままの場所＝集落の外縁に立つ
+    enterOutskirts();
+  }
+
+  // いまいる場所へ戻る（ファストトラベルの地図を「戻る」で閉じた時）
+  var resumePlace = null;
+  var FAST_TRAVEL = {
+    available: function () {
+      return WORLD.nodes.some(function (n) { return n.id !== worldMap.current && worldMap.visited[n.id] && n.fastTravel !== false; });
+    },
+    open: function () { worldMap.render(); },
+  };
+
+  // エリアの出口を抜けて、つながった先の場所へ入る
+  function goTo(id, fromId) {
+    var firstVisit = !worldMap.visited[id];
+    worldMap.current = id;
+    worldMap.visited[id] = true;
+    enterPlace(id, fromId, firstVisit);
+  }
+
+  // 祭壇へ続く道（祭壇⇔隘路は危険な道。歩数を使い、はぐれ賊に出くわすことがある）
+  function walkRoad(text, steps, rate, then) {
+    game.steps += steps;
+    Story.play(app, [{ kind: "narration", bg: "narrow", text: text }], function () {
+      if (Math.random() < rate) { runBattle(["straggler_bandit"], "はぐれ賊", false, then); return; }
+      then();
     });
   }
 
-  function onWorldArrive(id, firstVisit, next, travel) {
-    // 灰縁の集落はくじの前にしか歩けない。追放後は「門が勝手に閉ざされている」
-    // という説明のつかない物理現象ではなく、集落長の命を受けた門番が
-    // 実際に押し戻す、という筋の通った拒絶にする
-    // （終盤、集落長トキ本人が門で直接拒む場面と矛盾しないように）。
+  function enterPlace(id, fromId, firstVisit) {
+    // 灰縁の集落はくじの前にしか歩けない。追放後は集落の外縁に出て、
+    // 門に近づくと、集落長の命を受けた門番に押し戻される。
     if (id === "haiberi") { enterOutskirts(); return; }
     if (id === "hairegion") {
-      var enter = function () { enterHairegion(travel && travel.from); };
+      var enter = function () { enterHairegion(fromId); };
       if (!hairegionCleared) {
         Story.play(app, [
           { kind: "header", text: "廃区画", bg: "ruins" },
@@ -334,25 +358,34 @@ RPG.Chapter1 = (function () {
       }
       return;
     }
-    if (id === "michi" && firstVisit) { Story.play(app, roadBeats, afterRoad); return; }
-    if (id === "yaketa" && firstVisit) {
-      Story.play(app, [{ kind: "narration", text: "集落跡の中央に、黒く焼け焦げた石碑が残っていた。文字は読み取れない。ただ、ここで何かが起き、住人が忽然といなくなったことだけは伝わってくる。" }], next);
+    // 焼けた集落跡は、廃区画の北の端から覗く行き止まりの寄り道。
+    // 見終えたら、廃区画の北の出口の前に戻る。
+    if (id === "yaketa") {
+      var back = function () { worldMap.current = "hairegion"; enterHairegion("yaketa"); };
+      if (firstVisit) {
+        Story.play(app, [{ kind: "narration", bg: "ruins", text: "集落跡の中央に、黒く焼け焦げた石碑が残っていた。文字は読み取れない。ただ、ここで何かが起き、住人が忽然といなくなったことだけは伝わってくる。" }], back);
+      } else {
+        Story.play(app, [{ kind: "narration", bg: "ruins", text: "焼け焦げた石碑は、前に見た時のまま黙っていた。" }], back);
+      }
       return;
     }
-    // 祭壇は出口タイルで一度外へ抜けられるが、その後ノードとして
-    // クリックし直しても分岐がなくnext()止まりになり、中へ二度と
-    // 戻れなくなっていた。出た時にいたフロア（記憶した探索状況込み）へ
-    // 再入場させる。
+    if (id === "michi") {
+      if (firstVisit) { Story.play(app, roadBeats, afterRoad); return; }
+      walkRoad("瓦礫の隘路を抜け、招竜の祭壇へ向かう。", 15, 0.2, function () { goTo("saidan", "michi"); });
+      return;
+    }
+    // 祭壇は、出た時にいたフロア（記憶した探索状況込み）へ入り直す
     if (id === "saidan") { enterShrineFloor(shrineFloorId); return; }
-    next();
   }
 
   // 集落の外縁を歩く。門に近づくと門番に拒まれ、門の前から押し戻される。
   // 帰り道は、東の「廃区画方面へ」を歩いて抜けるしかない。
   var outskirtsArea = null;
   function enterOutskirts() {
+    resumePlace = function () { outskirtsArea.render(); };
     outskirtsArea = Explore.startFreeArea(app, OUTSKIRTS_AREA, game, {
-      onExit: function (to) { worldMap.arriveAt(to); },
+      fastTravel: FAST_TRAVEL,
+      onExit: function (to) { goTo(to, "haiberi"); },
       onTalk: function (zone, next) {
         Story.play(app, [
           { kind: "narration", bg: "gateClosed", text: "門番が槍の柄で道を塞いだ。" },
@@ -370,8 +403,10 @@ RPG.Chapter1 = (function () {
     var areaTemplate = layerId === "upper" ? HAIREGION_UPPER_AREA : HAIREGION_AREA;
     var entry = areaTemplate.entryPoints[entryId] || areaTemplate.entryPoints[fromNodeId] || areaTemplate.start;
     var areaData = Object.assign({}, areaTemplate, { start: entry, arrivedByStairs: !!entryId });
+    resumePlace = function () { hairegionArea.render(); };
     hairegionArea = Explore.startFreeArea(app, areaData, game, {
-      onExit: function (to) { worldMap.arriveAt(to); },
+      fastTravel: FAST_TRAVEL,
+      onExit: function (to) { goTo(to, "hairegion"); },
       onStairs: function (toLayer, toEntry) { enterHairegion(null, toLayer, toEntry); },
       onChest: function (zoneId, next) {
         Story.play(app, [{ kind: "narration", text: "瓦礫の下から、色褪せた家族写真が一枚出てきた。誰のものかは、もう分からない。" }], next);
@@ -410,14 +445,24 @@ RPG.Chapter1 = (function () {
 
   function afterTeamUp() {
     game.party.push(Battle.createCombatant("tzelf", false));
-    worldMap.setCurrent("saidan");
+    worldMap.current = "saidan";
+    worldMap.visited.saidan = true;
     enterShrineFloor("ground");
   }
 
   function enterShrineFloor(floorId) {
     shrineFloorId = floorId;
+    resumePlace = function () { shrineDungeon.render(); };
     shrineDungeon = Explore.start(app, SHRINE_FLOORS[floorId], game, {
-      onExit: function () { worldMap.render(); },
+      fastTravel: FAST_TRAVEL,
+      // 祭壇を出たら、隘路を引き返して廃区画の東の出口の前へ戻る
+      onExit: function () {
+        walkRoad("祭壇を後にし、瓦礫の隘路を引き返す。", 15, 0.2, function () {
+          game.steps += 10;
+          worldMap.visited.michi = true;
+          goTo("hairegion", "michi");
+        });
+      },
       onEvent: onDungeonEvent,
       onChest: onDungeonChest,
       onEncounter: function () {

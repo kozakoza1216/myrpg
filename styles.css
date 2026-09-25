@@ -164,3 +164,4 @@ button {
 .layer-badge .layer-row.current { color: var(--accent); font-weight: bold; }
 @keyframes layer-banner { 0% { opacity: 0; } 15% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
 .layer-banner { position: absolute; left: 0; right: 0; top: 38%; text-align: center; font-size: 1.3rem; letter-spacing: 0.2em; color: var(--accent); background: rgba(10, 8, 6, 0.7); padding: 0.4rem 0; pointer-events: none; opacity: 0; animation: layer-banner 1.8s ease-out forwards; }
+.fast-travel-open { display: flex; justify-content: center; }

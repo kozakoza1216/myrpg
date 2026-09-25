@@ -390,6 +390,7 @@ RPG.Explore = (function () {
     controls.appendChild(ctrlBtn("↻", function () { self.turn(1); }));
     controls.appendChild(ctrlBtn("▼ 戻る", function () { self.step(true); }));
     wrap.appendChild(controls);
+    appendFastTravelButton(wrap, this.cb);
 
     this.el.appendChild(wrap);
 
@@ -412,6 +413,18 @@ RPG.Explore = (function () {
       }, 190);
     }
   };
+
+  // 探索画面の「ファストトラベル」ボタン。ワールドマップは、このボタンを
+  // 押した時にだけ開く（ふだんの移動は、エリアの出口を歩いて抜けて行う）。
+  // 飛べる場所が1つも無い間は出さない。
+  function appendFastTravelButton(wrap, cb) {
+    var ft = cb && cb.fastTravel;
+    if (!ft || (ft.available && !ft.available())) return;
+    var row = document.createElement("div");
+    row.className = "fast-travel-open";
+    row.appendChild(ctrlBtn("ファストトラベル（地図を開く）", function () { ft.open(); }));
+    wrap.appendChild(row);
+  }
 
   function ctrlBtn(label, onClick) {
     var b = document.createElement("button");
@@ -702,11 +715,14 @@ RPG.Explore = (function () {
 
       if (isCurrent) {
         g.appendChild(el("circle", {cx:0,cy:0,r:17,fill:"none",stroke:"#315f91","stroke-width":3}));
-        var hitSelf = el("circle", {cx:0,cy:0,r:18,fill:"transparent",class:"map-node clickable"});
-        hitSelf.onclick = function(){ self.reenter(); };
-        g.appendChild(hitSelf);
+        if (!self.cb.fastTravelOnly) {
+          var hitSelf = el("circle", {cx:0,cy:0,r:18,fill:"transparent",class:"map-node clickable"});
+          hitSelf.onclick = function(){ self.reenter(); };
+          g.appendChild(hitSelf);
+        }
       }
-      if (isNeighbor) {
+      // ファストトラベル専用で開いている時は、地点をクリックして歩いて移動することはできない
+      if (isNeighbor && !self.cb.fastTravelOnly) {
         g.appendChild(el("circle", {cx:0,cy:0,r:16,fill:"none",stroke:"#8a6334","stroke-width":2,"stroke-dasharray":"3 2"}));
         var hit = el("circle", {cx:0,cy:0,r:18,fill:"transparent",class:"map-node clickable"});
         hit.onclick = function(){ self.travelTo(node.id); };
@@ -740,7 +756,20 @@ RPG.Explore = (function () {
     var destinations = this.data.nodes.filter(function (node) {
       return node.id !== self.current && self.visited[node.id] && node.fastTravel !== false;
     });
-    if (destinations.length) {
+    if (this.cb.fastTravelOnly) {
+      var ftc = document.createElement("div");
+      ftc.className = "fast-travel-controls";
+      var hd = document.createElement("p");
+      hd.className = "prompt";
+      hd.textContent = destinations.length ? "ファストトラベル：行き先を選ぶ（最短経路と同じ歩数を消費）" : "まだファストトラベルで行ける場所がない";
+      ftc.appendChild(hd);
+      destinations.forEach(function (node) {
+        var cost = self.fastTravelCost(node.id);
+        ftc.appendChild(ctrlBtn(node.name + "へ（" + cost + "歩）", function () { self.fastTravelTo(node.id); }));
+      });
+      ftc.appendChild(ctrlBtn("戻る", function () { if (self.cb.onCancel) self.cb.onCancel(); }));
+      wrap.appendChild(ftc);
+    } else if (destinations.length) {
       var fastTravel = document.createElement("div");
       fastTravel.className = "fast-travel-controls";
       var heading = document.createElement("p");
@@ -760,6 +789,11 @@ RPG.Explore = (function () {
     var m = new WorldMap(containerEl, data, gameState, callbacks);
     m.render();
     return m;
+  }
+  // 画面には出さずに作る（現在地・訪れた場所・歩数の計算だけを受け持ち、
+  // ファストトラベルの時にだけ render() で開く）
+  function createWorldMap(containerEl, data, gameState, callbacks) {
+    return new WorldMap(containerEl, data, gameState, callbacks);
   }
 
   // ── ノード内部の自由移動エリア（ドット絵のタイルマップ） ──
@@ -2319,6 +2353,8 @@ RPG.Explore = (function () {
     wrap.appendChild(msg);
     this._msgEl = msg;
 
+    appendFastTravelButton(wrap, this.cb);
+
     var hint = document.createElement("p");
     hint.className = "footnote";
     hint.textContent = "画面をなぞると、その方向へ歩き続けます（指を離すと停止）。タップした地点へ歩くことも、矢印キー／WASDで動くこともできます。";
@@ -2336,5 +2372,5 @@ RPG.Explore = (function () {
     return f;
   }
 
-  return { start: start, startWorldMap: startWorldMap, startFreeArea: startFreeArea };
+  return { start: start, startWorldMap: startWorldMap, createWorldMap: createWorldMap, startFreeArea: startFreeArea };
 })();
