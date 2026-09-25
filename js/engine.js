@@ -154,10 +154,10 @@ RPG.Engine = (function () {
     var raw = baseDamage(attacker, skill) * (opts.powerMult || 1) * (opts.judgeMult ? 1 : 1);
     raw = applyDefenseReduction(raw, defender.stats.def);
 
-    // 最低保証ダメージ（攻撃力×1.0・防御で受けたときのみ・PLAN.md §4-7）。
-    // 保証も防御の軽減（×0.5／×0.7）を受ける。保証を軽減の外で足すと、防御が
-    // 回避より、さらには素で受けるより重くなり「安全な受け」にならないため。
-    var guaranteed = defStance === "defense" ? attacker.stats.atk * 1.0 : 0;
+    // 最低保証ダメージ（攻撃力×1.0・PLAN.md §4-7）。味方がボスを攻撃し、ボスが防御で
+    // 受けたときのみ乗る（プレイヤーが理不尽な大ダメージを受けることはしない）。
+    // 保証も防御の軽減（×0.5／×0.7）を受ける。
+    var guaranteed = (!attacker.isEnemy && defender.isBoss && defStance === "defense") ? attacker.stats.atk * 1.0 : 0;
     if (guaranteed > 0) result.guaranteed = true;
 
     var total = (raw + guaranteed) * mult;
