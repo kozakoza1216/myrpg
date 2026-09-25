@@ -136,30 +136,52 @@ RPG.Menu = (function () {
       });
     }
 
+    // 持ち物の上限：ミラが同行していれば無制限、いなければ30個（数え方は個数。大事なものは枠の外）
+    function stackCount(items) {
+      return Object.keys(items).reduce(function (n, id) { var it = Data.ITEMS[id]; return n + (it && !it.key ? items[id] : 0); }, 0);
+    }
+
     function renderItems(body) {
       var items = game.items || {};
       var ids = Object.keys(items).filter(function (id) { return items[id] > 0 && Data.ITEMS[id]; });
+      var withMira = game.companions.indexOf("mira") >= 0;
+      body.appendChild(div("menu-row-sub", "所持数 " + stackCount(items) + (withMira ? "（ミラが持つので上限なし）" : " / 30")));
       if (!ids.length) { body.appendChild(div("menu-empty", "持ち物はない。")); return; }
       ids.forEach(function (id) {
         var it = Data.ITEMS[id];
+        var usable = !!(it.heal || it.learn);
         var row = div("menu-row" + (itemSel === id ? " selected" : ""));
-        var main = div("menu-row-main", it.name + "　×" + items[id]);
-        row.appendChild(main);
+        row.appendChild(div("menu-row-main", it.name + "　×" + items[id]));
         row.appendChild(div("menu-row-sub", it.desc + (it.key ? "（大事なもの）" : "")));
-        if (!it.key) row.appendChild(btn(itemSel === id ? "やめる" : "使う", function () { itemSel = itemSel === id ? null : id; msg = ""; render(); }));
+        if (usable) row.appendChild(btn(itemSel === id ? "やめる" : "使う", function () { itemSel = itemSel === id ? null : id; msg = ""; render(); }));
         if (itemSel === id) {
           // 誰に使うか
           var who = div("menu-targets");
           who.appendChild(div("menu-row-sub", "誰に使う？"));
           game.party.forEach(function (c) {
-            var need = (it.heal.hp && c.hp < c.maxHp) || (it.heal.mp && c.mp < c.maxMp);
-            var b = btn(c.name + "（HP " + c.hp + "/" + c.maxHp + (it.heal.mp ? "　MP " + c.mp + "/" + c.maxMp : "") + "）", function () {
-              var hp0 = c.hp, mp0 = c.mp;
-              if (it.heal.hp) c.hp = Math.min(c.maxHp, c.hp + Math.ceil(c.maxHp * it.heal.hp));
-              if (it.heal.mp) c.mp = Math.min(c.maxMp, c.mp + Math.ceil(c.maxMp * it.heal.mp));
+            var h = it.heal || {};
+            var need, label;
+            if (it.learn) {
+              need = c.skills.indexOf(it.learn) < 0;
+              label = c.name + (need ? "" : "（覚えている）");
+            } else {
+              need = ((h.hp || h.hpPct) && c.hp < c.maxHp) || ((h.mp || h.mpPct) && c.mp < c.maxMp);
+              label = c.name + "（HP " + c.hp + "/" + c.maxHp + ((h.mp || h.mpPct) ? "　MP " + c.mp + "/" + c.maxMp : "") + "）";
+            }
+            var b = btn(label, function () {
+              if (it.learn) {
+                c.skills.push(it.learn);
+                msg = c.name + "は〈" + Data.SKILLS[it.learn].name + "〉を覚えた。";
+              } else {
+                var hp0 = c.hp, mp0 = c.mp;
+                var hpAdd = (h.hp || 0) + Math.ceil(c.maxHp * (h.hpPct || 0));
+                var mpAdd = (h.mp || 0) + Math.ceil(c.maxMp * (h.mpPct || 0));
+                c.hp = Math.min(c.maxHp, c.hp + hpAdd);
+                c.mp = Math.min(c.maxMp, c.mp + mpAdd);
+                msg = c.name + "は" + it.name + "を使った。" + (c.hp > hp0 ? "HPが" + (c.hp - hp0) + "回復した。" : "") + (c.mp > mp0 ? "MPが" + (c.mp - mp0) + "回復した。" : "");
+              }
               items[id] -= 1;
               if (items[id] <= 0) delete items[id];
-              msg = c.name + "は" + it.name + "を使った。" + (c.hp > hp0 ? "HPが" + (c.hp - hp0) + "回復した。" : "") + (c.mp > mp0 ? "MPが" + (c.mp - mp0) + "回復した。" : "");
               itemSel = null;
               render();
             });

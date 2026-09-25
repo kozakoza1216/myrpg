@@ -50,7 +50,10 @@ RPG.Chapter1 = (function () {
     zones: [
       { id: "well", kind: "talk", tx: 25, ty: 13.5, r: 18, label: "井戸端の老人",
         speaker: "竜読みの老人", text: "竜には逆らえん。くじは絶対だ……お前さんも、いずれわかる。" },
-      { id: "chest_shelf", kind: "chest", tx: 41.5, ty: 9, r: 14, label: "住居の棚" },
+      // セオの住居の棚（アイテム使用のチュートリアル）
+      { id: "house_shelf", kind: "chest", tx: 23, ty: 24.6, r: 14, label: "住居の棚" },
+      // 二連撃の記憶結晶（集落に1個だけ。追放されると二度と取れない）
+      { id: "chest_shelf", kind: "chest", tx: 41.5, ty: 9, r: 14, label: "物置の木箱" },
       { id: "rat", kind: "encounter", tx: 4, ty: 15.5, r: 30, label: "集落の外れ・灰色の気配" },
       { id: "exit_plaza", kind: "exit", to: "plaza", tx: 46.5, ty: 16.5, r: 22, dir: "e", steps: 5, label: "広場へ（くじの刻限）" },
     ],
@@ -246,10 +249,7 @@ RPG.Chapter1 = (function () {
 
   function run(appEl, gameState, endCallback) {
     app = appEl; game = gameState; onChapterEnd = endCallback;
-    Story.play(app, wakeBeats, function () {
-      addItem("dried_meat"); addItem("old_potion");
-      enterVillage();
-    });
+    Story.play(app, wakeBeats, function () { enterVillage(); });
   }
 
   var wakeBeats = [
@@ -259,7 +259,6 @@ RPG.Chapter1 = (function () {
     { speaker: "ミラ", text: "セオ、起きて。今日は「くじ」の日でしょ。寝坊したら承知しないから。" },
     { kind: "choice", prompt: "（ミラに何と返す？　――何を選んでも、話の筋は変わらない）", options: ["「わかってる。今起きる」", "「……くじ、か」と呟く", "何も言わず起き上がる"] },
     { kind: "choice", prompt: "ミラは肩をすくめて、先に外へ出ていった。棚には〈干し肉〉と〈古びた回復薬〉が置かれている。戸口を出ると、くじの刻限まではまだ間があった。", options: ["外へ出る"] },
-    { kind: "narration", text: "棚の〈干し肉〉と〈古びた回復薬〉を荷に入れて、戸口を出た。" },
   ];
 
   function addItem(id, n) {
@@ -280,9 +279,19 @@ RPG.Chapter1 = (function () {
         Story.play(app, [{ speaker: zone.speaker, text: zone.text, bg: "village" }], next);
       },
       onChest: function (zoneId, next) {
-        var seo = game.party[0];
-        if (seo.skills.indexOf("double_slash") < 0) seo.skills.push("double_slash");
-        Story.play(app, [{ kind: "narration", text: "棚の奥に、古い記憶結晶が仕舞われていた。〈二連撃の記憶結晶〉――セオはこの技を覚えた。" }], next);
+        if (zoneId === "house_shelf") {
+          addItem("dried_meat"); addItem("old_potion");
+          Story.play(app, [
+            { kind: "narration", text: "棚の〈干し肉〉と〈古びた回復薬〉を荷に入れた。" },
+            { kind: "narration", text: "（持ち物は「メニュー」の「持ち物」から使える）" },
+          ], next);
+          return;
+        }
+        addItem("crystal_double_slash");
+        Story.play(app, [
+          { kind: "narration", text: "木箱の奥に、古い記憶結晶が仕舞われていた。〈二連撃の記憶結晶〉を手に入れた。" },
+          { kind: "narration", text: "（記憶結晶は、持ち物から使うと、選んだ仲間がその技を覚える）" },
+        ], next);
       },
       onEncounter: function (next) {
         runBattle(["ash_rat"], "灰ネズミとの戦い", true, next);
@@ -485,8 +494,13 @@ RPG.Chapter1 = (function () {
       onExit: function (to) { goTo(to, "hairegion"); },
       onStairs: function (toLayer, toEntry) { enterHairegion(null, toLayer, toEntry); },
       onChest: function (zoneId, next) {
-        addItem("family_photo");
-        Story.play(app, [{ kind: "narration", text: "瓦礫の下から、色褪せた家族写真が一枚出てきた。誰のものかは、もう分からない。" }], next);
+        if (zoneId === "chest1") {
+          addItem("crystal_naginata");
+          Story.play(app, [{ kind: "narration", text: "崩れた住居跡の奥に、記憶結晶が埋もれていた。〈薙刀払いの記憶結晶〉を手に入れた。" }], next);
+          return;
+        }
+        addItem("potion");
+        Story.play(app, [{ kind: "narration", text: zoneId === "chest2" ? "荷箱の底に〈回復薬〉が一つ残っていた。" : "見張り台に置き去りにされた荷から、〈回復薬〉を見つけた。" }], next);
       },
       onEncounter: function (next) {
         runBattle(["straggler_bandit"], "はぐれ賊", false, next);
@@ -554,17 +568,11 @@ RPG.Chapter1 = (function () {
     }, shrineFloorVisited[floorId]);
   }
 
+  // 招竜の祭壇の記憶結晶は〈防御姿勢〉と〈急所狙い〉（装備・入手物まとめ）
   function onDungeonChest() {
-    var seo = game.party[0];
-    if (shrineFloorId === "ground") {
-      if (seo.skills.indexOf("power_strike") < 0) seo.skills.push("power_strike");
-      Story.play(app, [{ kind: "narration", text: "宝箱を開けた。〈力押しの記憶結晶〉――セオはこの技を覚えた。" }], function () {
-        shrineDungeon.render();
-      });
-      return;
-    }
-    if (seo.skills.indexOf("vital_strike") < 0) seo.skills.push("vital_strike");
-    Story.play(app, [{ kind: "narration", text: "宝箱を開けた。〈急所狙いの記憶結晶〉――セオはこの技を覚えた。" }], function () {
+    var id = shrineFloorId === "ground" ? "crystal_defense_stance" : "crystal_vital_strike";
+    addItem(id);
+    Story.play(app, [{ kind: "narration", text: "宝箱を開けた。〈" + RPG.Data.ITEMS[id].name + "〉を手に入れた。" }], function () {
       shrineDungeon.render();
     });
   }

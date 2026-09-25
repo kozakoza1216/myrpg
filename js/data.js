@@ -42,6 +42,16 @@ RPG.Data = (function () {
       name: "急所狙い", category: "attack", attribute: "physical",
       mp: 12, power: 1.1, techBonus: 20, isMagic: false, critSkill: true,
     },
+    // 薙刀払い（技リスト：物理・近距離/特殊・低MP・威力1.1・技+30／準汎用。廃区画・道中の宝箱の記憶結晶）
+    naginata_sweep: {
+      name: "薙刀払い", category: "attack", attribute: "physical",
+      mp: 12, power: 1.1, techBonus: 30, isMagic: false,
+    },
+    // 防御姿勢（技リスト：防御カテゴリ・無属性・低MP・技+30／汎用。招竜の祭壇の記憶結晶）
+    defense_stance: {
+      name: "防御姿勢", category: "defense", attribute: "none",
+      mp: 12, techBonus: 30, isMagic: false,
+    },
     // カガリ固有
     kagari_staff: {
       name: "招竜の杖打ち", category: "attack", attribute: "physical",
@@ -113,13 +123,25 @@ RPG.Data = (function () {
     },
   };
 
-  // ── 持ち物 ──
-  // heal: 最大値に対する回復の割合。key: 大事なもの（使えない・捨てられない）
+  // ── 持ち物（PLAN.md §7.5-4k6「消耗品の価格」／装備・入手物まとめ「記憶結晶」／攻略チャート第一章） ──
+  // heal: hp/mp＝回復する量、hpPct/mpPct＝最大値に対する割合。learn: 使うと覚える技。
+  // food: 食料（旅の糧。回復には使わない）。key: 大事なもの（30枠の外）
   const ITEMS = {
-    dried_meat: { name: "干し肉", desc: "HPを最大値の30%回復する。", heal: { hp: 0.3 } },
-    old_potion: { name: "古びた回復薬", desc: "HPを最大値の60%回復する。", heal: { hp: 0.6 } },
-    ration: { name: "携行食", desc: "HPとMPを最大値の20%ずつ回復する。", heal: { hp: 0.2, mp: 0.2 } },
-    family_photo: { name: "色褪せた家族写真", desc: "廃区画の瓦礫の下にあった。誰のものかは、もう分からない。", key: true },
+    // 第一章の住居の棚（アイテム使用のチュートリアル）。回復量は資料に数値がないため仮
+    dried_meat: { name: "干し肉", desc: "HPを30回復する。", heal: { hp: 30 } },
+    old_potion: { name: "古びた回復薬", desc: "HPを40回復する。", heal: { hp: 40 } },
+    // 店の消耗品
+    ration: { name: "携行食", desc: "食料。旅の糧になる。", food: true },
+    potion: { name: "回復薬", desc: "HPを60回復する。", heal: { hp: 60 } },
+    hi_potion: { name: "上回復薬", desc: "HPを150回復する。", heal: { hp: 150 } },
+    magic_stone: { name: "魔石", desc: "MPを最大値の30%回復する。", heal: { mpPct: 0.3 } },
+    hi_magic_stone: { name: "上魔石", desc: "MPを最大値の50%回復する。", heal: { mpPct: 0.5 } },
+    elixia: { name: "エリクシア", desc: "HPとMPを最大値の50%ずつ回復する。", heal: { hpPct: 0.5, mpPct: 0.5 } },
+    // 記憶結晶（消耗品。1個で1人が、その技を覚える）
+    crystal_double_slash: { name: "二連撃の記憶結晶", desc: "使うと〈二連撃〉を覚える。", learn: "double_slash" },
+    crystal_naginata: { name: "薙刀払いの記憶結晶", desc: "使うと〈薙刀払い〉を覚える。", learn: "naginata_sweep" },
+    crystal_vital_strike: { name: "急所狙いの記憶結晶", desc: "使うと〈急所狙い〉を覚える。", learn: "vital_strike" },
+    crystal_defense_stance: { name: "防御姿勢の記憶結晶", desc: "使うと〈防御姿勢〉を覚える。", learn: "defense_stance" },
   };
 
   function cloneStats(stats) {

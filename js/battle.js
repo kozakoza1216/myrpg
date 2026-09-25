@@ -420,6 +420,8 @@ RPG.Battle = (function () {
       grid.className = "btn-grid";
       this.pending.actor.skills.forEach(function (skillId) {
         var skill = Data.SKILLS[skillId];
+        // 防御の技（防御姿勢など）は、自分の手番に使う行動ではないので並べない
+        if (!skill || skill.category === "defense") return;
         var usable = self.canUse(self.pending.actor, skillId);
         var label = skill.name + (skill.mp > 0 ? "(MP" + skill.mp + ")" : "");
         grid.appendChild(button(label, function () { self.playerChooseSkill(skillId); }, !usable));
