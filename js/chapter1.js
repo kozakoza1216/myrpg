@@ -87,7 +87,7 @@ RPG.Chapter1 = (function () {
   // 街区はすべて建物で埋まっていて、歩けるのは切り開かれた街路だけ。
   // 画面の窓（24×16タイル）よりずっと大きく、カメラで追いながら歩いて見て回る。
   var HAIREGION_LAYERS = [
-    { id: "upper", name: "上層　高架歩道" },
+    { id: "upper", name: "上層　城壁の歩廊" },
     { id: "street", name: "下層　街路" },
   ];
   var HAIREGION_AREA = {
@@ -134,7 +134,7 @@ RPG.Chapter1 = (function () {
       { id: "danger2", kind: "danger", tx: 86, ty: 46, r: 80, encounterRate: 0.35, label: "見通しの悪い市場跡" },
       { id: "chest1", kind: "chest", tx: 13.5, ty: 23, r: 14, label: "北の住居跡" },
       { id: "chest2", kind: "chest", tx: 91, ty: 68.5, r: 14, label: "水路脇の荷箱" },
-      { id: "stairs_up", kind: "stairs", toLayer: "upper", entry: "fromStreet", tx: 40, ty: 45, r: 16, label: "崩れた高架への石段" },
+      { id: "stairs_up", kind: "stairs", toLayer: "upper", entry: "fromStreet", tx: 40, ty: 45, r: 16, label: "城壁へ上る石段" },
       // 入ってきた側（灰縁の集落方面）へも、他の出口と同じくここを歩いて
       // 踏まないと戻れない。広域マップのノードを直接クリックするだけでは
       // 辿り着けない、この内部を経由してこそ意味のある道にする。
@@ -144,10 +144,10 @@ RPG.Chapter1 = (function () {
     ],
   };
 
-  // 下層と同じ廃区画を見下ろす高架歩道。下層の街並みは足元に暗く沈んで
-  // 見えるだけで、歩けるのは描かれた歩道と足場の上だけ（縁から先へは出られない）。
+  // 下層と同じ廃区画を見下ろす、崩れかけた城壁の歩廊。塔と塔を結ぶ城壁の上を歩く。
+  // 下層の街並みは足元に暗く沈んで見えるだけで、歩けるのは歩廊と塔の上だけ（縁から先へは出られない）。
   var HAIREGION_UPPER_AREA = {
-    label: "廃区画・高架歩道",
+    label: "廃区画・城壁の歩廊",
     layer: "upper", layers: HAIREGION_LAYERS,
     start: { tx: 40, ty: 45 },
     entryPoints: { fromStreet: { tx: 40, ty: 45 } },
@@ -156,23 +156,23 @@ RPG.Chapter1 = (function () {
       cols: 112, rows: 76, seed: 9,
       ops: [
         { op: "fill", t: "void" },
-        { op: "line", pts: [[40, 45], [55, 34], [73, 29], [95, 26]], w: 7, t: "walk" },
-        { op: "line", pts: [[55, 34], [62, 49], [81, 56]], w: 7, t: "walk" },
-        { op: "line", pts: [[73, 29], [90, 38], [102, 37]], w: 7, t: "walk" },
+        { op: "line", pts: [[40, 45], [55, 34], [73, 29], [95, 26]], w: 6, t: "walk" },
+        { op: "line", pts: [[55, 34], [62, 49], [81, 56]], w: 6, t: "walk" },
+        { op: "line", pts: [[73, 29], [90, 38], [102, 37]], w: 6, t: "walk" },
         { op: "disc", x: 40, y: 45, r: 4, t: "deck" },
         { op: "disc", x: 73, y: 29, r: 4.5, t: "deck" },
         { op: "disc", x: 96, y: 25, r: 4, t: "deck" },
         { op: "disc", x: 81, y: 56, r: 4, t: "deck" },
         { op: "disc", x: 102, y: 37, r: 4, t: "deck" },
-        // 抜け落ちた歩道（穴の脇をすり抜けて進む）
+        // 崩れ落ちた歩廊（穴の脇をすり抜けて進む）
         { op: "disc", x: 65, y: 31, r: 1.6, t: "void" },
         { op: "disc", x: 60, y: 45, r: 1.5, t: "void" },
         { op: "disc", x: 88, y: 37, r: 1.4, t: "void" },
       ],
     },
     zones: [
-      { id: "upper_danger", kind: "danger", tx: 73, ty: 29, r: 72, encounterRate: 0.55, label: "崩れた連絡橋" },
-      { id: "upper_chest", kind: "chest", tx: 97, ty: 24.5, r: 14, label: "見張り台の遺品" },
+      { id: "upper_danger", kind: "danger", tx: 73, ty: 29, r: 72, encounterRate: 0.55, label: "崩れた歩廊" },
+      { id: "upper_chest", kind: "chest", tx: 97, ty: 24.5, r: 14, label: "見張り塔の遺品" },
       { id: "stairs_down", kind: "stairs", toLayer: "street", entry: "fromHigh", tx: 40, ty: 45, r: 16, label: "下層街路へ戻る" },
     ],
   };
@@ -362,7 +362,7 @@ RPG.Chapter1 = (function () {
   }
   function placeLabel() {
     if (!place) return "";
-    if (place.kind === "hairegion") return place.layer === "upper" ? "廃区画・高架歩道" : "廃区画・下層街路";
+    if (place.kind === "hairegion") return place.layer === "upper" ? "廃区画・城壁の歩廊" : "廃区画・下層街路";
     if (place.kind === "shrine") return "招竜の祭壇・" + (place.floor === "inner" ? "内殿" : "外殿");
     return PLACE_LABEL[place.kind];
   }
@@ -500,7 +500,7 @@ RPG.Chapter1 = (function () {
           return;
         }
         addItem("potion");
-        Story.play(app, [{ kind: "narration", text: zoneId === "chest2" ? "荷箱の底に〈回復薬〉が一つ残っていた。" : "見張り台に置き去りにされた荷から、〈回復薬〉を見つけた。" }], next);
+        Story.play(app, [{ kind: "narration", text: zoneId === "chest2" ? "荷箱の底に〈回復薬〉が一つ残っていた。" : "見張り塔に置き去りにされた荷から、〈回復薬〉を見つけた。" }], next);
       },
       onEncounter: function (next) {
         runBattle(["straggler_bandit"], "はぐれ賊", false, next);

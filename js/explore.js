@@ -993,9 +993,8 @@ RPG.Explore = (function () {
 
   function rampOf(list) { return list.map(function (h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; }); }
   var RP = {
-    asphalt: rampOf(["#26231f", "#2f2b26", "#38342e", "#423d36", "#4c463e", "#575047"]),
     crack: rampOf(["#161412", "#1e1b18"]),
-    sidewalk: rampOf(["#3a362f", "#46413a", "#524c43", "#5e574d", "#6a6356", "#777062"]),
+    sett: rampOf(["#24211c", "#302c26", "#3c3730", "#48423a", "#554e44", "#625a4e", "#6f6658"]),
     cobble: rampOf(["#2a2722", "#37332c", "#443f37", "#524c42", "#60594d", "#6e6658", "#7c7363"]),
     lot: rampOf(["#26221c", "#2f2a22", "#39332a", "#443c31", "#4f463a"]),
     grass: rampOf(["#1f2214", "#272b18", "#30351d", "#3a4023", "#454b2a", "#515832"]),
@@ -1004,14 +1003,12 @@ RPG.Explore = (function () {
     water: rampOf(["#0b1417", "#0f1b1f", "#142329", "#1a2c33", "#22383f", "#2c4750"]),
     wall: rampOf(["#2a2621", "#35302a", "#403a33", "#4b443c", "#564e45", "#61594f", "#6d6459"]),
     roof: rampOf(["#23201c", "#2b2723", "#332f2a", "#3c3731", "#454039", "#4f4941"]),
-    parapet: rampOf(["#3a352f", "#4a443c", "#5a5349", "#6a6256", "#7a7163"]),
-    glass: rampOf(["#0a0d10", "#10161b", "#172028", "#1f2c36", "#3a4c58"]),
+    plaster: rampOf(["#2e2a23", "#3a352c", "#464036", "#524b3f", "#5e5648", "#6a6151"]),
+    clay: rampOf(["#231812", "#2e1f17", "#39271c", "#443022", "#4f3828", "#5a412f"]),
+    dark: rampOf(["#0b0907", "#12100c", "#1a1611", "#231e17"]),
     stone: rampOf(["#1c1814", "#2a241e", "#3a332b", "#4b4237", "#5d5244", "#706352", "#847561"]),
     brick: rampOf(["#2a1a14", "#3e261c", "#523226", "#663f30", "#7a4c3a"]),
-    rust: rampOf(["#3a1e12", "#5a2e18", "#7a4222"]),
-    deck: rampOf(["#403a31", "#4c453b", "#585046", "#655c51", "#72685c", "#7f7567", "#8c8272"]),
-    steel: rampOf(["#34342f", "#3f3f39", "#4a4a43", "#56564e", "#636359", "#707065"]),
-    rail: rampOf(["#2a2218", "#5a4a32", "#8a7450", "#b09a70"]),
+    char: rampOf(["#0e0b08", "#1a140e", "#261d14", "#33271b"]),
     thatch: rampOf(["#3a2c18", "#4a3820", "#5a4628", "#6c5532", "#7e643c", "#907448"]),
     plank: rampOf(["#2e2214", "#3c2c1a", "#4a3822", "#58442a", "#665033", "#745c3c"]),
   };
@@ -1068,37 +1065,31 @@ RPG.Explore = (function () {
   }
 
   // ── 素材ごとの画素の色 ──
-  function shRoad(c, lx, ly, wx, wy) {
+  // 石畳の通り：長方形の敷石を、段ごとに半分ずらして並べる（目地には土が詰まる）。
+  // 抜けた石の跡には土がのぞき、敷石は左上からの光で角が立って見える
+  function shRoad(c, lx, ly, wx, wy, missing) {
     var N = noiseTex();
-    var t = 0.5 + (nz(N.c, wx >> 1, wy >> 1) - 0.5) * 0.55 + (nz(N.b, wx, wy) - 0.5) * 0.3;
-    if (nz(N.a, (wx >> 1) + 97, (wy >> 1) + 31) > 0.7) t -= 0.14;          // 油じみ・水たまりの跡
-    var p = pebble(wx, wy, 11, 0.05, 5);
-    if (p) t += p === 2 ? 0.3 : p === 1 ? 0.18 : -0.16;
-    t -= castShade(c, lx, ly);
-    pick(RP.asphalt, t, wx, wy);
+    var rowH = 10, row = Math.floor(wy / rowH), my = wy - row * rowH;
+    var sw = 14 + Math.floor(rnd(row, 3, 700) * 7);
+    var xo = wx + Math.floor(rnd(row, 0, 701) * sw);
+    var col = Math.floor(xo / sw), mx = xo - col * sw;
+    var sh = castShade(c, lx, ly);
+    if (mx === 0 || my === 0 || rnd(col, row, 703) < (missing || 0.05)) {
+      // 目地・抜けた石：土と砂利
+      var td = 0.22 + (nz(N.b, wx, wy) - 0.5) * 0.3 - sh;
+      if (mx !== 0 && my !== 0) td += 0.14;
+      pick(RP.dirt, td, wx, wy); return;
+    }
+    var t = 0.5 + (rnd(col, row, 702) - 0.5) * 0.34 + (nz(N.b, wx, wy) - 0.5) * 0.22 + (nz(N.c, wx >> 1, wy >> 1) - 0.5) * 0.3;
+    if (my === 1) t += 0.2; else if (my === rowH - 1) t -= 0.2;
+    if (mx === 1) t += 0.12; else if (mx === sw - 1) t -= 0.14;
+    if (rnd(col, row, 704) < 0.08 && Math.abs(mx - my * 1.3 - 2) < 0.8) t = 0.1;   // 割れた敷石
+    t -= sh;
+    pick(RP.sett, t, wx, wy);
   }
 
-  function shSidewalk(c, lx, ly, wx, wy) {
-    var N = noiseTex();
-    var sx = Math.floor(wx / 24), sy = Math.floor(wy / 24), mx = wx - sx * 24, my = wy - sy * 24;
-    var t;
-    if (mx === 0 || my === 0) t = 0.1;
-    else {
-      t = 0.55 + (rnd(sx, sy, 41) - 0.5) * 0.25 + (nz(N.b, wx, wy) - 0.5) * 0.25 + (nz(N.c, wx >> 1, wy >> 1) - 0.5) * 0.2;
-      if (mx === 1 || my === 1) t += 0.12;
-      if (mx === 23 || my === 23) t -= 0.12;
-      if (rnd(sx, sy, 42) < 0.1 && Math.abs(mx - my - 3) < 1) t = 0.08;   // 割れた敷石
-      if (rnd(sx, sy, 43) < 0.04) t -= 0.25;                              // 抜けた敷石
-    }
-    // 縁石（ふつうの車道に接する辺）
-    var e = TP - 1;
-    if (c.curbDn && ly >= e - 6) t = ly >= e - 3 ? 0.18 : 0.8;
-    if (c.curbUp && ly <= 5) t = ly <= 1 ? 0.15 : 0.75;
-    if (c.curbLf && lx <= 4) t = lx <= 1 ? 0.2 : 0.72;
-    if (c.curbRt && lx >= e - 4) t = lx >= e - 1 ? 0.15 : 0.62;
-    t -= castShade(c, lx, ly);
-    pick(RP.sidewalk, t, wx, wy);
-  }
+  // 建物の際：同じ石畳だが、人の通らない端なので石が多く抜け、土がのぞく（縁石は置かない）
+  function shSidewalk(c, lx, ly, wx, wy) { shRoad(c, lx, ly, wx, wy, 0.16); }
 
   function shPlaza(c, lx, ly, wx, wy) {
     var N = noiseTex();
@@ -1174,79 +1165,132 @@ RPG.Explore = (function () {
     pick(RP.water, t, wx, wy);
   }
 
-  // 建物の正面（街路に面した壁）。k＝下から何階目か（1が地上階）
+  // 石積み：段ごとに幅を変えた石を積む。st＝石の色の傾き
+  function masonry(wx, wy, t0, sh) {
+    var N = noiseTex();
+    var rowH = 12, row = Math.floor(wy / rowH), my = wy - row * rowH;
+    var bw = 15 + Math.floor(rnd(row, 5, 720) * 9);
+    var xo = wx + Math.floor(rnd(row, 1, 721) * bw);
+    var col = Math.floor(xo / bw), mx = xo - col * bw;
+    if (mx === 0 || my === 0) { pick(RP.stone, 0.12 - sh, wx, wy); return; }           // 目地
+    var t = t0 + (rnd(col, row, 722) - 0.5) * 0.3 + (nz(N.b, wx, wy) - 0.5) * 0.2;
+    if (my === 1 || mx === 1) t += 0.14;
+    if (my === rowH - 1 || mx === bw - 1) t -= 0.16;
+    pick(RP.stone, t - sh, wx, wy);
+  }
+
+  // 建物の正面（街路に面した壁）。k＝下から何階目か（1が地上階）。
+  // 地上階は石積み、上の階は木の柱・梁と漆喰の壁（木組み）。窓は小さく、ガラスはない
   function shFacade(c, lx, ly, wx, wy) {
     var N = noiseTex();
     var e = TP - 1;
-    var t = 0.5 + (nz(N.a, wx, wy >> 3) - 0.5) * 0.35 + (nz(N.b, wx, wy) - 0.5) * 0.25;   // 縦に流れた汚れ
-    if (ly <= 3) t = ly <= 1 ? 0.78 : 0.2;                                               // 階の境の出っ張り
+    var sh = (c.edgeR && lx >= e - 3) ? 0.3 : 0;
     var style = c.style;
-    var wins = style === 0 ? [[6, 20], [28, 42]] : style === 1 ? [[8, 40]] : [[4, 14], [19, 29], [34, 44]];
+    // 入口：石のアーチと、板の扉（半分ほどは壊れて奥の暗がりがのぞく）。幅28×高さ40（約1:1.4）
     var door = c.k === 1 && hash2(c.tx, c.ty, 301) < 0.18;
     if (door && lx >= 10 && lx <= 37 && ly >= 8) {
-      // 入口：幅28×高さ40（約1:1.4）。奥の暗がりと、上の梁
-      if (ly <= 10 || lx <= 11 || lx >= 36) { pick(RP.wall, ly <= 10 ? 0.2 : 0.3, wx, wy); return; }
-      pick(RP.glass, 0.1 + (1 - (ly - 11) / 37) * 0.15, wx, wy); return;
+      var ax = lx - 23.5, ay = ly - 22;
+      var inArch = ly >= 22 ? (lx >= 12 && lx <= 35) : (ax * ax + ay * ay <= 12 * 12);
+      var inRing = ly >= 22 ? (lx >= 10 && lx <= 37) : (ax * ax + ay * ay <= 14.5 * 14.5);
+      if (!inArch && inRing) { pick(RP.stone, 0.62 + (Math.floor(Math.atan2(ay, ax) * 4) % 2 ? 0.1 : -0.06), wx, wy); return; }
+      if (inArch) {
+        var broken = hash2(c.tx, c.ty, 305) < 0.5;
+        if (broken && lx > 24) { pick(RP.dark, 0.2 + (1 - (ly - 10) / 38) * 0.4, wx, wy); return; }
+        var pl = Math.floor((lx - 12) / 6);
+        var tp = 0.5 + (rnd(pl, c.tx, 306) - 0.5) * 0.3 + (nz(N.a, wx * 3, wy >> 2) - 0.5) * 0.3;
+        if ((lx - 12) % 6 === 0) tp = 0.08;
+        if (ly === 30 || ly === 31 || ly === 42 || ly === 43) { pick(RP.stone, ly % 2 ? 0.3 : 0.45, wx, wy); return; }   // 鉄の帯
+        pick(RP.plank, tp, wx, wy); return;
+      }
     }
+    // 窓：小さな開口。石の段では上をアーチに、木組みの段では角窓に
+    var wins = style === 0 ? [[18, 30]] : style === 1 ? [[8, 17], [31, 40]] : (c.k === 1 ? [] : [[19, 29]]);
     for (var i = 0; i < wins.length; i++) {
-      var a = wins[i][0], b = wins[i][1];
-      if (lx < a || lx > b || ly < 10 || ly > 36) continue;
-      if (ly >= 34) { pick(RP.parapet, ly === 34 ? 0.9 : 0.35, wx, wy); return; }   // 窓台
-      if (lx === a || lx === b || ly === 10) { pick(RP.wall, 0.12, wx, wy); return; } // 窓枠の影
+      var a = wins[i][0], b = wins[i][1], top = 14, bot = 32;
+      if (lx < a - 2 || lx > b + 2 || ly < top - 2 || ly > bot + 2) continue;
+      var cxw = (a + b) / 2, rw = (b - a) / 2;
+      var inside = lx >= a && lx <= b && ly <= bot && (c.k === 1 ? (ly >= top + rw ? true : (lx - cxw) * (lx - cxw) + (ly - top - rw) * (ly - top - rw) <= rw * rw) : ly >= top);
+      if (!inside) {
+        if (ly > bot && ly <= bot + 2 && lx >= a - 2 && lx <= b + 2) { pick(c.k === 1 ? RP.stone : RP.plank, ly === bot + 1 ? 0.75 : 0.3, wx, wy); return; }   // 窓台
+        continue;
+      }
       var st = hash2(c.tx * 3 + i, c.ty, 302);
       if (st < 0.3) {
-        // 割れた窓：ギザギザの穴と残ったガラス片
-        var edge = nz(N.b, wx * 2, wy * 2) * 6;
-        if (lx - a < edge || b - lx < edge * 0.7 || ly - 10 < edge * 0.8) { pick(RP.glass, 0.72, wx, wy); return; }
-        pick(RP.glass, 0.02, wx, wy); return;
+        // 片方だけ残って傾いた板戸
+        var pp = Math.floor((lx - a) / 4);
+        if (lx - a < (b - a) * 0.55 + (ly - top) * 0.15) { pick(RP.plank, (lx - a) % 4 === 0 ? 0.1 : 0.45 + (rnd(pp, c.tx, 307) - 0.5) * 0.3, wx, wy); return; }
+      } else if (st < 0.42) {
+        // 板で打ち付けて塞いだ窓
+        var plank = Math.floor((ly - top) / 6);
+        pick(RP.plank, ((ly - top) % 6 === 5 ? 0.1 : 0.55) + (rnd(plank, c.tx, 303) - 0.5) * 0.3, wx, wy); return;
       }
-      if (st < 0.42) {
-        // 板で塞いだ窓
-        var plank = Math.floor((ly - 11) / 6);
-        pick(RP.plank, ((ly - 11) % 6 === 5 ? 0.1 : 0.55) + (rnd(plank, c.tx, 303) - 0.5) * 0.3, wx, wy); return;
-      }
-      var gl = 0.35 + (1 - (ly - 10) / 26) * 0.25;
-      if (Math.abs((lx - a) - (ly - 10) * 0.6 - 3) < 1.5) gl = 0.95;               // 空の映り込み
-      pick(RP.glass, gl, wx, wy); return;
+      pick(RP.dark, (lx === a || ly === top) ? 0.0 : 0.25 + (1 - (ly - top) / (bot - top)) * 0.3, wx, wy); return;
     }
-    if (c.k === 1 && ly >= e - 5) t = 0.18;                                          // 地面際の土台
-    if (c.edgeL && lx <= 2) t += 0.25;
-    if (c.edgeR && lx >= e - 3) t -= 0.3;
-    if (c.seamL && lx <= 1) t = 0.05;
-    pick(RP.wall, t, wx, wy);
+    if (c.k === 1) {
+      if (ly >= e - 5) { masonry(wx, wy, 0.3, sh); return; }                         // 地面際の土台（暗い大石）
+      masonry(wx, wy, 0.52, sh + (c.edgeL && lx <= 2 ? -0.2 : 0)); return;
+    }
+    // 木組み：両端と中ほどの柱、床の梁、ところどころの筋交い。漆喰は剥げて石がのぞく
+    var post = lx <= 3 || lx >= e - 3 || (style !== 1 && lx >= 22 && lx <= 25);
+    var beam = ly <= 4 || ly >= e - 3;
+    var brace = style === 1 && Math.abs((lx - 4) * 0.9 - (ly - 5)) < 2.2 && lx < 22;
+    if (post || beam || brace) {
+      var tt = 0.4 + (nz(N.a, wx * 2, wy * 2) - 0.5) * 0.3;
+      if (lx === 4 || lx === e - 4 || ly === 5) tt = 0.1;
+      pick(RP.plank, tt - sh, wx, wy); return;
+    }
+    if (nz(N.c, (wx >> 1) + 13, (wy >> 1) + 57) > 0.68) { masonry(wx, wy, 0.35, sh); return; }   // 漆喰の剥げた跡
+    var tpl = 0.55 + (nz(N.a, wx, wy >> 2) - 0.5) * 0.35 + (nz(N.b, wx, wy) - 0.5) * 0.2;
+    pick(RP.plaster, tpl - sh, wx, wy);
   }
 
-  // 屋上。区画（7×6タイル）ごとに別の建物として、縁に立ち上がり（パラペット）を付ける
+  var ROOF_FALL = 0.6;
+  // 真上から見た屋根。区画（7×6タイル）ごとに別の建物として、縁は壁の頂（石の笠木）、
+  // 内側は瓦（または石板）葺きの切妻屋根。多くが崩れ落ちて、焼けた垂木と暗い室内がのぞく
   function shRoof(c, lx, ly, wx, wy) {
     var N = noiseTex();
     var e = TP - 1, lip = 6;
-    var t = 0.5 + c.tint + (nz(N.a, wx, wy) - 0.5) * 0.3 + (nz(N.b, wx, wy) - 0.5) * 0.2;
-    if ((wx % 24 === 0 || wy % 24 === 0)) t -= 0.12;                                  // 屋上の目地
-    if (nz(N.c, (wx >> 1) + 70, (wy >> 1) + 10) > 0.74) t -= 0.18;                    // 雨水の溜まった跡
     var inU = c.lipU && ly < lip, inD = c.lipD && ly > e - lip, inL = c.lipL && lx < lip, inR = c.lipR && lx > e - lip;
     if (inU || inD || inL || inR) {
       var d = Math.min(inU ? ly : 99, inD ? e - ly : 99, inL ? lx : 99, inR ? e - lx : 99);
-      var pt = d <= 0 ? 0.1 : d <= 2 ? 0.85 : 0.55;
-      if (inD && d > 2) pt = 0.35;
-      pick(RP.parapet, pt + (nz(N.b, wx, wy) - 0.5) * 0.2, wx, wy); return;
+      var along = (inU || inD) ? wx : wy;
+      var pt = d <= 0 ? 0.1 : d <= 2 ? 0.72 : 0.5;
+      if (inD && d > 2) pt = 0.32;
+      if (along % 16 === 0) pt = 0.12;                                                 // 笠木の継ぎ目
+      pick(RP.stone, pt + (nz(N.b, wx, wy) - 0.5) * 0.18, wx, wy); return;
     }
-    // 立ち上がりの内側に落ちる影
-    if (c.lipU && ly < lip + 5) t -= 0.22;
-    if (c.lipL && lx < lip + 4) t -= 0.16;
+    var shadow = (c.lipU && ly < lip + 5 ? 0.22 : 0) + (c.lipL && lx < lip + 4 ? 0.16 : 0);
     var ob = c.roofObj;
-    if (ob === 1 && lx >= 14 && lx <= 33 && ly >= 14 && ly <= 30) {
-      // 換気塔
-      if (ly <= 16) { pick(RP.parapet, 0.85, wx, wy); return; }
-      pick(RP.parapet, lx <= 16 ? 0.7 : lx >= 31 ? 0.2 : ((lx - 14) % 4 === 0 ? 0.25 : 0.5), wx, wy); return;
+    // 崩れ落ちた屋根：いくつもの建物にまたがる大きな範囲で屋根がなく、壁の頂だけが残る。
+    // 中は暗い室内で、焼け残った垂木が渡り、落ちた瓦と石が散らばる
+    var hv = nz(N.a, (wx >> 3) + 50, (wy >> 3) + 20) + (nz(N.b, wx >> 1, wy >> 1) - 0.5) * 0.02;
+    if (hv > ROOF_FALL) {
+      var edge = hv < ROOF_FALL + 0.025;
+      var rf = wx % 16;
+      if (rf < 4 && !edge) { pick(RP.plank, rf === 0 ? 0.05 : rf === 1 ? 0.42 : 0.26, wx, wy); return; }   // 焼け残った垂木
+      var pb = pebble(wx, wy, 7, 0.35, 731);
+      if (pb > 0) { pick(RP.stone, pb === 2 ? 0.5 : 0.32, wx, wy); return; }
+      pick(RP.dark, (edge ? 0.05 : 0.35) + (nz(N.a, wx, wy) - 0.5) * 0.4 - shadow, wx, wy); return;
     }
-    if (ob === 1 && lx >= 16 && lx <= 38 && ly > 30 && ly <= 35) t -= 0.3;
-    if (ob === 2) {
-      // 抜け落ちた屋根の穴
-      var hd = Math.hypot(lx - 24, (ly - 24) * 1.2) + (nz(N.b, wx * 2, wy * 2) - 0.5) * 8;
-      if (hd < 11) { pick(RP.glass, hd > 9 ? 0.2 : 0.0, wx, wy); return; }
-      if (hd < 14) t -= 0.25;
+    if (hv > ROOF_FALL - 0.03) shadow += 0.22;                                          // 割れた瓦の縁
+    if (ob === 1 && lx >= 13 && lx <= 34 && ly >= 11 && ly <= 32) {
+      // 石積みの煙突（上面に煤けた口）
+      if (lx >= 18 && lx <= 29 && ly >= 16 && ly <= 27) { pick(RP.char, 0.12 + (ly - 16) / 11 * 0.2, wx, wy); return; }
+      if (lx <= 14 || ly <= 12) { pick(RP.stone, 0.8, wx, wy); return; }
+      if (lx >= 33 || ly >= 31) { pick(RP.stone, 0.22, wx, wy); return; }
+      masonry(wx, wy, 0.55, 0); return;
     }
-    pick(RP.roof, t, wx, wy);
+    if (ob === 1 && lx >= 16 && lx <= 40 && ly > 32 && ly <= 40) shadow += 0.3;
+    // 瓦：横に並んだ列ごとに、上が明るく下が暗い。北側の斜面は明るく、南側の斜面は暗い。棟には棟瓦
+    var ramp = c.slate ? RP.roof : RP.clay;
+    var rowH = 8, row = Math.floor(wy / rowH), ry = wy - row * rowH;
+    var tw = 12, xo = wx + (row % 2) * 6, col = Math.floor(xo / tw), rx = xo - col * tw;
+    var t = 0.5 + c.tint + (rnd(col, row, 733) - 0.5) * 0.18 + (nz(N.b, wx, wy) - 0.5) * 0.14;
+    t += ry <= 1 ? 0.18 : ry >= rowH - 2 ? -0.22 : 0;
+    if (rx === 0) t -= 0.14;
+    t += c.slopeN ? 0.1 : -0.12;
+    if (c.ridge && ly >= 20 && ly <= 27) t = ly === 20 ? 0.9 : ly === 27 ? 0.1 : 0.62 + ((wx % 10) === 0 ? -0.3 : 0);
+    pick(ramp, t - shadow, wx, wy);
   }
 
   // 瓦礫：石・煉瓦の塊を積み重ねた山。塊ごとに丸みの陰影を付ける
@@ -1255,7 +1299,8 @@ RPG.Explore = (function () {
     var e = TP - 1;
     var w = worley(wx, wy, 9, 111);
     var r = 9 * 0.55 * (0.75 + rnd(w.id & 255, w.id >> 8, 112) * 0.5);
-    if (c.rebar && Math.abs((lx - 8) * 0.5 - (ly - 6)) < 0.9 && lx < 34) { pick(RP.rust, 0.5 + (lx % 5 === 0 ? 0.4 : 0), wx, wy); return; }
+    // 焼け焦げた梁の残骸
+    if (c.rebar && Math.abs((lx - 8) * 0.5 - (ly - 6)) < 2 && lx < 36) { pick(RP.char, Math.abs((lx - 8) * 0.5 - (ly - 6)) < 0.8 ? 0.75 : 0.25, wx, wy); return; }
     if (w.d1 > r) { pick(RP.stone, 0.0, wx, wy); return; }
     var nx = (wx + 0.5 - w.fx) / r, ny = (wy + 0.5 - w.fy) / r;
     var light = -(nx * 0.6 + ny * 0.8);
@@ -1263,33 +1308,44 @@ RPG.Explore = (function () {
     if (rnd(w.id & 255, w.id >> 8, 114) < 0.28) pick(RP.brick, t, wx, wy); else pick(RP.stone, t * 0.85 + 0.15, wx, wy);
   }
 
-  // 高架の歩道。縁（下が抜けている側）には手すりを付ける
+  // 城壁の歩廊。石の床で、外側（下が抜けている側）には凸凹の胸壁が立つ。
+  // deck＝見張り塔の上。歩廊より一段高い石の床で、歩廊との境に段が付く
   function shWalk(c, lx, ly, wx, wy, deck) {
     var N = noiseTex();
     var e = TP - 1;
-    var t;
-    if (deck) {
-      var dm = ((wx + wy) % 8 === 0 && (wx - wy) % 8 !== 0) || ((wx - wy + 800) % 8 === 0 && (wx + wy) % 8 !== 0);
-      t = 0.5 + (nz(N.a, wx, wy) - 0.5) * 0.3 + (dm ? 0.22 : 0);
-      if (wx % 24 === 0 || wy % 24 === 0) t = 0.15;
-      if ((wx % 24 === 3 || wx % 24 === 21) && (wy % 24 === 3 || wy % 24 === 21)) t = 0.95;   // 鋲
-    } else {
-      t = 0.5 + (nz(N.a, wx, wy) - 0.5) * 0.35 + (nz(N.b, wx, wy) - 0.5) * 0.3;
-      if (wx % 48 === 0 || wy % 48 === 0) t = 0.12;                                          // 継ぎ目
-      if (nz(N.c, (wx >> 1) + 30, (wy >> 1) + 90) > 0.72) t -= 0.15;
-    }
-    // 手すり：縁から 0-2 画素は影、3-5 は縁石、6-8 に柱と横木
     var dists = [c.vU ? ly : 99, c.vD ? e - ly : 99, c.vL ? lx : 99, c.vR ? e - lx : 99];
     var d = Math.min(dists[0], dists[1], dists[2], dists[3]);
-    if (d <= 9) {
-      var along = (d === dists[0] || d === dists[1]) ? wx : wy;
-      if (d <= 1) { pick(RP.rail, 0.05, wx, wy); return; }
-      if (d <= 4) { pick(RP.rail, d === 2 ? 0.95 : 0.6, wx, wy); return; }
-      if (d <= 7 && along % 12 < 3) { pick(RP.rail, along % 12 === 0 ? 0.95 : 0.55, wx, wy); return; }
-      if (d === 7) { pick(RP.rail, 0.85, wx, wy); return; }
-      if (d <= 9) t -= 0.2;
+    var along = (d === dists[0] || d === dists[1]) ? wx : wy;
+    var t;
+    // 胸壁：外側の縁から0-1は外壁の影。凸（石の塊）は床から立ち上がり、内側に影を落とす。凹は低い壁だけ
+    if (d <= 15) {
+      var m = along % 24, merlon = m < 13;
+      if (d <= 1) { pick(RP.stone, 0.02, wx, wy); return; }
+      if (merlon && d <= 11) {
+        var tm = 0.9 + (nz(N.b, wx, wy) - 0.5) * 0.12;
+        if (m === 0) tm = 0.35; else if (m === 12) tm = 0.45; else if (m === 1 || d === 2) tm = 1.0;
+        if (d >= 9) tm = d === 9 ? 0.5 : 0.28;                                               // 内側を向いた面
+        pick(RP.stone, tm, wx, wy); return;
+      }
+      if (!merlon && d <= 5) { pick(RP.stone, d === 2 ? 0.85 : d >= 5 ? 0.3 : 0.7, wx, wy); return; }
+      if (merlon ? d <= 15 : d <= 8) { pick(RP.sett, merlon ? 0.02 + (d - 12) * 0.07 : 0.1 + (d - 6) * 0.08, wx, wy); return; }   // 胸壁の影
     }
-    pick(deck ? RP.steel : RP.deck, t, wx, wy);
+    if (deck) {
+      // 塔の上：歩廊との境に一段の段差（上が明るい縁、下が影）
+      var sU = c.wU ? ly : 99, sL = c.wL ? lx : 99, sD = c.wD ? e - ly : 99, sR = c.wR ? e - lx : 99;
+      var sd = Math.min(sU, sL, sD, sR);
+      if (sd <= 4) { pick(RP.stone, sd <= 1 ? ((sd === sU || sd === sL) ? 0.9 : 0.1) : 0.6, wx, wy); return; }
+      var gx = Math.floor(wx / 20), gy = Math.floor(wy / 20), mx2 = wx - gx * 20, my2 = wy - gy * 20;
+      t = 0.55 + (rnd(gx, gy, 747) - 0.5) * 0.3 + (nz(N.b, wx, wy) - 0.5) * 0.2;
+      if (mx2 === 0 || my2 === 0) t = 0.12; else if (mx2 === 1 || my2 === 1) t += 0.14;
+      pick(RP.stone, t, wx, wy); return;
+    }
+    // 歩廊の床：大きな板石
+    var rh = 16, rr = Math.floor(wy / rh), rys = wy - rr * rh;
+    var sw = 24, xs = wx + (rr % 2) * 12, cs = Math.floor(xs / sw), rxs = xs - cs * sw;
+    t = 0.5 + (rnd(cs, rr, 745) - 0.5) * 0.3 + (nz(N.b, wx, wy) - 0.5) * 0.22 + (nz(N.c, wx >> 1, wy >> 1) - 0.5) * 0.2;
+    if (rys === 0 || rxs === 0) t = 0.12; else if (rys === 1 || rxs === 1) t += 0.14;
+    pick(RP.sett, t, wx, wy);
   }
 
   function shHut(c, lx, ly, wx, wy) {
@@ -1304,7 +1360,8 @@ RPG.Explore = (function () {
       if (c.hk === 2 && ly <= 3) t = ly <= 1 ? 0.1 : 0.7;                                 // 軒下の梁
       if (c.hk === 2 && lx >= 12 && lx <= 35 && ly >= 14 && ly <= 34) {
         if (lx <= 13 || lx >= 34 || ly <= 15 || ly >= 33) { pick(RP.plank, 0.8, wx, wy); return; }
-        pick(RP.glass, 0.15 + (lx === 24 || ly === 24 ? 0.4 : 0), wx, wy); return;
+        if (lx === 24 || ly === 24) { pick(RP.plank, 0.55, wx, wy); return; }               // 木の格子
+        pick(RP.dark, 0.2 + (ly - 16) / 18 * 0.3, wx, wy); return;
       }
       if (c.hl && lx <= 2) t -= 0.2;
       if (c.hr && lx >= e - 2) t -= 0.35;
@@ -1375,7 +1432,10 @@ RPG.Explore = (function () {
         c.lipL = !sameB(tx - 1, ty) || isFac(tx - 1, ty);
         c.lipR = !sameB(tx + 1, ty) || isFac(tx + 1, ty);
         var ro = hash2(tx, ty, 320);
-        c.roofObj = ro < 0.05 ? 1 : ro < 0.08 ? 2 : 0;
+        c.roofObj = ro < 0.04 ? 1 : 0;                                                    // 煙突
+        c.slate = hash2(bid, 2, 312) < 0.4;                                                 // 石板葺き（それ以外は瓦）
+        c.slopeN = (ty % 6) < 3;
+        c.ridge = (ty % 6) === 2;
       }
     } else if (c.t === TT.rubble) {
       var R = TT.rubble;
@@ -1384,6 +1444,7 @@ RPG.Explore = (function () {
     } else if (c.t === TT.walk || c.t === TT.deck) {
       var voidish = function (t) { return t === TT.void || t === -1; };
       c.vU = voidish(c.up); c.vD = voidish(c.dn); c.vL = voidish(c.lf); c.vR = voidish(c.rt);
+      c.wU = c.up === TT.walk; c.wD = c.dn === TT.walk; c.wL = c.lf === TT.walk; c.wR = c.rt === TT.walk;
     } else if (c.t === TT.well || c.t === TT.tree) {
       // 井戸や木の足元は、周りの地面と同じ素材で描く（土の広場なら土）
       var cnt = {};
@@ -1494,7 +1555,7 @@ RPG.Explore = (function () {
   // ひび割れ：タイルごとに乱数で、短い折れ線を1本（ときどき枝分かれ）引く。
   // 暗い割れ目の右下に明るい縁を付けて、左上からの光で凹んで見せる。
   // 隣のタイルから伸びてくるひびも拾うため、塊の周り1タイル分も調べる。
-  var CRACK_ON = {}; CRACK_ON[TT.road] = 0.2; CRACK_ON[TT.plaza] = 0.12; CRACK_ON[TT.lot] = 0.08; CRACK_ON[TT.walk] = 0.16;
+  var CRACK_ON = {}; CRACK_ON[TT.road] = 0.05; CRACK_ON[TT.plaza] = 0.12; CRACK_ON[TT.lot] = 0.08; CRACK_ON[TT.walk] = 0.16;
   function paintCracks(D, grid, cx, cy) {
     var bx = cx * CHUNK_P, by = cy * CHUNK_P;
     var mark = function (x, y, f) {
@@ -1653,17 +1714,16 @@ RPG.Explore = (function () {
           // 足場の影（左上から光が当たるので、右下へずれて落ちる）
           var sx = Math.floor((wx - 30) / TP), sy = Math.floor((wy - 54) / TP);
           if (walkable(sx, sy)) { r *= 0.5; g *= 0.5; b *= 0.55; }
-          // 足場を支える柱
+          // 城壁の外壁：歩廊の南の縁から下へ、石積みの壁面が地面まで続く（下ほど暗い）
           for (var k = 0; k <= 2; k++) {
             var pty = ty - k;
-            if (walkable(tx, pty) && !walkable(tx, pty + 1) && (tx + pty) % 5 === 0) {
-              var py = wy - (pty + 1) * TP, pxl = lx;
-              if (py >= 0 && py < 78 && pxl >= 15 && pxl < 33) {
-                var pt = pxl < 19 ? 0.75 : pxl >= 28 ? 0.15 : 0.45;
-                pt -= py / 78 * 0.3;
-                pick(RP.parapet, pt, wx, wy);
+            if (walkable(tx, pty) && !walkable(tx, pty + 1)) {
+              var py = wy - (pty + 1) * TP;
+              if (py >= 0 && py < 78) {
+                masonry(wx, wy, 0.5 - py / 78 * 0.35, 0);
                 r = o4[0] * 0.8; g = o4[1] * 0.8; b = o4[2] * 0.85;
               }
+              break;
             }
           }
           D[di] = r; D[di + 1] = g; D[di + 2] = b; D[di + 3] = 255;
@@ -1692,10 +1752,10 @@ RPG.Explore = (function () {
 
   // 描き上がる前に見せる仮の絵（1タイル＝1画素の平均色を、ぼかして引き伸ばす）
   var PREVIEW_COLOR = {};
-  PREVIEW_COLOR[TT.road] = "#3a3630"; PREVIEW_COLOR[TT.plaza] = "#4e4940"; PREVIEW_COLOR[TT.lot] = "#39332a";
+  PREVIEW_COLOR[TT.road] = "#443e35"; PREVIEW_COLOR[TT.plaza] = "#4e4940"; PREVIEW_COLOR[TT.lot] = "#39332a";
   PREVIEW_COLOR[TT.grass] = "#30351d"; PREVIEW_COLOR[TT.dirt] = "#4a3c2a"; PREVIEW_COLOR[TT.water] = "#142329";
-  PREVIEW_COLOR[TT.bldg] = "#38332d"; PREVIEW_COLOR[TT.rubble] = "#3e362d"; PREVIEW_COLOR[TT.walk] = "#5e564a";
-  PREVIEW_COLOR[TT.deck] = "#50504a"; PREVIEW_COLOR[TT.hut] = "#5a4628"; PREVIEW_COLOR[TT.fence] = "#3a3524";
+  PREVIEW_COLOR[TT.bldg] = "#3a2a20"; PREVIEW_COLOR[TT.rubble] = "#3e362d"; PREVIEW_COLOR[TT.walk] = "#5e564a";
+  PREVIEW_COLOR[TT.deck] = "#5d5244"; PREVIEW_COLOR[TT.hut] = "#5a4628"; PREVIEW_COLOR[TT.fence] = "#3a3524";
   PREVIEW_COLOR[TT.well] = "#30351d"; PREVIEW_COLOR[TT.tree] = "#30351d"; PREVIEW_COLOR[TT.void] = "#0c0e12";
   TerrainBundle.prototype.preview = function () {
     if (this._preview) return this._preview;
@@ -1865,7 +1925,7 @@ RPG.Explore = (function () {
         t2 = (sy2 < 4 ? 0.7 : 0.4) - st2 * 0.13;
         if (x2 < 12) t2 -= 0.15;
       }
-      pick(y2 < 6 || x2 < 6 || x2 >= S - 6 ? RP.rail : RP.stone, Math.max(0, t2), x2, y2);
+      pick(RP.stone, Math.max(0, t2), x2, y2);
       d.fillStyle = "rgb(" + o4[0] + "," + o4[1] + "," + o4[2] + ")";
       d.fillRect(x2, y2, 1, 1);
     }

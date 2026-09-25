@@ -483,27 +483,44 @@ RPG.Scenes = (function () {
     img.all(function (x, y) { return rp(ramp(["#0c0b0e", "#141218", "#1c1a20", "#26222a"]), 0.25 + y / H * 0.5, x, y); });
     var cz = ceiling(img, 50, 250, 470);
     img.beam([[330, 26], [380, 26], [420, 240], [300, 240]], [190, 140, 110], 0.16);
+    // 崩れた石造りの家並み：切妻屋根の家、尖り屋根の塔、屋根の落ちた壁だけの家。窓は小さなアーチ窓がまばらに開くだけ
     var layers = [
-      { base: 210, hmin: 60, hmax: 150, col: ramp(["#16151a", "#1c1b21", "#222128"]), win: 0.06 },
-      { base: 230, hmin: 40, hmax: 120, col: ramp(["#100f13", "#16151a", "#1c1a20"]), win: 0.1 },
+      { base: 210, hmin: 50, hmax: 95, col: ramp(["#16151a", "#1c1b21", "#222128"]), win: 0.18 },
+      { base: 230, hmin: 34, hmax: 70, col: ramp(["#100f13", "#16151a", "#1c1a20"]), win: 0.25 },
     ];
     layers.forEach(function (L, li) {
       var x = -10;
       while (x < W) {
-        var w = 30 + hash2(x, li, 41) * 50, hgt = L.hmin + hash2(x, li, 42) * (L.hmax - L.hmin);
-        var top = L.base - hgt, broken = hash2(x, li, 43) < 0.6;
-        var x0 = x;
-        img.poly(broken ? [[x0, L.base], [x0, top + 10], [x0 + w * 0.3, top], [x0 + w * 0.55, top + 18], [x0 + w * 0.8, top + 6], [x0 + w, top + 24], [x0 + w, L.base]]
-                        : [[x0, L.base], [x0, top], [x0 + w, top], [x0 + w, L.base]], function (px, py) {
+        var kind = hash2(x, li, 46), w, hgt = L.hmin + hash2(x, li, 42) * (L.hmax - L.hmin), x0 = x, top, pts;
+        if (kind < 0.18) {
+          // 塔：細く高い胴に、尖った屋根（先が欠けたものも）
+          w = 18 + hash2(x, li, 41) * 10; hgt *= 1.5; top = L.base - hgt;
+          var tip = hash2(x, li, 47) < 0.5 ? top - w * 1.1 : top - w * 0.5;
+          pts = [[x0, L.base], [x0, top], [x0 - 3, top], [x0 + w * 0.5, tip], [x0 + w + 3, top], [x0 + w, top], [x0 + w, L.base]];
+        } else if (kind < 0.55) {
+          // 屋根の落ちた家：壁だけがぎざぎざに残る
+          w = 34 + hash2(x, li, 41) * 40; top = L.base - hgt;
+          pts = [[x0, L.base], [x0, top + 6], [x0 + w * 0.18, top], [x0 + w * 0.3, top + 16], [x0 + w * 0.5, top + 10], [x0 + w * 0.62, top + 26], [x0 + w * 0.82, top + 14], [x0 + w, top + 30], [x0 + w, L.base]];
+        } else {
+          // 切妻屋根の家（棟が少し崩れたものも）
+          w = 30 + hash2(x, li, 41) * 36; top = L.base - hgt;
+          var ridge = top - w * 0.45, dip = hash2(x, li, 48) < 0.4 ? 12 : 0;
+          pts = [[x0, L.base], [x0, top], [x0 - 4, top], [x0 + w * 0.42, ridge], [x0 + w * 0.5, ridge + dip], [x0 + w * 0.58, ridge], [x0 + w + 4, top], [x0 + w, top], [x0 + w, L.base]];
+        }
+        var nWin = 1 + Math.floor(hash2(x, li, 49) * 3), wy0 = top + 10;
+        img.poly(pts, function (px, py) {
           var t = 0.45 + (px - x0) / w * -0.3 + (nz("a", px * 2, py * 2) - 0.5) * 0.25;
-          var wx = (px - x0) % 9, wy = (py - top) % 11;
-          if (wx >= 3 && wx <= 6 && wy >= 4 && wy <= 8 && py < L.base - 8) {
-            t = hash2(Math.floor((px - x0) / 9) + x0, Math.floor((py - top) / 11), 44) < L.win ? 2 : 0.05;
-            if (t === 2) return [120, 96, 70];
+          // 小さなアーチ窓（4×7）。まばらに、たまに灯りが漏れる
+          for (var i = 0; i < nWin; i++) {
+            var cx = x0 + w * (i + 1) / (nWin + 1), dx = px - cx, dy = py - wy0;
+            if (Math.abs(dx) <= 2 && dy >= 0 && dy <= 7 && (dy >= 2 || dx * dx + (dy - 2) * (dy - 2) <= 5)) {
+              if (py >= L.base - 8) break;
+              return hash2(Math.floor(cx), i, 44) < L.win ? [120, 96, 70] : rp(L.col, 0.02, px, py);
+            }
           }
           return rp(L.col, t, px, py);
         });
-        x += w + 2 + hash2(x, li, 45) * 10;
+        x += w + 2 + hash2(x, li, 45) * 12;
       }
       img.all(function (px, py) { if (py > L.base - 40 && py < L.base) img.add(px, py, [46, 40, 46], 0.3 * (1 - (L.base - py) / 40)); return null; });
     });
