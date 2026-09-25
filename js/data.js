@@ -176,10 +176,25 @@ RPG.Data = (function () {
     return left > 0.75 ? 1.0 : left > 0.5 ? 1.4 : left > 0.25 ? 1.9 : 2.5;
   }
 
+  // 回復の品を使う（メニューと戦闘で共通）。実際に回復した量を返す
+  function useHealItem(itemId, c) {
+    var h = ITEMS[itemId].heal || {};
+    var hp0 = c.hp, mp0 = c.mp;
+    c.hp = Math.min(c.maxHp, c.hp + (h.hp || 0) + Math.ceil(c.maxHp * (h.hpPct || 0)));
+    c.mp = Math.min(c.maxMp, c.mp + (h.mp || 0) + Math.ceil(c.maxMp * (h.mpPct || 0)));
+    return { hp: c.hp - hp0, mp: c.mp - mp0 };
+  }
+  // その相手に使って意味があるか（減っていない値しか回復しない品は使わせない）
+  function healNeeded(itemId, c) {
+    var h = ITEMS[itemId].heal || {};
+    return !!(((h.hp || h.hpPct) && c.hp < c.maxHp) || ((h.mp || h.mpPct) && c.mp < c.maxMp));
+  }
+
   function cloneStats(stats) {
     return Object.assign({}, stats);
   }
 
   return { SKILLS: SKILLS, CHARACTERS: CHARACTERS, ENEMIES: ENEMIES, ITEMS: ITEMS, cloneStats: cloneStats,
+    useHealItem: useHealItem, healNeeded: healNeeded,
     MAX_LEVEL: MAX_LEVEL, expForLevel: expForLevel, levelForExp: levelForExp, statsAt: statsAt, expRate: expRate };
 })();

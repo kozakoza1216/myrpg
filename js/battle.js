@@ -67,9 +67,11 @@ RPG.Battle = (function () {
     alive.forEach(function (c, i) { c.position = i < 2 ? "front" : "back"; });
   }
 
-  function State(containerEl, party, enemyIds, onEnd) {
+  // opts.items：持ち物（ゲーム全体の持ち物をそのまま渡す。戦闘中に使えば減る）
+  function State(containerEl, party, enemyIds, onEnd, opts) {
     this.el = containerEl;
     this.party = party;
+    this.items = (opts && opts.items) || null;
     this.enemies = enemyIds.map(function (id) { return createCombatant(id, true); });
     updatePositions(this.party);
     updatePositions(this.enemies);
@@ -375,6 +377,23 @@ RPG.Battle = (function () {
     this.endTurn(p.actor);
   };
 
+  // 戦闘中に使える持ち物（回復の品だけ。記憶結晶や食料は戦闘では使わない）
+  State.prototype.battleItems = function () {
+    var items = this.items || {};
+    return Object.keys(items).filter(function (id) { return items[id] > 0 && Data.ITEMS[id] && Data.ITEMS[id].heal; });
+  };
+
+  State.prototype.playerUseItem = function (itemId, target) {
+    var actor = this.pending.actor;
+    var it = Data.ITEMS[itemId];
+    var got = Data.useHealItem(itemId, target);
+    this.items[itemId] -= 1;
+    if (this.items[itemId] <= 0) delete this.items[itemId];
+    this.pushLog([actor.name + "は" + it.name + "を使った。" + (actor === target ? "" : target.name + "の") +
+      (got.hp ? "HPが" + got.hp + "回復" : "") + (got.hp && got.mp ? "、" : "") + (got.mp ? "MPが" + got.mp + "回復" : "") + "。"]);
+    this.endTurn(actor);
+  };
+
   // ── 描画 ──
   State.prototype.render = function () {
     var self = this;
@@ -467,7 +486,40 @@ RPG.Battle = (function () {
         var label = skill.name + (skill.mp > 0 ? "(MP" + skill.mp + ")" : "");
         grid.appendChild(button(label, function () { self.playerChooseSkill(skillId); }, !usable));
       });
+      // アイテムも1手分の行動（PLAN.md：アイテム使用も能動1回分を消費する）
+      grid.appendChild(button("アイテム", function () { self.phase = "item"; self.render(); }, !this.battleItems().length));
       root.appendChild(grid);
+      return;
+    }
+    if (this.phase === "item") {
+      var pi = document.createElement("p");
+      pi.className = "prompt";
+      pi.textContent = this.pending.actor.name + "が使う持ち物を選択";
+      root.appendChild(pi);
+      var gi = document.createElement("div");
+      gi.className = "btn-grid";
+      this.battleItems().forEach(function (id) {
+        var it = Data.ITEMS[id];
+        gi.appendChild(button(it.name + "×" + self.items[id], function () { self.pending.itemId = id; self.phase = "itemTarget"; self.render(); }));
+      });
+      gi.appendChild(button("戻る", function () { self.phase = "playerAct"; self.render(); }));
+      root.appendChild(gi);
+      return;
+    }
+    if (this.phase === "itemTarget") {
+      var itemId = this.pending.itemId;
+      var pt = document.createElement("p");
+      pt.className = "prompt";
+      pt.textContent = Data.ITEMS[itemId].name + "（" + Data.ITEMS[itemId].desc + "）を誰に使う？";
+      root.appendChild(pt);
+      var gt = document.createElement("div");
+      gt.className = "btn-grid";
+      this.party.forEach(function (c) {
+        if (c.defeated) return;
+        gt.appendChild(button(c.name + "（HP" + c.hp + "/" + c.maxHp + "・MP" + c.mp + "/" + c.maxMp + "）", function () { self.playerUseItem(itemId, c); }, !Data.healNeeded(itemId, c)));
+      });
+      gt.appendChild(button("戻る", function () { self.phase = "item"; self.render(); }));
+      root.appendChild(gt);
       return;
     }
     if (this.phase === "target") {
@@ -519,8 +571,8 @@ RPG.Battle = (function () {
     return b;
   }
 
-  function start(containerEl, party, enemyIds, onEnd) {
-    var state = new State(containerEl, party, enemyIds, onEnd);
+  function start(containerEl, party, enemyIds, onEnd, opts) {
+    var state = new State(containerEl, party, enemyIds, onEnd, opts);
     state.render();
     return state;
   }

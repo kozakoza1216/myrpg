@@ -168,7 +168,7 @@ RPG.Menu = (function () {
               need = c.skills.indexOf(it.learn) < 0;
               label = c.name + (need ? "" : "（覚えている）");
             } else {
-              need = ((h.hp || h.hpPct) && c.hp < c.maxHp) || ((h.mp || h.mpPct) && c.mp < c.maxMp);
+              need = Data.healNeeded(id, c);
               label = c.name + "（HP " + c.hp + "/" + c.maxHp + ((h.mp || h.mpPct) ? "　MP " + c.mp + "/" + c.maxMp : "") + "）";
             }
             var b = btn(label, function () {
@@ -176,12 +176,8 @@ RPG.Menu = (function () {
                 c.skills.push(it.learn);
                 msg = c.name + "は〈" + Data.SKILLS[it.learn].name + "〉を覚えた。";
               } else {
-                var hp0 = c.hp, mp0 = c.mp;
-                var hpAdd = (h.hp || 0) + Math.ceil(c.maxHp * (h.hpPct || 0));
-                var mpAdd = (h.mp || 0) + Math.ceil(c.maxMp * (h.mpPct || 0));
-                c.hp = Math.min(c.maxHp, c.hp + hpAdd);
-                c.mp = Math.min(c.maxMp, c.mp + mpAdd);
-                msg = c.name + "は" + it.name + "を使った。" + (c.hp > hp0 ? "HPが" + (c.hp - hp0) + "回復した。" : "") + (c.mp > mp0 ? "MPが" + (c.mp - mp0) + "回復した。" : "");
+                var got = Data.useHealItem(id, c);
+                msg = c.name + "は" + it.name + "を使った。" + (got.hp ? "HPが" + got.hp + "回復した。" : "") + (got.mp ? "MPが" + got.mp + "回復した。" : "");
               }
               items[id] -= 1;
               if (items[id] <= 0) delete items[id];

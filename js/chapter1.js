@@ -631,6 +631,7 @@ RPG.Chapter1 = (function () {
     var box = document.createElement("div");
     box.className = "battle-screen";
     app.appendChild(box);
+    game.items = game.items || {};
     var state = Battle.start(box, game.party, enemyIds, function (result) {
       if (result === "defeat" && !forceProceed) {
         game.party.forEach(function (c) {
@@ -644,7 +645,7 @@ RPG.Chapter1 = (function () {
       game.party.forEach(function (c) { c.defeated = false; c.atb = 0; if (c.hp === 0) c.hp = 1; });
       if (!lines.length) { next(); return; }
       Story.play(app, lines.map(function (t) { return { kind: "narration", text: t }; }), next);
-    });
+    }, { items: game.items });
   }
 
   return { run: run, resume: resume };
