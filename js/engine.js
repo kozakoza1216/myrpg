@@ -100,8 +100,10 @@ RPG.Engine = (function () {
 
   var CATEGORY_MULT = { normal: 1.0 };
 
+  // 受け手が判定に勝てば attackerWins=false。
+  // 防御：勝てば半分に軽減（×0.5）、負けても3割は軽減（×0.7）＝振れ幅が小さい
   function judgeResultMult(defStance, attackerWins) {
-    if (defStance === "defense") return attackerWins ? 0.5 : 0.3;
+    if (defStance === "defense") return attackerWins ? 0.7 : 0.5;
     if (defStance === "evade") return attackerWins ? 0.7 : 0;
     if (defStance === "hold") return attackerWins ? 1.0 : 0;
     return attackerWins ? 1.0 : 0; // フォールバック
@@ -150,12 +152,15 @@ RPG.Engine = (function () {
     }
 
     var raw = baseDamage(attacker, skill) * (opts.powerMult || 1) * (opts.judgeMult ? 1 : 1);
-    raw = applyDefenseReduction(raw, defender.stats.def) * mult;
+    raw = applyDefenseReduction(raw, defender.stats.def);
 
+    // 最低保証ダメージ（攻撃力×1.0・防御で受けたときのみ・PLAN.md §4-7）。
+    // 保証も防御の軽減（×0.5／×0.7）を受ける。保証を軽減の外で足すと、防御が
+    // 回避より、さらには素で受けるより重くなり「安全な受け」にならないため。
     var guaranteed = defStance === "defense" ? attacker.stats.atk * 1.0 : 0;
     if (guaranteed > 0) result.guaranteed = true;
 
-    var total = raw + guaranteed;
+    var total = (raw + guaranteed) * mult;
 
     var crit = opts.forceCrit || (skill.critSkill && Math.random() < skillCritChance(attacker.stats.luck, defender.stats.luck));
     if (crit && total > 0) {
