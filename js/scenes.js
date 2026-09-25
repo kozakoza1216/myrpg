@@ -117,10 +117,21 @@ RPG.Scenes = (function () {
   // ── 人物の影 ──
   // 影は一度「型」（マスク）に描いてから、まとめて黒く塗り、光源の側に細い縁の光を入れる。
   function Fig(img) { this.img = img; }
+  // 頭まわりを描く間だけ、頭の中心(cx,cy)を基準にk倍して描く
+  Fig.prototype.head = function (cx, cy, k, fn) {
+    this._t = { cx: cx, cy: cy, k: k };
+    fn.call(this);
+    this._t = null;
+  };
+  Fig.prototype.tp = function (p) { var t = this._t; return t ? [t.cx + (p[0] - t.cx) * t.k, t.cy + (p[1] - t.cy) * t.k] : p; };
   Fig.prototype.mark = function (x, y) { if (x >= 0 && y >= 0 && x < W && y < H) this.img.m[y * W + x] = 1; };
-  Fig.prototype.poly = function (pts) { var s = this; this.img.poly(pts, function (x, y) { s.mark(x, y); return null; }); };
-  Fig.prototype.ellipse = function (cx, cy, rx, ry) { var s = this; this.img.ellipse(cx, cy, rx, ry, function (x, y) { s.mark(x, y); return null; }); };
+  Fig.prototype.poly = function (pts) { var s = this; this.img.poly(pts.map(function (p) { return s.tp(p); }), function (x, y) { s.mark(x, y); return null; }); };
+  Fig.prototype.ellipse = function (cx, cy, rx, ry) {
+    var s = this, c = this.tp([cx, cy]), k = this._t ? this._t.k : 1;
+    this.img.ellipse(c[0], c[1], rx * k, ry * k, function (x, y) { s.mark(x, y); return null; });
+  };
   Fig.prototype.limb = function (ax, ay, bx, by, w0, w1) {
+    if (this._t) { var a = this.tp([ax, ay]), b = this.tp([bx, by]), kk = this._t.k; var t = this._t; this._t = null; this.limb(a[0], a[1], b[0], b[1], w0 * kk, w1 * kk); this._t = t; return; }
     var dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
     this.poly([[ax + nx * w0, ay + ny * w0], [bx + nx * w1, by + ny * w1], [bx - nx * w1, by - ny * w1], [ax - nx * w0, ay - ny * w0]]);
   };
@@ -562,15 +573,22 @@ RPG.Scenes = (function () {
     return out;
   }
   // 胸から上の人の輪郭（卵形の頭・首・なで肩・胴）。o: cx, cy（頭の中心）, sw（肩幅の半分）, droop（肩の下がり）, hunch（首が前に出る）
+  // 頭の大きさ（いただいたミラやツェルフの立ち絵に合わせて、肩幅に対して大きめ）
+  var HEAD_K = 1.45;
   function bust(f, o) {
-    var cx = o.cx || 240, cy = o.cy || 82, sw = o.sw || 88, dr = o.droop || 0, hn = o.hunch || 0;
-    f.ellipse(cx + hn, cy, 29, 36);
-    f.poly([[cx + hn - 28, cy + 6], [cx + hn + 28, cy + 6], [cx + hn + 22, cy + 26], [cx + hn + 8, cy + 39], [cx + hn - 8, cy + 39], [cx + hn - 22, cy + 26]]);
-    f.poly([[cx + hn - 14, cy + 28], [cx + hn + 14, cy + 28], [cx + 18, cy + 66], [cx - 18, cy + 66]]);
-    var L = [[cx - 18, cy + 58]].concat(qb([cx - 18, cy + 58], [cx - sw * 0.5, cy + 60 + dr], [cx - sw * 0.82, cy + 78 + dr]))
-      .concat(qb([cx - sw * 0.82, cy + 78 + dr], [cx - sw, cy + 88 + dr], [cx - sw * 1.04, cy + 118 + dr])).concat([[cx - sw * 1.1, H + 2]]);
+    var cx = o.cx || 240, cy = o.cy || 82, sw = o.sw || 88, dr = o.droop || 0, hn = o.hunch || 0, k = HEAD_K;
+    f.head(cx, cy, k, function () {
+      this.ellipse(cx + hn, cy, 29, 36);
+      this.poly([[cx + hn - 28, cy + 6], [cx + hn + 28, cy + 6], [cx + hn + 22, cy + 26], [cx + hn + 8, cy + 39], [cx + hn - 8, cy + 39], [cx + hn - 22, cy + 26]]);
+      this.poly([[cx + hn - 14, cy + 28], [cx + hn + 14, cy + 28], [cx + 18, cy + 66], [cx - 18, cy + 66]]);
+    });
+    // 首が長くなった分だけ、肩の線を下げる
+    var sy = cy + 58 * k - 58 - 20;
+    var L = [[cx - 18 * k, sy + 58]].concat(qb([cx - 18 * k, sy + 58], [cx - sw * 0.5, sy + 60 + dr], [cx - sw * 0.82, sy + 78 + dr]))
+      .concat(qb([cx - sw * 0.82, sy + 78 + dr], [cx - sw, sy + 88 + dr], [cx - sw * 1.04, sy + 118 + dr])).concat([[cx - sw * 1.1, H + 2]]);
     var R = L.map(function (p) { return [2 * cx - p[0], p[1]]; }).reverse();
     f.poly(L.concat([[cx - sw * 1.1, H + 2], [cx + sw * 1.1, H + 2]]).concat(R));
+    return { cx: cx, cy: cy, k: k, dy: sy - cy };
   }
   // ミラ：いただいた立ち絵の輪郭をそのまま使う（480×270の画面に合わせて縮め、
   // 行ごとに「塗り始めのx,塗る長さ」を並べた形で持つ）。頭頂の跳ねた毛、
@@ -586,32 +604,44 @@ RPG.Scenes = (function () {
   FIG.mira = function (f) { markRows(f, MIRA_ROWS); };
   FIG.kagari = function (f) {
     // 祭司：高く尖った儀式の冠と、立ち襟の長衣、張った肩
-    bust(f, { sw: 96, cy: 92 });
-    f.poly([[212, 70], [268, 70], [262, 40], [250, 16], [240, 4], [230, 16], [218, 40]]);
-    f.poly([[206, 72], [274, 72], [270, 62], [210, 62]]);
-    f.poly([[200, 134], [216, 110], [224, 150]]); f.poly([[280, 134], [264, 110], [256, 150]]);
+    var b = bust(f, { sw: 96, cy: 124 });
+    f.head(b.cx, b.cy, b.k, function () {
+      var d = 124 - 92;
+      this.poly([[212, 70 + d], [268, 70 + d], [262, 40 + d], [250, 16 + d], [240, 4 + d], [230, 16 + d], [218, 40 + d]]);
+      this.poly([[206, 72 + d], [274, 72 + d], [270, 62 + d], [210, 62 + d]]);
+      this.poly([[200, 134 + d], [216, 110 + d], [224, 150 + d]]); this.poly([[280, 134 + d], [264, 110 + d], [256, 150 + d]]);
+    });
   };
   FIG.toki = function (f) {
     // 集落長：禿げた頭をやや前へ落とし、なで肩で、長い顎ひげ
-    bust(f, { sw: 78, cy: 96, droop: 10, hunch: -6 });
-    f.poly(qb([214, 118], [218, 160], [234, 186], 8).concat(qb([246, 186], [262, 160], [266, 118], 8)));
+    var b = bust(f, { sw: 80, cy: 90, droop: 10, hunch: -6 });
+    f.head(b.cx, b.cy, b.k, function () {
+      var d = 90 - 96;
+      this.poly(qb([214, 118 + d], [218, 160 + d], [234, 186 + d], 8).concat(qb([246, 186 + d], [262, 160 + d], [266, 118 + d], 8)));
+    });
   };
   FIG.elder = function (f) {
     // 竜読みの老人：頭巾をかぶり、ひげをたくわえ、杖をつく
-    bust(f, { sw: 76, cy: 92, droop: 12, hunch: 4 });
-    f.poly(qb([200, 116], [196, 50], [244, 38], 10).concat(qb([244, 38], [292, 50], [288, 116], 10)).concat([[270, 132], [218, 132]]));
-    f.poly(qb([222, 120], [226, 158], [242, 176], 8).concat(qb([242, 176], [258, 158], [262, 120], 8)));
-    f.limb(336, H + 2, 330, 40, 4, 4);
-    f.ellipse(330, 38, 8, 7);
+    var b = bust(f, { sw: 78, cy: 94, droop: 12, hunch: 4 });
+    f.head(b.cx, b.cy, b.k, function () {
+      var d = 94 - 92;
+      this.poly(qb([200, 116 + d], [196, 50 + d], [244, 38 + d], 10).concat(qb([244, 38 + d], [292, 50 + d], [288, 116 + d], 10)).concat([[270, 132 + d], [218, 132 + d]]));
+      this.poly(qb([222, 120 + d], [226, 158 + d], [242, 176 + d], 8).concat(qb([242, 176 + d], [258, 158 + d], [262, 120 + d], 8)));
+    });
+    f.limb(350, H + 2, 344, 30, 4, 4);
+    f.ellipse(344, 28, 9, 8);
   };
   FIG.guard = function (f) {
     // 門番：兜、肩当て、立てた槍
-    bust(f, { sw: 92 });
-    f.poly([[206, 80], [274, 80], [272, 58], [256, 44], [240, 38], [224, 44], [208, 58]]);
-    f.poly([[200, 82], [280, 82], [280, 76], [200, 76]]);
-    f.ellipse(162, 162, 26, 20); f.ellipse(318, 162, 26, 20);
-    f.limb(350, H + 2, 350, 34, 3, 3);
-    f.poly([[341, 40], [359, 40], [350, 4]]);
+    var b = bust(f, { sw: 94, cy: 86 });
+    f.head(b.cx, b.cy, b.k, function () {
+      var d = 86 - 82;
+      this.poly([[206, 80 + d], [274, 80 + d], [272, 58 + d], [256, 44 + d], [240, 38 + d], [224, 44 + d], [208, 58 + d]]);
+      this.poly([[200, 82 + d], [280, 82 + d], [280, 76 + d], [200, 76 + d]]);
+    });
+    f.ellipse(158, 166 + b.dy, 28, 21); f.ellipse(322, 166 + b.dy, 28, 21);
+    f.limb(360, H + 2, 360, 30, 3, 3);
+    f.poly([[351, 36], [369, 36], [360, 0]]);
   };
   // ツェルフ（赤い鳥人）：いただいた立ち絵の輪郭をそのまま使う。逆立った冠羽、
   // 鉤形のくちばし、首を包む襟巻き、肩の後ろに立つ翼が、影の形に残る。
