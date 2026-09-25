@@ -246,7 +246,10 @@ RPG.Chapter1 = (function () {
 
   function run(appEl, gameState, endCallback) {
     app = appEl; game = gameState; onChapterEnd = endCallback;
-    Story.play(app, wakeBeats, enterVillage);
+    Story.play(app, wakeBeats, function () {
+      addItem("dried_meat"); addItem("old_potion");
+      enterVillage();
+    });
   }
 
   var wakeBeats = [
@@ -256,12 +259,22 @@ RPG.Chapter1 = (function () {
     { speaker: "ミラ", text: "セオ、起きて。今日は「くじ」の日でしょ。寝坊したら承知しないから。" },
     { kind: "choice", prompt: "（ミラに何と返す？　――何を選んでも、話の筋は変わらない）", options: ["「わかってる。今起きる」", "「……くじ、か」と呟く", "何も言わず起き上がる"] },
     { kind: "choice", prompt: "ミラは肩をすくめて、先に外へ出ていった。棚には〈干し肉〉と〈古びた回復薬〉が置かれている。戸口を出ると、くじの刻限まではまだ間があった。", options: ["外へ出る"] },
+    { kind: "narration", text: "棚の〈干し肉〉と〈古びた回復薬〉を荷に入れて、戸口を出た。" },
   ];
+
+  function addItem(id, n) {
+    game.items = game.items || {};
+    game.items[id] = (game.items[id] || 0) + (n || 1);
+  }
 
   var villageArea = null;
 
-  function enterVillage() {
-    villageArea = Explore.startFreeArea(app, HAIBERI_VILLAGE, game, {
+  var villageTaken = {};
+  function enterVillage(pos) {
+    place = { kind: "village" };
+    resumePlace = function () { villageArea.render(); };
+    villageArea = Explore.startFreeArea(app, pos ? Object.assign({}, HAIBERI_VILLAGE, { start: pos }) : HAIBERI_VILLAGE, game, {
+      openMenu: openMenu,
       onExit: function () { Story.play(app, kujiBeats, afterKuji); },
       onTalk: function (zone, next) {
         Story.play(app, [{ speaker: zone.speaker, text: zone.text, bg: "village" }], next);
@@ -274,7 +287,7 @@ RPG.Chapter1 = (function () {
       onEncounter: function (next) {
         runBattle(["ash_rat"], "灰ネズミとの戦い", true, next);
       },
-    });
+    }, villageTaken);
   }
 
   var kujiBeats = [
@@ -307,17 +320,78 @@ RPG.Chapter1 = (function () {
   // 地図そのもの（現在地・訪れた場所・ファストトラベルの歩数計算）は
   // 画面に出さずに持っておく。
   function afterKuji() {
+    addItem("ration", 3);
+    game.flags.exiled = true;
+    createWorld();
+    // くじの後、門を出たそのままの場所＝集落の外縁に立つ
+    enterOutskirts();
+  }
+  function createWorld() {
     worldMap = Explore.createWorldMap(app, WORLD, game, {
       fastTravelOnly: true,
       onArrive: function (id) { enterPlace(id, null); },
       onCancel: function () { if (resumePlace) resumePlace(); },
     });
-    // くじの後、門を出たそのままの場所＝集落の外縁に立つ
-    enterOutskirts();
   }
 
-  // いまいる場所へ戻る（ファストトラベルの地図を「戻る」で閉じた時）
+  // いまいる場所へ戻る（メニューやファストトラベルの地図を閉じた時）
   var resumePlace = null;
+  // いまいる場所（セーブのため）。kind: village / outskirts / hairegion / shrine
+  var place = null;
+  var PLACE_LABEL = { village: "灰縁の集落", outskirts: "灰縁の集落・外縁", hairegion: "廃区画", shrine: "招竜の祭壇" };
+
+  function openMenu() {
+    RPG.Menu.open(app, game, {
+      placeLabel: placeLabel(),
+      onClose: function () { if (resumePlace) resumePlace(); },
+      fastTravel: worldMap ? FAST_TRAVEL : null,
+      onSave: function () {
+        return RPG.Save.write({ version: 1, savedAt: Date.now(), placeLabel: placeLabel(), game: RPG.Save.packGame(game), chapter: snapshot() });
+      },
+      onLoad: function () { RPG.Game.loadSaved(); },
+    });
+  }
+  function placeLabel() {
+    if (!place) return "";
+    if (place.kind === "hairegion") return place.layer === "upper" ? "廃区画・高架歩道" : "廃区画・下層街路";
+    if (place.kind === "shrine") return "招竜の祭壇・" + (place.floor === "inner" ? "内殿" : "外殿");
+    return PLACE_LABEL[place.kind];
+  }
+
+  // セーブする内容：いる場所と位置、ワールドマップの現在地と訪れた場所、
+  // 各エリアで取った宝箱など、この章の進み具合
+  function snapshot() {
+    var snap = {
+      place: place.kind, layer: place.layer, floor: place.floor,
+      villageTaken: villageTaken, hairegionTaken: hairegionTaken, hairegionCleared: hairegionCleared,
+      shrineFloorId: shrineFloorId, shrineFloorVisited: shrineFloorVisited,
+      world: worldMap ? { current: worldMap.current, visited: worldMap.visited } : null,
+    };
+    var area = place.kind === "village" ? villageArea : place.kind === "outskirts" ? outskirtsArea : place.kind === "hairegion" ? hairegionArea : null;
+    if (area) snap.pos = { x: area.pos.x, y: area.pos.y };
+    if (place.kind === "shrine" && shrineDungeon) snap.dpos = { x: shrineDungeon.x, y: shrineDungeon.y, dir: shrineDungeon.dir };
+    return JSON.parse(JSON.stringify(snap));
+  }
+
+  // セーブした場所から再開する
+  function resume(appEl, gameState, snap, endCallback) {
+    app = appEl; game = gameState; onChapterEnd = endCallback;
+    villageTaken = snap.villageTaken || {};
+    hairegionTaken = snap.hairegionTaken || {};
+    hairegionCleared = !!snap.hairegionCleared;
+    shrineFloorId = snap.shrineFloorId || "ground";
+    shrineFloorVisited = snap.shrineFloorVisited || { ground: {}, inner: {} };
+    worldMap = null;
+    if (snap.world) {
+      createWorld();
+      worldMap.current = snap.world.current;
+      worldMap.visited = snap.world.visited;
+    }
+    if (snap.place === "village") enterVillage(snap.pos);
+    else if (snap.place === "outskirts") enterOutskirts(snap.pos);
+    else if (snap.place === "hairegion") enterHairegion(null, snap.layer, null, snap.pos);
+    else enterShrineFloor(snap.floor || shrineFloorId, snap.dpos);
+  }
   var FAST_TRAVEL = {
     available: function () {
       return WORLD.nodes.some(function (n) { return n.id !== worldMap.current && worldMap.visited[n.id] && n.fastTravel !== false; });
@@ -381,10 +455,11 @@ RPG.Chapter1 = (function () {
   // 集落の外縁を歩く。門に近づくと門番に拒まれ、門の前から押し戻される。
   // 帰り道は、東の「廃区画方面へ」を歩いて抜けるしかない。
   var outskirtsArea = null;
-  function enterOutskirts() {
+  function enterOutskirts(pos) {
+    place = { kind: "outskirts" };
     resumePlace = function () { outskirtsArea.render(); };
-    outskirtsArea = Explore.startFreeArea(app, OUTSKIRTS_AREA, game, {
-      fastTravel: FAST_TRAVEL,
+    outskirtsArea = Explore.startFreeArea(app, pos ? Object.assign({}, OUTSKIRTS_AREA, { start: pos }) : OUTSKIRTS_AREA, game, {
+      openMenu: openMenu,
       onExit: function (to) { goTo(to, "haiberi"); },
       onTalk: function (zone, next) {
         Story.play(app, [
@@ -398,17 +473,19 @@ RPG.Chapter1 = (function () {
     });
   }
 
-  function enterHairegion(fromNodeId, layerId, entryId) {
+  function enterHairegion(fromNodeId, layerId, entryId, pos) {
     hairegionCleared = true;
     var areaTemplate = layerId === "upper" ? HAIREGION_UPPER_AREA : HAIREGION_AREA;
-    var entry = areaTemplate.entryPoints[entryId] || areaTemplate.entryPoints[fromNodeId] || areaTemplate.start;
+    var entry = pos || areaTemplate.entryPoints[entryId] || areaTemplate.entryPoints[fromNodeId] || areaTemplate.start;
     var areaData = Object.assign({}, areaTemplate, { start: entry, arrivedByStairs: !!entryId });
+    place = { kind: "hairegion", layer: layerId === "upper" ? "upper" : "street" };
     resumePlace = function () { hairegionArea.render(); };
     hairegionArea = Explore.startFreeArea(app, areaData, game, {
-      fastTravel: FAST_TRAVEL,
+      openMenu: openMenu,
       onExit: function (to) { goTo(to, "hairegion"); },
       onStairs: function (toLayer, toEntry) { enterHairegion(null, toLayer, toEntry); },
       onChest: function (zoneId, next) {
+        addItem("family_photo");
         Story.play(app, [{ kind: "narration", text: "瓦礫の下から、色褪せた家族写真が一枚出てきた。誰のものかは、もう分からない。" }], next);
       },
       onEncounter: function (next) {
@@ -450,11 +527,13 @@ RPG.Chapter1 = (function () {
     enterShrineFloor("ground");
   }
 
-  function enterShrineFloor(floorId) {
+  function enterShrineFloor(floorId, dpos) {
     shrineFloorId = floorId;
+    place = { kind: "shrine", floor: floorId };
     resumePlace = function () { shrineDungeon.render(); };
-    shrineDungeon = Explore.start(app, SHRINE_FLOORS[floorId], game, {
-      fastTravel: FAST_TRAVEL,
+    var floorData = dpos ? Object.assign({}, SHRINE_FLOORS[floorId], { start: dpos }) : SHRINE_FLOORS[floorId];
+    shrineDungeon = Explore.start(app, floorData, game, {
+      openMenu: openMenu,
       // 祭壇を出たら、隘路を引き返して廃区画の東の出口の前へ戻る
       onExit: function () {
         walkRoad("祭壇を後にし、瓦礫の隘路を引き返す。", 15, 0.2, function () {
@@ -557,5 +636,5 @@ RPG.Chapter1 = (function () {
     });
   }
 
-  return { run: run };
+  return { run: run, resume: resume };
 })();

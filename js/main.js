@@ -10,8 +10,19 @@ window.RPG = window.RPG || {};
       party: [RPG.Battle.createCombatant("seo", false)],
       companions: [],
       flags: {},
+      items: {},
     };
   }
+
+  // 保存した記録から再開する（タイトルの「続きから」と、メニューのロード）
+  function loadSaved() {
+    var save = RPG.Save.read();
+    if (!save) return false;
+    var game = RPG.Save.unpackGame(save.game);
+    RPG.Chapter1.resume(app, game, save.chapter, function () { renderChapterEnd(game); });
+    return true;
+  }
+  RPG.Game = { loadSaved: loadSaved };
 
   function renderTitle() {
     app.innerHTML = "";
@@ -29,12 +40,21 @@ window.RPG = window.RPG || {};
       var game = createGameState();
       RPG.Chapter1.run(app, game, function () { renderChapterEnd(game); });
     };
+    var saved = RPG.Save.read();
+    var cont = null;
+    if (saved) {
+      cont = document.createElement("button");
+      cont.className = "primary-btn";
+      cont.textContent = "続きから（" + saved.placeLabel + "）";
+      cont.onclick = loadSaved;
+    }
     var foot = document.createElement("p");
     foot.className = "footnote";
     foot.textContent = "判定バトル（攻撃/突破/防御/回避/足止め/カウンター）と擬似3D探索を実装した第一章の縦切り版です。";
     wrap.appendChild(h1);
     wrap.appendChild(sub);
     wrap.appendChild(btn);
+    if (cont) wrap.appendChild(cont);
     wrap.appendChild(foot);
     app.appendChild(wrap);
   }

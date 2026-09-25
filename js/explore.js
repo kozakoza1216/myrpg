@@ -390,7 +390,7 @@ RPG.Explore = (function () {
     controls.appendChild(ctrlBtn("↻", function () { self.turn(1); }));
     controls.appendChild(ctrlBtn("▼ 戻る", function () { self.step(true); }));
     wrap.appendChild(controls);
-    appendFastTravelButton(wrap, this.cb);
+    appendMenuButton(wrap, this.cb);
 
     this.el.appendChild(wrap);
 
@@ -414,15 +414,13 @@ RPG.Explore = (function () {
     }
   };
 
-  // 探索画面の「ファストトラベル」ボタン。ワールドマップは、このボタンを
-  // 押した時にだけ開く（ふだんの移動は、エリアの出口を歩いて抜けて行う）。
-  // 飛べる場所が1つも無い間は出さない。
-  function appendFastTravelButton(wrap, cb) {
-    var ft = cb && cb.fastTravel;
-    if (!ft || (ft.available && !ft.available())) return;
+  // 探索画面の「メニュー」ボタン（ステータス・技・持ち物・ファストトラベル・
+  // セーブ／ロード）。ワールドマップは、メニューのファストトラベルからだけ開く。
+  function appendMenuButton(wrap, cb, beforeOpen) {
+    if (!cb || !cb.openMenu) return;
     var row = document.createElement("div");
-    row.className = "fast-travel-open";
-    row.appendChild(ctrlBtn("ファストトラベル（地図を開く）", function () { ft.open(); }));
+    row.className = "menu-open";
+    row.appendChild(ctrlBtn("メニュー", function () { if (beforeOpen) beforeOpen(); cb.openMenu(); }));
     wrap.appendChild(row);
   }
 
@@ -2353,7 +2351,7 @@ RPG.Explore = (function () {
     wrap.appendChild(msg);
     this._msgEl = msg;
 
-    appendFastTravelButton(wrap, this.cb);
+    appendMenuButton(wrap, this.cb, function () { self.detachKeyboard(); });
 
     var hint = document.createElement("p");
     hint.className = "footnote";

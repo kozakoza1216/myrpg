@@ -113,9 +113,18 @@ RPG.Data = (function () {
     },
   };
 
+  // ── 持ち物 ──
+  // heal: 最大値に対する回復の割合。key: 大事なもの（使えない・捨てられない）
+  const ITEMS = {
+    dried_meat: { name: "干し肉", desc: "HPを最大値の30%回復する。", heal: { hp: 0.3 } },
+    old_potion: { name: "古びた回復薬", desc: "HPを最大値の60%回復する。", heal: { hp: 0.6 } },
+    ration: { name: "携行食", desc: "HPとMPを最大値の20%ずつ回復する。", heal: { hp: 0.2, mp: 0.2 } },
+    family_photo: { name: "色褪せた家族写真", desc: "廃区画の瓦礫の下にあった。誰のものかは、もう分からない。", key: true },
+  };
+
   function cloneStats(stats) {
     return Object.assign({}, stats);
   }
 
-  return { SKILLS: SKILLS, CHARACTERS: CHARACTERS, ENEMIES: ENEMIES, cloneStats: cloneStats };
+  return { SKILLS: SKILLS, CHARACTERS: CHARACTERS, ENEMIES: ENEMIES, ITEMS: ITEMS, cloneStats: cloneStats };
 })();
