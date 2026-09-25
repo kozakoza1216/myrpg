@@ -673,6 +673,7 @@ RPG.Scenes = (function () {
     return (figCache[id] = cv);
   }
   function figureForSpeaker(name) { return SPEAKER_FIG[name] ? figureFor(SPEAKER_FIG[name]) : null; }
+  function figIdForSpeaker(name) { return SPEAKER_FIG[name] || null; }
 
   var cache = {};
   // 場面名から背景の画像（canvas）を返す。同じ場面は一度だけ描く
@@ -692,5 +693,5 @@ RPG.Scenes = (function () {
     return (cache[id] = cv);
   }
 
-  return { canvasFor: canvasFor, figureFor: figureFor, figureForSpeaker: figureForSpeaker, ids: Object.keys(PAINT), figIds: Object.keys(FIG) };
+  return { canvasFor: canvasFor, figureFor: figureFor, figureForSpeaker: figureForSpeaker, figIdForSpeaker: figIdForSpeaker, ids: Object.keys(PAINT), figIds: Object.keys(FIG) };
 })();

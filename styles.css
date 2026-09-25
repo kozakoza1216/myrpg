@@ -67,8 +67,12 @@ button {
 .story-stage { display: flex; flex-direction: column; gap: 10px; }
 .scene-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #000; cursor: pointer; }
 .scene-bg { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
-.scene-figure { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; pointer-events: none; opacity: 0.93; }
-@keyframes fig-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 0.93; transform: none; } }
+/* 話者の青い影。左右の枠に置き、話していない側は暗くする */
+.scene-figure { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; pointer-events: none; opacity: 0.93; --sx: 0%; transform: translateX(var(--sx)); transition: filter 0.2s ease-out; }
+.scene-figure.slot-left { --sx: -25%; }
+.scene-figure.slot-right { --sx: 25%; }
+.scene-figure.dim { filter: brightness(0.38) saturate(0.7); }
+@keyframes fig-enter { from { opacity: 0; transform: translate(var(--sx), 6px); } to { opacity: 0.93; transform: translate(var(--sx), 0); } }
 .scene-figure.fig-enter { animation: fig-enter 0.28s ease-out; }
 .scene-header.over-bg { position: absolute; inset: 0; padding: 0 0 1.8rem; display: flex; flex-direction: column; justify-content: flex-end; }
 .scene-header.over-bg .scene-header-label { font-size: 1.05rem; letter-spacing: 0.12em; padding: 0.45rem 0.6rem; background: rgba(10, 8, 6, 0.66); border-color: rgba(216, 168, 96, 0.5); }

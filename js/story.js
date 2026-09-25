@@ -6,7 +6,41 @@ RPG.Story = (function () {
     var index = 0;
     // いま映している背景（場面の見出しなどの bg で切り替わり、次に変わるまで続く）
     var bgId = null;
-    var lastFig = null;
+    // 画面に出ている人物（左・右の2枠）。last はその人物が最後に話した順番
+    var slots = [null, null], turn = 0;
+
+    // 話者の青い影を左右に置く。
+    // ・最初に話す人物は左、次に話す別の人物は右に出る
+    // ・3人目の新しい人物は、左右のうち長く話していないほうと入れ替わる
+    // ・話していない側は暗くして、誰が話しているかを分かりやすくする
+    //   （地の文の間は、話者がいないので両方とも暗くする）
+    function placeFigures(frame, beat) {
+      if (beat.kind === "header") slots = [null, null];
+      var id = beat.figure || (beat.speaker && RPG.Scenes.figIdForSpeaker ? RPG.Scenes.figIdForSpeaker(beat.speaker) : null);
+      var speaking = -1, entered = -1;
+      if (id) {
+        turn++;
+        for (var i = 0; i < 2; i++) if (slots[i] && slots[i].id === id) speaking = i;
+        if (speaking < 0) {
+          if (!slots[0]) speaking = 0;
+          else if (!slots[1]) speaking = 1;
+          else speaking = slots[0].last <= slots[1].last ? 0 : 1;
+          slots[speaking] = { id: id };
+          entered = speaking;
+        }
+        slots[speaking].last = turn;
+      }
+      for (var j = 0; j < 2; j++) {
+        if (!slots[j]) continue;
+        var cv = RPG.Scenes.figureFor(slots[j].id);
+        if (!cv) continue;
+        cv.classList.remove("slot-left", "slot-right", "dim", "fig-enter");
+        cv.classList.add(j === 0 ? "slot-left" : "slot-right");
+        if (j !== speaking) cv.classList.add("dim");
+        if (j === entered) { void cv.offsetWidth; cv.classList.add("fig-enter"); }
+        frame.appendChild(cv);
+      }
+    }
 
     function renderBeat() {
       var beat = beats[index];
@@ -33,15 +67,7 @@ RPG.Story = (function () {
         stage.appendChild(frame);
         containerEl.appendChild(stage);
         if (beat.kind !== "choice") frame.onclick = advance;
-        // 喋っている人物の青い影を、背景の上に重ねる
-        var figId = beat.figure || null;
-        var fig = figId && RPG.Scenes.figureFor ? RPG.Scenes.figureFor(figId) : (beat.speaker && RPG.Scenes.figureForSpeaker ? RPG.Scenes.figureForSpeaker(beat.speaker) : null);
-        if (fig) {
-          // 同じ人物が続けて喋る間は出し直しの動きを付けない
-          fig.classList.toggle("fig-enter", fig !== lastFig);
-          frame.appendChild(fig);
-        }
-        lastFig = fig;
+        placeFigures(frame, beat);
       }
       var box = document.createElement("div");
 
