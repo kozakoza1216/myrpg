@@ -515,7 +515,8 @@ RPG.Chapter1 = (function () {
   ];
 
   function afterRoad() {
-    runBattle(["tzelf_ambush"], "赤い鳥人との死闘", true, afterTzelfFight);
+    // セオでは勝てない設計。赤い鳥人の攻撃を3回しのぐか、HPを半分まで削れば打ち切り（攻略チャート第一章⑥。回数と割合は資料に数値がないため仮）
+    runBattle(["tzelf_ambush"], "赤い鳥人との死闘", true, afterTzelfFight, { enemyActions: 3, enemyHpRatio: 0.5 });
   }
 
   function afterTzelfFight() {
@@ -559,7 +560,7 @@ RPG.Chapter1 = (function () {
       onEvent: onDungeonEvent,
       onChest: onDungeonChest,
       onEncounter: function () {
-        runBattle(["shrine_guard"], "祭壇の守衛", false, function () { shrineDungeon.render(); });
+        runBattle(["shrine_guard", "shrine_beast"], "祭壇の守衛", false, function () { shrineDungeon.render(); });
       },
       onStairs: function (targetFloorId) {
         if (targetFloorId === "ground" && game.flags.kagariDefeated) { afterDungeonExit(); return; }
@@ -626,26 +627,55 @@ RPG.Chapter1 = (function () {
     { kind: "narration", text: "鳥人は小さく頷いた。理由なんて要らなかった。帰れない者同士になった瞬間、彼は名を得た。" },
   ];
 
-  function runBattle(enemyIds, title, forceProceed, next) {
+  // forceProceed：負けても話が進む戦い（チュートリアル・イベント戦）。eventEnd：イベント戦の打ち切り条件
+  function runBattle(enemyIds, title, forceProceed, next, eventEnd) {
     app.innerHTML = "";
     var box = document.createElement("div");
     box.className = "battle-screen";
     app.appendChild(box);
     game.items = game.items || {};
+    game.crit = game.crit || RPG.Data.newSeed();
     var state = Battle.start(box, game.party, enemyIds, function (result) {
-      if (result === "defeat" && !forceProceed) {
-        game.party.forEach(function (c) {
-          c.hp = c.maxHp; c.mp = c.maxMp; c.defeated = false; c.atb = 0;
-        });
-        runBattle(enemyIds, title, forceProceed, next);
-        return;
-      }
+      // 全滅＝ゲームオーバー（PLAN §4-11）
+      if (result === "defeat" && !forceProceed) { gameOver(); return; }
+      // 戦闘が終わった時点の速さ低下・判定低下は持ち越さない
+      game.party.forEach(function (c) { c.spdMul = 1; c.spdDownTurns = 0; c.scoreDebuff = 0; c.debuffTurns = 0; });
       // 経験値は、戦闘不能を戻す前（＝誰が倒れていたか分かるうち）に配る
       var lines = Battle.awardExperience(game.party, state.enemies, RPG.Data.expRate(game.steps, game.stepLimit));
       game.party.forEach(function (c) { c.defeated = false; c.atb = 0; if (c.hp === 0) c.hp = 1; });
       if (!lines.length) { next(); return; }
       Story.play(app, lines.map(function (t) { return { kind: "narration", text: t }; }), next);
-    }, { items: game.items });
+    }, { items: game.items, crit: game.crit, eventEnd: eventEnd });
+  }
+
+  // 全滅：記録から再開するか、タイトルへ戻る。やり直すときはシードを引き直す（§4-11）
+  // ※設計上のやり直し地点は「涸れ間」だが、第一章にはまだないため、セーブした記録を使う
+  function gameOver() {
+    app.innerHTML = "";
+    var wrap = document.createElement("div");
+    wrap.className = "title-screen";
+    var h = document.createElement("h1");
+    h.textContent = "全滅した";
+    wrap.appendChild(h);
+    var has = !!RPG.Save.read();
+    var b1 = document.createElement("button");
+    b1.className = "primary-btn";
+    b1.textContent = "記録から再開する";
+    b1.disabled = !has;
+    b1.onclick = function () { RPG.Game.loadSaved(true); };
+    wrap.appendChild(b1);
+    var b2 = document.createElement("button");
+    b2.className = "primary-btn";
+    b2.textContent = "タイトルへ戻る";
+    b2.onclick = function () { RPG.Game.toTitle(); };
+    wrap.appendChild(b2);
+    if (!has) {
+      var p = document.createElement("p");
+      p.className = "subtitle";
+      p.textContent = "（セーブした記録がないため、はじめからになります）";
+      wrap.appendChild(p);
+    }
+    app.appendChild(wrap);
   }
 
   return { run: run, resume: resume };

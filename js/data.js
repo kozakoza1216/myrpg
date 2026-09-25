@@ -1,18 +1,21 @@
 // データ層。PLAN.md §5 のマッピング指針に基づく。
-// キャラのステータスは「全キャラステータス一覧」レベル別ステータス早見表の値をそのまま使用。
-// HP実値 = 表のHP% × 4（PLAN §1-1）。ボスはHPのみ実数（%スケール外）。
+// キャラのステータスは「全キャラステータス一覧」加入キャラ表の「加入時→最大レベル」を使う。
+// （同じ資料のレベル別早見表は、加入時の値が加入キャラ表・PLAN §7.5-1a2「セオ15→52」と合わないため使わない）
+// HP実値 = 表のHP% × 4（PLAN §1-1）。敵・ボスはHPのみ実数（%スケール外）。
 window.RPG = window.RPG || {};
 
 RPG.Data = (function () {
   // ── 技（技リスト-3-1.md 準拠。カテゴリ: attack/breakthrough/hold/defense ）
   const SKILLS = {
+    // ノーマル版：MP0・技ボーナス0（PLAN §4-5）。威力は1.0（PLAN §4-11「ノーマル32/行動→中技45/行動＝1.40倍」、
+    // quests.md の火力表「ノーマル攻撃27／ノーマル突破54」がいずれも威力1.0で一致する）
     normal_attack: {
       name: "ノーマル攻撃", category: "attack", attribute: "none",
-      mp: 0, power: 0.9, techBonus: 0, isMagic: false,
+      mp: 0, power: 1.0, techBonus: 0, isMagic: false,
     },
     normal_breakthrough: {
       name: "ノーマル突破", category: "breakthrough", attribute: "none",
-      mp: 0, power: 0.9, techBonus: 0, isMagic: false,
+      mp: 0, power: 1.0, techBonus: 0, isMagic: false,
     },
     double_slash: {
       name: "二連撃", category: "attack", attribute: "physical",
@@ -30,13 +33,38 @@ RPG.Data = (function () {
       name: "火炎弾", category: "attack", attribute: "magic",
       mp: 12, power: 1.1, techBonus: 30, isMagic: true,
     },
-    mob_bite: {
-      name: "かじりつき", category: "attack", attribute: "physical",
-      mp: 0, power: 0.9, techBonus: 20, isMagic: false,
-    },
+    // 雑魚敵の技：技リストの値に敵専用の底上げ＋0.3（enemies.md）
+    // 一撃（技リスト：物理・MPなし・0.9・技+30）→ 1.2
     bandit_strike: {
       name: "一撃", category: "attack", attribute: "physical",
       mp: 0, power: 1.2, techBonus: 30, isMagic: false,
+    },
+    // 踏み込み（技リスト：物理・低MP・1.2・技+30）→ 1.5
+    enemy_step_in: {
+      name: "踏み込み", category: "breakthrough", attribute: "physical",
+      mp: 0, power: 1.5, techBonus: 30, isMagic: false,
+    },
+    // 全力突撃（牙の獣の大技・enemies.md：威力1.9・技-30＝避けやすい）
+    enemy_full_charge: {
+      name: "全力突撃", category: "breakthrough", attribute: "physical",
+      mp: 0, power: 1.9, techBonus: -30, isMagic: false,
+    },
+    // ツェルフ（PS-012）の技（PLAN §5-2・技リスト）。中MPは20-35、高MPは45-60の帯から25・50を置く
+    // ツインスラッシュ：物理・近距離・中MP・1.4・技+20。二連斬＝判定1回で2発（1発あたり威力0.7）
+    twin_slash: {
+      name: "ツインスラッシュ", category: "attack", attribute: "physical",
+      mp: 25, power: 1.4, techBonus: 20, isMagic: false, hits: 2,
+    },
+    // ソニックウェーブ：攻撃＋足止め（複合）・物理・広範囲・中MP・1.19・技+20。
+    // 判定に勝てば速さ低下（-20%・必中・3回固定。判定にだけ効き、行動順には効かない）
+    sonic_wave: {
+      name: "ソニックウェーブ", category: "attack", attribute: "physical",
+      mp: 25, power: 1.19, techBonus: 20, isMagic: false, area: true, spdDown: 0.2, spdDownTurns: 3,
+    },
+    // デア・レーゲン（PS-012版）：魔法・広範囲・高MP・2.2・技-40。判定に勝てば必中＝軽減無視の満額
+    der_regen: {
+      name: "デア・レーゲン", category: "attack", attribute: "magic",
+      mp: 50, power: 2.2, techBonus: -40, isMagic: true, area: true, trueHitOnWin: true,
     },
     vital_strike: {
       name: "急所狙い", category: "attack", attribute: "physical",
@@ -48,6 +76,7 @@ RPG.Data = (function () {
       mp: 12, power: 1.1, techBonus: 30, isMagic: false,
     },
     // 防御姿勢（技リスト：防御カテゴリ・無属性・低MP・技+30／汎用。招竜の祭壇の記憶結晶）
+    // 受動の「防御」として選ぶと、防御の判定に技ボーナスが乗る
     defense_stance: {
       name: "防御姿勢", category: "defense", attribute: "none",
       mp: 12, techBonus: 30, isMagic: false,
@@ -61,9 +90,10 @@ RPG.Data = (function () {
       name: "贄呼びの詠唱", category: "attack", attribute: "magic",
       mp: 60, power: 2.0, techBonus: 20, isMagic: true,
     },
+    // 呪縛の紋：視界妨害型（判定-10・必中）。格上のボスの弱体化・視界妨害は永続（PLAN §4-11）。1回のみ（bosses.md）
     kagari_bind: {
       name: "呪縛の紋", category: "hold", attribute: "physical",
-      mp: 20, guaranteedHit: true, scoreDebuff: 20, debuffTurns: 3,
+      mp: 20, guaranteedHit: true, scoreDebuff: 10, permanent: true, usesLimit: 1,
     },
     kagari_offering: {
       name: "供物の代償", category: "special", attribute: "none",
@@ -75,21 +105,23 @@ RPG.Data = (function () {
   const CHARACTERS = {
     seo: {
       id: "seo", name: "セオ", isBirdPerson: false,
-      stats: { hp: 13, atk: 10, def: 12, spd: 15, mag: 13, men: 15, tec: 12, luck: 14 },
-      // 成長：平均（指数1.0＝直線）。Lv20の値は全キャラステータス一覧の早見表
+      stats: { hp: 16, atk: 15, def: 15, spd: 15, mag: 13, men: 15, tec: 15, luck: 14 },
+      // 成長：平均（指数1.0＝直線）
       joinLevel: 1, growthExp: 1.0,
       maxStats: { hp: 52, atk: 50, def: 50, spd: 50, mag: 42, men: 50, tec: 50, luck: 46 },
-      skills: ["normal_attack", "normal_breakthrough", "step_in"],
+      // 一周目は基本カテゴリ（ノーマル攻撃・突破・防御）のみ（PLAN §7.5-4i）。ほかは記憶結晶で覚える
+      skills: ["normal_attack", "normal_breakthrough"],
       canCounter: false,
       picto: { bodyColor: "#5b7a9d", headColor: "#e8dcc8" },
     },
     tzelf: {
       id: "tzelf", name: "ツェルフ", isBirdPerson: true, birdType: "hawk",
-      stats: { hp: 30, atk: 55, def: 25, spd: 60, mag: 45, men: 35, tec: 58, luck: 20 },
+      stats: { hp: 26, atk: 46, def: 20, spd: 46, mag: 36, men: 28, tec: 45, luck: 16 },
       // 成長：早熟寄り（指数0.55）
       joinLevel: 1, growthExp: 0.55,
       maxStats: { hp: 52, atk: 92, def: 40, spd: 92, mag: 72, men: 56, tec: 90, luck: 32 },
-      skills: ["normal_attack", "normal_breakthrough", "double_slash", "power_strike", "step_in"],
+      // 技：ソニックウェーブ／ツインスラッシュ／デア・レーゲン（PLAN §5-2）
+      skills: ["normal_attack", "normal_breakthrough", "twin_slash", "sonic_wave", "der_regen"],
       canCounter: false,
       picto: { bodyColor: "#a03030", headColor: "#c85050", beakColor: "#e0b040" },
     },
@@ -97,28 +129,43 @@ RPG.Data = (function () {
 
   // ── 敵・ボス ──
   const ENEMIES = {
+    // 第一章の雑魚。種族・技・経験値は enemies.md の通常種のまま。ただし能力値は enemies.md の値だと第一章で成立しない
+    // （はぐれ賊1体に対し、単独のセオはLv1〜6で勝率0%。セオ＋ツェルフLv3でも賊3体に0%）ため、
+    // 種族の能力の形はそのままに、エリアごとの倍率で縮めている（倍率は資料になく、シミュレーションで決めた仮の値）。
+    //   灰ネズミ（チュートリアル・牙の獣×0.12）：Lv1のセオが必ず勝てる
+    //   はぐれ賊（廃区画・隘路・賊×0.18）：Lv1のセオの勝率ほぼ100%、HPは4割ほど削られる
+    //   祭壇の守衛＋使役の獣（招竜の祭壇・×0.4）：Lv1どうしのセオとツェルフで勝率99%、HPは半分ほど削られる
     ash_rat: {
       id: "ash_rat", exp: 5, name: "灰ネズミ", isBoss: false,
-      stats: { hp: 22, atk: 8, def: 4, spd: 10, mag: 0, men: 6, tec: 8, luck: 10 },
-      skills: ["mob_bite"],
+      stats: { hp: 19, atk: 8, def: 2, spd: 9, mag: 0, men: 1, tec: 8, luck: 4 },
+      // チュートリアルは攻撃と防御だけを教える（攻略チャート第一章①）＝一撃のみ
+      skills: ["bandit_strike"],
       picto: { bodyColor: "#8a8a8a", headColor: "#b0b0a8", isAnimal: true },
     },
     straggler_bandit: {
       id: "straggler_bandit", exp: 5, name: "はぐれ賊", isBoss: false,
-      stats: { hp: 26, atk: 12, def: 8, spd: 14, mag: 0, men: 8, tec: 14, luck: 12 },
-      skills: ["bandit_strike"],
+      stats: { hp: 28, atk: 10, def: 5, spd: 11, mag: 0, men: 5, tec: 11, luck: 8 },
+      skills: ["bandit_strike", "enemy_step_in"],
       picto: { bodyColor: "#6a5638", headColor: "#c8a878" },
     },
+    // 祭壇守衛＝招竜派の信徒＋使役モンスター（攻略チャート第一章⑧）
     shrine_guard: {
-      id: "shrine_guard", exp: 5, name: "祭壇の守衛", isBoss: false,
-      stats: { hp: 42, atk: 18, def: 12, spd: 20, mag: 0, men: 12, tec: 20, luck: 15 },
-      skills: ["bandit_strike"],
+      id: "shrine_guard", exp: 5, name: "招竜派の信徒", isBoss: false,
+      stats: { hp: 63, atk: 23, def: 11, spd: 25, mag: 0, men: 11, tec: 24, luck: 17 },
+      skills: ["bandit_strike", "enemy_step_in"],
       picto: { bodyColor: "#4a3a58", headColor: "#c8a878" },
     },
+    shrine_beast: {
+      id: "shrine_beast", exp: 5, name: "使役の獣", isBoss: false,
+      stats: { hp: 65, atk: 27, def: 6, spd: 30, mag: 0, men: 5, tec: 26, luck: 12 },
+      skills: ["bandit_strike", "enemy_step_in", "enemy_full_charge"],
+      picto: { bodyColor: "#6a6a6a", headColor: "#9a9a90", isAnimal: true },
+    },
+    // 赤い鳥人（ツェルフ）：加入時のステータスそのまま（HPは26%×4）。デア・レーゲンはイベント戦では使わない
     tzelf_ambush: {
       id: "tzelf_ambush", exp: 0, name: "赤い鳥人", isBoss: false,
-      stats: { hp: 90, atk: 50, def: 22, spd: 55, mag: 30, men: 28, tec: 52, luck: 25 },
-      skills: ["bandit_strike", "double_slash"],
+      stats: { hp: 104, atk: 46, def: 20, spd: 46, mag: 36, men: 28, tec: 45, luck: 16 },
+      skills: ["normal_attack", "twin_slash", "sonic_wave"],
       picto: { bodyColor: "#a03030", headColor: "#c85050", beakColor: "#e0b040" },
     },
     kagari: {
@@ -149,6 +196,14 @@ RPG.Data = (function () {
     crystal_vital_strike: { name: "急所狙いの記憶結晶", desc: "使うと〈急所狙い〉を覚える。", learn: "vital_strike" },
     crystal_defense_stance: { name: "防御姿勢の記憶結晶", desc: "使うと〈防御姿勢〉を覚える。", learn: "defense_stance" },
   };
+
+  // ── 単一シード（PLAN §8-5b）：いまはクリティカル周期だけを使う（パーティ全体の累計攻撃回数で何回目に出るか）。
+  // シード0〜9の周期は設計書のサンプル表のまま。新しく始めたとき・全滅したときに引き直し、ロードでは復元する（§4-11）
+  var CRIT_PERIODS = [22, 33, 42, 32, 37, 42, 20, 25, 30, 37];
+  function newSeed() {
+    var seed = Math.floor(Math.random() * CRIT_PERIODS.length);
+    return { seed: seed, period: CRIT_PERIODS[seed], count: 0 };
+  }
 
   // ── レベルと経験値（PLAN.md「経験値テーブル」、全キャラステータス一覧「レベル成長仕様」） ──
   var MAX_LEVEL = 20;
@@ -196,5 +251,5 @@ RPG.Data = (function () {
 
   return { SKILLS: SKILLS, CHARACTERS: CHARACTERS, ENEMIES: ENEMIES, ITEMS: ITEMS, cloneStats: cloneStats,
     useHealItem: useHealItem, healNeeded: healNeeded,
-    MAX_LEVEL: MAX_LEVEL, expForLevel: expForLevel, levelForExp: levelForExp, statsAt: statsAt, expRate: expRate };
+    MAX_LEVEL: MAX_LEVEL, expForLevel: expForLevel, levelForExp: levelForExp, statsAt: statsAt, expRate: expRate, newSeed: newSeed };
 })();

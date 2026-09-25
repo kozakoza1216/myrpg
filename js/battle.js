@@ -16,8 +16,10 @@ RPG.Battle = (function () {
       isBirdPerson: !!src.isBirdPerson, birdType: src.birdType, picto: src.picto,
       stats: stats, maxHp: maxHp, hp: maxHp, maxMp: isEnemy ? 0 : maxMp, mp: isEnemy ? 0 : maxMp,
       skills: src.skills.slice(), canCounter: !!src.canCounter, counterSkillId: src.counterSkillId,
-      atb: Math.random() * 30, defeated: false, scoreDebuff: 0, debuffTurns: 0,
-      counterLearnRate: src.isBoss ? 0.25 : 0, usesLeft: {},
+      // 行動ゲージは速さに単純比例で溜まる（乱数なし・PLAN §7-2 大前提2）＝開始時は全員0
+      atb: 0, defeated: false, scoreDebuff: 0, debuffTurns: 0, spdMul: 1, spdDownTurns: 0,
+      // カウンターを持つボスだけ、的中率を学習する（初期25%・上限70%）。カガリはカウンターなし（bosses.md）
+      counterLearnRate: src.isBoss && src.canCounter ? 0.25 : 0, usesLeft: {},
       position: "front",
       level: level, exp: isEnemy ? 0 : Data.expForLevel(level), expValue: isEnemy ? (src.exp || 0) : 0,
     };
@@ -67,19 +69,22 @@ RPG.Battle = (function () {
     alive.forEach(function (c, i) { c.position = i < 2 ? "front" : "back"; });
   }
 
-  // opts.items：持ち物（ゲーム全体の持ち物をそのまま渡す。戦闘中に使えば減る）
+  // opts.items：持ち物（ゲーム全体の持ち物をそのまま渡す。戦闘中に使えば減る）。opts.crit：クリティカル周期 { period, count }（ゲーム全体で数える・PLAN §8-5b）。
+  // opts.eventEnd：イベント戦の打ち切り { enemyActions: 敵の行動回数, enemyHpRatio: 敵のHP割合 }
   function State(containerEl, party, enemyIds, onEnd, opts) {
+    opts = opts || {};
     this.el = containerEl;
     this.party = party;
-    this.items = (opts && opts.items) || null;
+    this.items = opts.items || null;
+    this.crit = opts.crit || { period: 15 + Math.floor(Math.random() * 26), count: 0 };
+    this.eventEnd = opts.eventEnd || null;
+    this.enemyActionCount = 0;
     this.enemies = enemyIds.map(function (id) { return createCombatant(id, true); });
     updatePositions(this.party);
     updatePositions(this.enemies);
     this.onEnd = onEnd;
     this.log = [];
     this.phase = "intro"; // intro/idle/playerAct/target/response/message/done
-    this.critPeriod = 15 + Math.floor(Math.random() * 26); // 15〜40
-    this.critCount = 0;
   }
 
   State.prototype.allCombatants = function () {
@@ -95,13 +100,24 @@ RPG.Battle = (function () {
   State.prototype.checkEnd = function () {
     if (this.party.every(function (c) { return c.defeated; })) return "defeat";
     if (this.enemies.every(function (c) { return c.defeated; })) return "victory";
+    // イベント戦：一定回数耐えるか、HPを一定まで削ると打ち切り（攻略チャート第一章⑥）
+    var ev = this.eventEnd;
+    if (ev) {
+      if (ev.enemyActions && this.enemyActionCount >= ev.enemyActions) return "event";
+      if (ev.enemyHpRatio && this.enemies.some(function (e) { return e.hp <= e.maxHp * ev.enemyHpRatio; })) return "event";
+    }
     return null;
   };
 
+  // 必中の小さな効果は3回固定で切れる（その人の行動3回）。格上のボスがかけた判定低下は永続（PLAN §4-11）
   State.prototype.consumeDebuff = function (c) {
     if (c.debuffTurns > 0) {
       c.debuffTurns -= 1;
       if (c.debuffTurns === 0) c.scoreDebuff = 0;
+    }
+    if (c.spdDownTurns > 0) {
+      c.spdDownTurns -= 1;
+      if (c.spdDownTurns === 0) c.spdMul = 1;
     }
   };
 
@@ -156,6 +172,7 @@ RPG.Battle = (function () {
 
   State.prototype.endTurn = function (actor) {
     actor.atb = 0;
+    if (actor.isEnemy) this.enemyActionCount += 1;
     this.consumeDebuff(actor);
     updatePositions(this.party);
     updatePositions(this.enemies);
@@ -227,8 +244,8 @@ RPG.Battle = (function () {
     } else if (skill.category === "hold" && skill.guaranteedHit) {
       var target = allyList[Math.floor(Math.random() * allyList.length)];
       target.scoreDebuff = (target.scoreDebuff || 0) + skill.scoreDebuff;
-      target.debuffTurns = skill.debuffTurns;
-      lines.push(actor.name + "の" + skill.name + "！ " + target.name + "の判定が下がった。");
+      target.debuffTurns = skill.permanent ? 0 : (skill.debuffTurns || 3);
+      lines.push(actor.name + "の" + skill.name + "！ " + target.name + "の判定が" + skill.scoreDebuff + "下がった" + (skill.permanent ? "（戦闘が終わるまで治らない）" : "") + "。");
     }
     this.pushLog(lines);
     this.endTurn(actor);
@@ -245,24 +262,37 @@ RPG.Battle = (function () {
     // 敵の攻撃／突破は選択時にプレイヤーへ知らせない。伏せられた応答では、
     // 両方を読む受動を提示する。足止めは常に選べる読みの選択肢である。
     if (concealAttackType) {
-      stances.push("defense", "evade", "hold");
+      stances.push("defense");
+      if (this.canDefenseStance(defender)) stances.push("defenseStance");
+      stances.push("evade", "hold");
       if (defender.canCounter) stances.push("counter");
-      if (defender.isBoss) stances.push("breakthroughCounter");
+      if (defender.isBoss && defender.canCounter) stances.push("breakthroughCounter");
       return stances;
     }
     if (category === "attack") {
       stances.push("defense", "evade");
       if (defender.isBoss) stances.push("hold");
-      if (defender.isBoss || defender.canCounter) stances.push("counter");
+      if (defender.canCounter) stances.push("counter");
     } else {
       stances.push("hold", "defense");
       if (!this.hasBackline(defender)) stances.push("evade"); // 1対1（後衛なし）は例外的に回避可
-      if (defender.isBoss) stances.push("breakthroughCounter");
+      if (defender.isBoss && defender.canCounter) stances.push("breakthroughCounter");
     }
     return stances;
   };
 
+  // 防御姿勢（防御カテゴリの技）を覚えていて、MPが足りれば、防御の代わりに選べる
+  State.prototype.canDefenseStance = function (c) {
+    return !c.isEnemy && c.skills.indexOf("defense_stance") >= 0 && c.mp >= Data.SKILLS.defense_stance.mp;
+  };
+
   State.prototype.aiPickStance = function (defender, attacker, category) {
+    if (defender.isBoss && !defender.canCounter) {
+      // カウンターを持たないボス：通常の受動（防御60%／足止め20%／回避10%）。残り10%（逆のカウンター）は防御に寄せる
+      var rb = Math.random();
+      var pb = rb < 0.70 ? "defense" : rb < 0.90 ? "hold" : "evade";
+      return this.availableStances(defender, category).indexOf(pb) >= 0 ? pb : "defense";
+    }
     if (defender.isBoss) {
       var matching = category === "attack" ? "counter" : "breakthroughCounter";
       var opposite = category === "attack" ? "breakthroughCounter" : "counter";
@@ -289,64 +319,103 @@ RPG.Battle = (function () {
   };
 
   // ── 判定解決の共通処理 ──
+  // stance "defenseStance"＝防御姿勢で防御する（技ボーナス+30・MP消費）
   State.prototype.performResolve = function (attacker, skillId, defender, stance) {
     var skill = Data.SKILLS[skillId];
     this.markUsed(attacker, skillId);
-
-    var isBreakthrough = skill.category === "breakthrough";
     var lines = [];
-    var stanceLabel = { defense: "防御", evade: "回避", hold: "足止め", counter: "カウンター", breakthroughCounter: "突破カウンター" }[stance] || "応答なし";
-    lines.push(attacker.name + "の" + skill.name + "！ " + defender.name + "は" + stanceLabel + "を選択。");
 
-    var isPartyAttacker = !attacker.isEnemy;
+    // クリティカル周期：パーティ全体の累計攻撃回数（攻撃・突破を行った数）で数える（PLAN §8-5b）
     var forceCrit = false;
-    if (isPartyAttacker && (skill.category === "attack" || skill.category === "breakthrough")) {
-      this.critCount += 1;
-      if (this.critCount >= this.critPeriod) { forceCrit = true; this.critCount = 0; }
+    if (!attacker.isEnemy && (skill.category === "attack" || skill.category === "breakthrough")) {
+      this.crit.count += 1;
+      if (this.crit.count >= this.crit.period) { forceCrit = true; this.crit.count = 0; }
     }
 
-    var result = Engine.resolveAction(attacker, skill, defender, stance, { forceCrit: forceCrit });
+    // 広範囲の技は、生きている相手全員に当たる（受け手はそれぞれ受動を選ぶ）
+    var targets = [defender];
+    if (skill.area) {
+      var side = defender.isEnemy ? this.enemies : this.party;
+      targets = side.filter(function (c) { return !c.defeated; });
+    }
+    var self = this;
+    targets.forEach(function (t, i) {
+      var st = t === defender ? stance : self.aiPickStance(t, attacker, skill.category === "breakthrough" ? "breakthrough" : "attack");
+      self.resolveOne(attacker, skill, t, st, forceCrit && i === 0, lines, i === 0);
+    });
+    this.pushLog(lines);
+  };
+
+  State.prototype.resolveOne = function (attacker, skill, defender, stance, forceCrit, lines, first) {
+    var isBreakthrough = skill.category === "breakthrough";
+    var bonuses = {};
+    if (stance === "defenseStance") {
+      stance = "defense";
+      bonuses.defenderBonus = Data.SKILLS.defense_stance.techBonus;
+      defender.mp = Math.max(0, defender.mp - Data.SKILLS.defense_stance.mp);
+    }
+    var stanceLabel = { defense: "防御", evade: "回避", hold: "足止め", counter: "カウンター", breakthroughCounter: "突破カウンター" }[stance] || "応答なし";
+    if (bonuses.defenderBonus) stanceLabel = "防御姿勢";
+    lines.push((first ? attacker.name + "の" + skill.name + "！ " : "") + defender.name + "は" + stanceLabel + "を選択。");
+
+    var backline = this.hasBackline(defender);
+    bonuses.evadeAutoLose = backline; // 回避は突破に確定負け（後衛がいないときだけ例外）
+    var result = Engine.resolveAction(attacker, skill, defender, stance, {
+      forceCrit: forceCrit, bonuses: bonuses,
+      ignoreStanceOnWin: isBreakthrough && !backline, // 後衛なし＝前衛の背面攻撃（防御無効・§4-8）
+    });
 
     if (result.reflected) {
       attacker.hp = Math.max(0, attacker.hp - result.damage);
       lines.push(defender.name + "のカウンターが成立！ " + attacker.name + "に" + result.damage + "のダメージ。");
       if (attacker.hp === 0) { attacker.defeated = true; attacker.defeatedBy = defender; }
-    } else if (result.negated) {
-      lines.push(defender.name + "は" + skill.name + "を完全に凌いだ！");
-    } else {
-      defender.hp = Math.max(0, defender.hp - result.damage);
-      if (defender.hp === 0 && !defender.defeated) { defender.defeated = true; defender.defeatedBy = attacker; }
-      var tag = (result.critical ? "（会心の一撃！）" : "") + (result.guaranteed ? "（保証ダメージ込み）" : "");
-      if (result.damage > 0) lines.push(defender.name + "に" + result.damage + "のダメージ" + tag);
-
-      if (isBreakthrough && result.attackerWins && !result.negated) {
-        this.breakthroughFollowUp(attacker, skill, defender, lines);
-      }
+      return;
     }
-    this.pushLog(lines);
+    if (result.negated) {
+      lines.push(defender.name + "は" + skill.name + "を完全に凌いだ！");
+      return;
+    }
+    // 突破が判定に勝ち、後ろに後衛がいる：前衛は抜かれて「おまけ」だけ受け、後衛に追撃が入る（§4-8）
+    if (isBreakthrough && result.attackerWins && backline) {
+      this.breakthroughFollowUp(attacker, skill, defender, lines);
+      return;
+    }
+    this.applyDamage(attacker, defender, result.damage);
+    var tag = (result.critical ? "（会心の一撃！）" : "") + (result.guaranteed ? "（保証ダメージ込み）" : "");
+    if (result.damage > 0) lines.push(defender.name + "に" + result.damage + "のダメージ" + (result.hits > 1 ? "（" + result.hits + "発）" : "") + tag + (isBreakthrough && result.attackerWins ? "（背面を突いた）" : ""));
+    // 速さ低下（ソニックウェーブ等）：判定に勝てば必中・3回固定（PLAN §4-11）
+    if (skill.spdDown && result.attackerWins && !defender.defeated) {
+      defender.spdMul = 1 - skill.spdDown;
+      defender.spdDownTurns = skill.spdDownTurns || 3;
+      lines.push(defender.name + "の速さが下がった。");
+    }
   };
 
+  State.prototype.applyDamage = function (attacker, defender, dmg) {
+    defender.hp = Math.max(0, defender.hp - dmg);
+    if (defender.hp === 0 && !defender.defeated) { defender.defeated = true; defender.defeatedBy = attacker; }
+  };
+
+  // 突破の追撃（§4-8）：後衛へ追撃（判定値×2.0・攻撃×1.5、後衛は防御／カウンターのみ）＋通過される前衛に「おまけ」（攻撃×0.3）
   State.prototype.breakthroughFollowUp = function (attacker, skill, frontDefender, lines) {
     var side = frontDefender.isEnemy ? this.enemies : this.party;
     var back = side.filter(function (c) { return !c.defeated && c.position === "back"; })[0];
+    var extra = Math.round(attacker.stats.atk * 0.3);
+    this.applyDamage(attacker, frontDefender, extra);
+    lines.push(frontDefender.name + "を突破した！ おまけダメージ" + extra + "。");
     if (!back) return;
     var followSkill = { name: skill.name + "（追撃）", category: "attack", attribute: skill.attribute, power: (skill.power || 1) * 1.5, techBonus: (skill.techBonus || 0), isMagic: skill.isMagic };
-    var stance = this.aiPickStance(back, attacker, "attack");
+    var stance = back.isEnemy ? this.aiPickStance(back, attacker, "attack") : "defense";
     if (["defense", "counter"].indexOf(stance) < 0) stance = "defense"; // 追撃時は防御/カウンターのみ
-    var followResult = Engine.resolveAction(attacker, followSkill, back, stance, {});
+    var followResult = Engine.resolveAction(attacker, followSkill, back, stance, { bonuses: { judgeMult: 2.0 } });
     if (followResult.reflected) {
       attacker.hp = Math.max(0, attacker.hp - followResult.damage);
+      if (attacker.hp === 0) { attacker.defeated = true; attacker.defeatedBy = back; }
       lines.push("追撃！ " + back.name + "のカウンターが成立、" + attacker.name + "に" + followResult.damage + "。");
     } else {
-      back.hp = Math.max(0, back.hp - followResult.damage);
-      if (back.hp === 0 && !back.defeated) { back.defeated = true; back.defeatedBy = attacker; }
+      this.applyDamage(attacker, back, followResult.damage);
       if (followResult.damage > 0) lines.push("追撃！ 後衛の" + back.name + "に" + followResult.damage + "のダメージ。");
     }
-    // 前衛へのおまけダメージ（突破が判定に勝った場合のみ）
-    var extra = Math.round(attacker.stats.atk * 0.3);
-    frontDefender.hp = Math.max(0, frontDefender.hp - extra);
-    if (frontDefender.hp === 0 && !frontDefender.defeated) { frontDefender.defeated = true; frontDefender.defeatedBy = attacker; }
-    lines.push(frontDefender.name + "にもおまけダメージ" + extra + "。");
   };
 
   // ── プレイヤー操作 ──
@@ -546,7 +615,7 @@ RPG.Battle = (function () {
       }
       var grid2 = document.createElement("div");
       grid2.className = "btn-grid";
-      var labels = { defense: "防御", evade: "回避", hold: "足止め", counter: "カウンター", breakthroughCounter: "突破カウンター" };
+      var labels = { defense: "防御", defenseStance: "防御姿勢(MP" + Data.SKILLS.defense_stance.mp + ")", evade: "回避", hold: "足止め", counter: "カウンター", breakthroughCounter: "突破カウンター" };
       this.availableStances(target, category, this.pending.concealAttackType).forEach(function (st) {
         grid2.appendChild(button(labels[st], function () { self.playerChooseStance(st); }));
       });
@@ -557,7 +626,7 @@ RPG.Battle = (function () {
       var result = this.checkEnd();
       var p4 = document.createElement("p");
       p4.className = "prompt";
-      p4.textContent = result === "victory" ? "勝利した！" : "……敗北した。";
+      p4.textContent = result === "victory" ? "勝利した！" : result === "event" ? "戦いが止んだ。" : "……敗北した。";
       root.appendChild(p4);
     }
   };

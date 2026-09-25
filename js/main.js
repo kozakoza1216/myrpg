@@ -11,18 +11,21 @@ window.RPG = window.RPG || {};
       companions: [],
       flags: {},
       items: {},
+      crit: RPG.Data.newSeed(),
     };
   }
 
-  // 保存した記録から再開する（タイトルの「続きから」と、メニューのロード）
-  function loadSaved() {
+  // 保存した記録から再開する（タイトルの「続きから」と、メニューのロード）。
+  // reseed：全滅からのやり直し。シードは引き直す（ロードでは復元・PLAN §4-11）
+  function loadSaved(reseed) {
     var save = RPG.Save.read();
     if (!save) return false;
     var game = RPG.Save.unpackGame(save.game);
+    if (reseed) game.crit = RPG.Data.newSeed();
     RPG.Chapter1.resume(app, game, save.chapter, function () { renderChapterEnd(game); });
     return true;
   }
-  RPG.Game = { loadSaved: loadSaved };
+  RPG.Game = { loadSaved: loadSaved, toTitle: function () { renderTitle(); } };
 
   function renderTitle() {
     app.innerHTML = "";

@@ -17,7 +17,22 @@ RPG.Save = (function () {
       steps: game.steps, stepLimit: game.stepLimit,
       party: game.party.map(function (c) { return { defId: c.defId, level: c.level, exp: c.exp, hp: c.hp, mp: c.mp, skills: c.skills.slice() }; }),
       companions: game.companions.slice(), flags: Object.assign({}, game.flags), items: Object.assign({}, game.items || {}),
+      crit: game.crit ? Object.assign({}, game.crit) : null,
     };
+  }
+  // 以前の版の記録は、初めから持つ技が設計書と違っていた（セオ・ツェルフの「踏み込み」、ツェルフの「力押し」「二連撃」）。
+  // その記録を読むときは、初めから持つ技を今の定義に置き換え、記憶結晶で覚えた技だけを残す
+  function migrateSkills(m) {
+    if (m.skills.indexOf("step_in") < 0) return m.skills.slice();
+    var base = RPG.Data.CHARACTERS[m.defId].skills.slice();
+    var learnable = {};
+    Object.keys(RPG.Data.ITEMS).forEach(function (id) { if (RPG.Data.ITEMS[id].learn) learnable[RPG.Data.ITEMS[id].learn] = true; });
+    m.skills.forEach(function (id) {
+      if (!learnable[id] || base.indexOf(id) >= 0) return;
+      if (m.defId === "tzelf" && id === "double_slash") return; // 以前の版で初めから持っていた分
+      base.push(id);
+    });
+    return base;
   }
   function unpackGame(p) {
     return {
@@ -25,10 +40,11 @@ RPG.Save = (function () {
       party: p.party.map(function (m) {
         var c = RPG.Battle.createCombatant(m.defId, false);
         if (m.level) { RPG.Battle.setLevel(c, m.level); c.exp = m.exp; }
-        c.hp = m.hp; c.mp = m.mp; c.skills = m.skills.slice();
+        c.hp = Math.min(m.hp, c.maxHp); c.mp = Math.min(m.mp, c.maxMp); c.skills = migrateSkills(m);
         return c;
       }),
       companions: p.companions.slice(), flags: Object.assign({}, p.flags), items: Object.assign({}, p.items || {}),
+      crit: p.crit ? Object.assign({}, p.crit) : RPG.Data.newSeed(),
     };
   }
   return { read: read, write: write, packGame: packGame, unpackGame: unpackGame };
