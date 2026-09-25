@@ -120,8 +120,10 @@ RPG.Data = (function () {
       // 成長：早熟寄り（指数0.55）
       joinLevel: 1, growthExp: 0.55,
       maxStats: { hp: 52, atk: 92, def: 40, spd: 92, mag: 72, men: 56, tec: 90, luck: 32 },
-      // 技：ソニックウェーブ／ツインスラッシュ／デア・レーゲン（PLAN §5-2）
-      skills: ["normal_attack", "normal_breakthrough", "twin_slash", "sonic_wave", "der_regen"],
+      skills: ["normal_attack", "normal_breakthrough"],
+      // 技：ツインスラッシュ／ソニックウェーブ／デア・レーゲン（PLAN §5-2）。レベルが上がると順に覚える。
+      // 覚えるレベルは資料にないため仮：消費MPの軽い順に、切り札のデア・レーゲンは第二章の目安Lv6
+      learnset: [{ lv: 1, skill: "twin_slash" }, { lv: 3, skill: "sonic_wave" }, { lv: 6, skill: "der_regen" }],
       canCounter: false,
       picto: { bodyColor: "#a03030", headColor: "#c85050", beakColor: "#e0b040" },
     },
@@ -165,7 +167,7 @@ RPG.Data = (function () {
     tzelf_ambush: {
       id: "tzelf_ambush", exp: 0, name: "赤い鳥人", isBoss: false,
       stats: { hp: 104, atk: 46, def: 20, spd: 46, mag: 36, men: 28, tec: 45, luck: 16 },
-      skills: ["normal_attack", "twin_slash", "sonic_wave"],
+      skills: ["normal_attack", "twin_slash"],
       picto: { bodyColor: "#a03030", headColor: "#c85050", beakColor: "#e0b040" },
     },
     kagari: {
@@ -214,6 +216,13 @@ RPG.Data = (function () {
     while (lv < MAX_LEVEL && exp >= expForLevel(lv + 1)) lv++;
     return lv;
   }
+  // そのレベルで使える技：初めから持つ技＋そのレベルまでに覚える技
+  function skillsAt(defId, lv) {
+    var c = CHARACTERS[defId];
+    var list = c.skills.slice();
+    (c.learnset || []).forEach(function (l) { if (l.lv <= lv && list.indexOf(l.skill) < 0) list.push(l.skill); });
+    return list;
+  }
   // 値(Lv) = 加入時 + (最大 - 加入時) × t^e　（t = (Lv - 加入Lv) / (20 - 加入Lv)）
   function statsAt(defId, lv) {
     var c = CHARACTERS[defId];
@@ -251,5 +260,5 @@ RPG.Data = (function () {
 
   return { SKILLS: SKILLS, CHARACTERS: CHARACTERS, ENEMIES: ENEMIES, ITEMS: ITEMS, cloneStats: cloneStats,
     useHealItem: useHealItem, healNeeded: healNeeded,
-    MAX_LEVEL: MAX_LEVEL, expForLevel: expForLevel, levelForExp: levelForExp, statsAt: statsAt, expRate: expRate, newSeed: newSeed };
+    MAX_LEVEL: MAX_LEVEL, expForLevel: expForLevel, levelForExp: levelForExp, statsAt: statsAt, skillsAt: skillsAt, expRate: expRate, newSeed: newSeed };
 })();

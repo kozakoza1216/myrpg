@@ -20,16 +20,17 @@ RPG.Save = (function () {
       crit: game.crit ? Object.assign({}, game.crit) : null,
     };
   }
-  // 以前の版の記録は、初めから持つ技が設計書と違っていた（セオ・ツェルフの「踏み込み」、ツェルフの「力押し」「二連撃」）。
-  // その記録を読むときは、初めから持つ技を今の定義に置き換え、記憶結晶で覚えた技だけを残す
+  // 記録の技を今の定義に合わせる：初めから持つ技とレベルで覚える技は定義から出し直し、記憶結晶で覚えた技だけを記録から残す。
+  // （以前の版では、セオ・ツェルフの「踏み込み」、ツェルフの「力押し」「二連撃」を初めから持たせていた。
+  //   ツェルフの技をレベルで覚えるようにする前の記録では、3つの技を最初から全部持っている）
   function migrateSkills(m) {
-    if (m.skills.indexOf("step_in") < 0) return m.skills.slice();
-    var base = RPG.Data.CHARACTERS[m.defId].skills.slice();
+    var old = m.skills.indexOf("step_in") >= 0;
+    var base = RPG.Data.skillsAt(m.defId, m.level || 1);
     var learnable = {};
     Object.keys(RPG.Data.ITEMS).forEach(function (id) { if (RPG.Data.ITEMS[id].learn) learnable[RPG.Data.ITEMS[id].learn] = true; });
     m.skills.forEach(function (id) {
       if (!learnable[id] || base.indexOf(id) >= 0) return;
-      if (m.defId === "tzelf" && id === "double_slash") return; // 以前の版で初めから持っていた分
+      if (old && m.defId === "tzelf" && id === "double_slash") return; // 以前の版で初めから持っていた分
       base.push(id);
     });
     return base;

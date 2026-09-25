@@ -15,7 +15,7 @@ RPG.Battle = (function () {
       defId: defId, name: src.name, isEnemy: isEnemy, isBoss: !!src.isBoss,
       isBirdPerson: !!src.isBirdPerson, birdType: src.birdType, picto: src.picto,
       stats: stats, maxHp: maxHp, hp: maxHp, maxMp: isEnemy ? 0 : maxMp, mp: isEnemy ? 0 : maxMp,
-      skills: src.skills.slice(), canCounter: !!src.canCounter, counterSkillId: src.counterSkillId,
+      skills: isEnemy ? src.skills.slice() : Data.skillsAt(defId, level), canCounter: !!src.canCounter, counterSkillId: src.counterSkillId,
       // 行動ゲージは速さに単純比例で溜まる（乱数なし・PLAN §7-2 大前提2）＝開始時は全員0
       atb: 0, defeated: false, scoreDebuff: 0, debuffTurns: 0, spdMul: 1, spdDownTurns: 0,
       // カウンターを持つボスだけ、的中率を学習する（初期25%・上限70%）。カガリはカウンターなし（bosses.md）
@@ -25,7 +25,8 @@ RPG.Battle = (function () {
     };
   }
 
-  // レベルを変える：能力値を成長の式で出し直し、最大HP・MPが増えた分だけ今のHP・MPも増やす
+  // レベルを変える：能力値を成長の式で出し直し、最大HP・MPが増えた分だけ今のHP・MPも増やす。
+  // そのレベルまでに覚える技を覚え、新しく覚えた技の一覧を返す
   function setLevel(c, lv) {
     var oldMaxHp = c.maxHp, oldMaxMp = c.maxMp;
     c.level = lv;
@@ -34,6 +35,9 @@ RPG.Battle = (function () {
     c.maxMp = c.stats.mag + c.stats.men;
     c.hp = Math.max(0, Math.min(c.maxHp, c.hp + (c.maxHp - oldMaxHp)));
     c.mp = Math.max(0, Math.min(c.maxMp, c.mp + (c.maxMp - oldMaxMp)));
+    var learned = Data.skillsAt(c.defId, lv).filter(function (id) { return c.skills.indexOf(id) < 0; });
+    learned.forEach(function (id) { c.skills.push(id); });
+    return learned;
   }
 
   // 戦闘の経験値を配る（PLAN.md「経験値と敵の強さ」）
@@ -54,11 +58,12 @@ RPG.Battle = (function () {
       var lv = Data.levelForExp(c.exp);
       if (lv > c.level) {
         var before = Object.assign({}, c.stats), mhp = c.maxHp, mmp = c.maxMp;
-        setLevel(c, lv);
+        var learned = setLevel(c, lv);
         var ups = [["攻撃", "atk"], ["防御", "def"], ["素早さ", "spd"], ["魔力", "mag"], ["精神", "men"], ["技巧", "tec"], ["運", "luck"]]
           .filter(function (p) { return c.stats[p[1]] > before[p[1]]; })
           .map(function (p) { return p[0] + "+" + (c.stats[p[1]] - before[p[1]]); });
         lines.push(c.name + "はレベル" + lv + "になった！　最大HP+" + (c.maxHp - mhp) + "・最大MP+" + (c.maxMp - mmp) + (ups.length ? "・" + ups.join("・") : ""));
+        learned.forEach(function (id) { lines.push(c.name + "は〈" + Data.SKILLS[id].name + "〉を覚えた！"); });
       }
     });
     return lines;
