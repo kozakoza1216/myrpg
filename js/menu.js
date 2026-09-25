@@ -15,7 +15,7 @@ RPG.Save = (function () {
   function packGame(game) {
     return {
       steps: game.steps, stepLimit: game.stepLimit,
-      party: game.party.map(function (c) { return { defId: c.defId, hp: c.hp, mp: c.mp, skills: c.skills.slice() }; }),
+      party: game.party.map(function (c) { return { defId: c.defId, level: c.level, exp: c.exp, hp: c.hp, mp: c.mp, skills: c.skills.slice() }; }),
       companions: game.companions.slice(), flags: Object.assign({}, game.flags), items: Object.assign({}, game.items || {}),
     };
   }
@@ -24,6 +24,7 @@ RPG.Save = (function () {
       steps: p.steps, stepLimit: p.stepLimit,
       party: p.party.map(function (m) {
         var c = RPG.Battle.createCombatant(m.defId, false);
+        if (m.level) { RPG.Battle.setLevel(c, m.level); c.exp = m.exp; }
         c.hp = m.hp; c.mp = m.mp; c.skills = m.skills.slice();
         return c;
       }),
@@ -107,7 +108,9 @@ RPG.Menu = (function () {
     function renderStatus(body) {
       game.party.forEach(function (c) {
         var card = div("menu-card");
-        card.appendChild(div("menu-name", c.name));
+        card.appendChild(div("menu-name", c.name + "　Lv " + c.level));
+        var next = c.level < Data.MAX_LEVEL ? "次のレベルまで " + (Data.expForLevel(c.level + 1) - c.exp) : "最大レベル";
+        card.appendChild(div("menu-row-sub", "経験値 " + c.exp + "　" + next));
         card.appendChild(bar(c.hp, c.maxHp, "hp", "HP " + c.hp + " / " + c.maxHp));
         card.appendChild(bar(c.mp, c.maxMp, "mp", "MP " + c.mp + " / " + c.maxMp));
         var grid = div("menu-stats");

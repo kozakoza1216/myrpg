@@ -76,6 +76,9 @@ RPG.Data = (function () {
     seo: {
       id: "seo", name: "セオ", isBirdPerson: false,
       stats: { hp: 13, atk: 10, def: 12, spd: 15, mag: 13, men: 15, tec: 12, luck: 14 },
+      // 成長：平均（指数1.0＝直線）。Lv20の値は全キャラステータス一覧の早見表
+      joinLevel: 1, growthExp: 1.0,
+      maxStats: { hp: 52, atk: 50, def: 50, spd: 50, mag: 42, men: 50, tec: 50, luck: 46 },
       skills: ["normal_attack", "normal_breakthrough", "step_in"],
       canCounter: false,
       picto: { bodyColor: "#5b7a9d", headColor: "#e8dcc8" },
@@ -83,6 +86,9 @@ RPG.Data = (function () {
     tzelf: {
       id: "tzelf", name: "ツェルフ", isBirdPerson: true, birdType: "hawk",
       stats: { hp: 30, atk: 55, def: 25, spd: 60, mag: 45, men: 35, tec: 58, luck: 20 },
+      // 成長：早熟寄り（指数0.55）
+      joinLevel: 1, growthExp: 0.55,
+      maxStats: { hp: 52, atk: 92, def: 40, spd: 92, mag: 72, men: 56, tec: 90, luck: 32 },
       skills: ["normal_attack", "normal_breakthrough", "double_slash", "power_strike", "step_in"],
       canCounter: false,
       picto: { bodyColor: "#a03030", headColor: "#c85050", beakColor: "#e0b040" },
@@ -92,31 +98,31 @@ RPG.Data = (function () {
   // ── 敵・ボス ──
   const ENEMIES = {
     ash_rat: {
-      id: "ash_rat", name: "灰ネズミ", isBoss: false,
+      id: "ash_rat", exp: 5, name: "灰ネズミ", isBoss: false,
       stats: { hp: 22, atk: 8, def: 4, spd: 10, mag: 0, men: 6, tec: 8, luck: 10 },
       skills: ["mob_bite"],
       picto: { bodyColor: "#8a8a8a", headColor: "#b0b0a8", isAnimal: true },
     },
     straggler_bandit: {
-      id: "straggler_bandit", name: "はぐれ賊", isBoss: false,
+      id: "straggler_bandit", exp: 5, name: "はぐれ賊", isBoss: false,
       stats: { hp: 26, atk: 12, def: 8, spd: 14, mag: 0, men: 8, tec: 14, luck: 12 },
       skills: ["bandit_strike"],
       picto: { bodyColor: "#6a5638", headColor: "#c8a878" },
     },
     shrine_guard: {
-      id: "shrine_guard", name: "祭壇の守衛", isBoss: false,
+      id: "shrine_guard", exp: 5, name: "祭壇の守衛", isBoss: false,
       stats: { hp: 42, atk: 18, def: 12, spd: 20, mag: 0, men: 12, tec: 20, luck: 15 },
       skills: ["bandit_strike"],
       picto: { bodyColor: "#4a3a58", headColor: "#c8a878" },
     },
     tzelf_ambush: {
-      id: "tzelf_ambush", name: "赤い鳥人", isBoss: false,
+      id: "tzelf_ambush", exp: 0, name: "赤い鳥人", isBoss: false,
       stats: { hp: 90, atk: 50, def: 22, spd: 55, mag: 30, men: 28, tec: 52, luck: 25 },
       skills: ["bandit_strike", "double_slash"],
       picto: { bodyColor: "#a03030", headColor: "#c85050", beakColor: "#e0b040" },
     },
     kagari: {
-      id: "kagari", name: "カガリ", isBoss: true,
+      id: "kagari", exp: 350, name: "カガリ", isBoss: true,
       stats: { hp: 300, atk: 60, def: 32, spd: 55, mag: 40, men: 32, tec: 62, luck: 50 },
       skills: ["kagari_staff", "kagari_chant", "kagari_bind", "kagari_offering"],
       picto: { bodyColor: "#7a3050", headColor: "#c89050" },
@@ -144,9 +150,36 @@ RPG.Data = (function () {
     crystal_defense_stance: { name: "防御姿勢の記憶結晶", desc: "使うと〈防御姿勢〉を覚える。", learn: "defense_stance" },
   };
 
+  // ── レベルと経験値（PLAN.md「経験値テーブル」、全キャラステータス一覧「レベル成長仕様」） ──
+  var MAX_LEVEL = 20;
+  // そのレベルになるのに要る累計経験値（10 × Lv^2.5。Lv1＝10、Lv20＝17889）
+  function expForLevel(lv) { return Math.round(10 * Math.pow(lv, 2.5)); }
+  function levelForExp(exp) {
+    var lv = 1;
+    while (lv < MAX_LEVEL && exp >= expForLevel(lv + 1)) lv++;
+    return lv;
+  }
+  // 値(Lv) = 加入時 + (最大 - 加入時) × t^e　（t = (Lv - 加入Lv) / (20 - 加入Lv)）
+  function statsAt(defId, lv) {
+    var c = CHARACTERS[defId];
+    if (!c.maxStats) return Object.assign({}, c.stats);
+    var j = c.joinLevel || 1;
+    var t = Math.max(0, Math.min(1, (lv - j) / (MAX_LEVEL - j)));
+    var f = Math.pow(t, c.growthExp || 1);
+    var out = {};
+    Object.keys(c.stats).forEach(function (k) { out[k] = Math.round(c.stats[k] + (c.maxStats[k] - c.stats[k]) * f); });
+    return out;
+  }
+  // 残り歩数が減るほど経験値が増える（100〜75%：×1.0／75〜50%：×1.4／50〜25%：×1.9／25〜0%：×2.5）
+  function expRate(steps, limit) {
+    var left = 1 - steps / limit;
+    return left > 0.75 ? 1.0 : left > 0.5 ? 1.4 : left > 0.25 ? 1.9 : 2.5;
+  }
+
   function cloneStats(stats) {
     return Object.assign({}, stats);
   }
 
-  return { SKILLS: SKILLS, CHARACTERS: CHARACTERS, ENEMIES: ENEMIES, ITEMS: ITEMS, cloneStats: cloneStats };
+  return { SKILLS: SKILLS, CHARACTERS: CHARACTERS, ENEMIES: ENEMIES, ITEMS: ITEMS, cloneStats: cloneStats,
+    MAX_LEVEL: MAX_LEVEL, expForLevel: expForLevel, levelForExp: levelForExp, statsAt: statsAt, expRate: expRate };
 })();

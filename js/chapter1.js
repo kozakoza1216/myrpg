@@ -639,8 +639,11 @@ RPG.Chapter1 = (function () {
         runBattle(enemyIds, title, forceProceed, next);
         return;
       }
+      // 経験値は、戦闘不能を戻す前（＝誰が倒れていたか分かるうち）に配る
+      var lines = Battle.awardExperience(game.party, state.enemies, RPG.Data.expRate(game.steps, game.stepLimit));
       game.party.forEach(function (c) { c.defeated = false; c.atb = 0; if (c.hp === 0) c.hp = 1; });
-      next();
+      if (!lines.length) { next(); return; }
+      Story.play(app, lines.map(function (t) { return { kind: "narration", text: t }; }), next);
     });
   }
 

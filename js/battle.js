@@ -7,7 +7,8 @@ RPG.Battle = (function () {
 
   function createCombatant(defId, isEnemy) {
     var src = isEnemy ? Data.ENEMIES[defId] : Data.CHARACTERS[defId];
-    var stats = Data.cloneStats(src.stats);
+    var level = isEnemy ? 1 : (src.joinLevel || 1);
+    var stats = isEnemy ? Data.cloneStats(src.stats) : Data.statsAt(defId, level);
     var maxHp = isEnemy ? stats.hp : stats.hp * 4;
     var maxMp = stats.mag + stats.men;
     return {
@@ -18,7 +19,47 @@ RPG.Battle = (function () {
       atb: Math.random() * 30, defeated: false, scoreDebuff: 0, debuffTurns: 0,
       counterLearnRate: src.isBoss ? 0.25 : 0, usesLeft: {},
       position: "front",
+      level: level, exp: isEnemy ? 0 : Data.expForLevel(level), expValue: isEnemy ? (src.exp || 0) : 0,
     };
+  }
+
+  // レベルを変える：能力値を成長の式で出し直し、最大HP・MPが増えた分だけ今のHP・MPも増やす
+  function setLevel(c, lv) {
+    var oldMaxHp = c.maxHp, oldMaxMp = c.maxMp;
+    c.level = lv;
+    c.stats = Data.statsAt(c.defId, lv);
+    c.maxHp = c.stats.hp * 4;
+    c.maxMp = c.stats.mag + c.stats.men;
+    c.hp = Math.max(0, Math.min(c.maxHp, c.hp + (c.maxHp - oldMaxHp)));
+    c.mp = Math.max(0, Math.min(c.maxMp, c.mp + (c.maxMp - oldMaxMp)));
+  }
+
+  // 戦闘の経験値を配る（PLAN.md「経験値と敵の強さ」）
+  // ①戦闘に参加していれば、その戦闘の基本経験値（行動回数には比例させない）
+  // ②1体とどめを刺すごとに、その敵の基本経験値の10%を追加
+  // ③戦闘不能は不参加扱い＝何も入らない
+  // rate：残り歩数による倍率。上がったレベルなどの知らせを文の配列で返す
+  function awardExperience(party, enemies, rate) {
+    var base = enemies.reduce(function (n, e) { return n + (e.expValue || 0); }, 0);
+    var lines = [];
+    if (base <= 0) return lines;
+    party.forEach(function (c) {
+      if (c.defeated) { lines.push(c.name + "は戦闘不能のため、経験値を得られなかった。"); return; }
+      var bonus = enemies.reduce(function (n, e) { return n + (e.defeatedBy === c ? e.expValue * 0.1 : 0); }, 0);
+      var gain = Math.round((base + bonus) * rate);
+      c.exp += gain;
+      lines.push(c.name + "は経験値を" + gain + "得た。");
+      var lv = Data.levelForExp(c.exp);
+      if (lv > c.level) {
+        var before = Object.assign({}, c.stats), mhp = c.maxHp, mmp = c.maxMp;
+        setLevel(c, lv);
+        var ups = [["攻撃", "atk"], ["防御", "def"], ["素早さ", "spd"], ["魔力", "mag"], ["精神", "men"], ["技巧", "tec"], ["運", "luck"]]
+          .filter(function (p) { return c.stats[p[1]] > before[p[1]]; })
+          .map(function (p) { return p[0] + "+" + (c.stats[p[1]] - before[p[1]]); });
+        lines.push(c.name + "はレベル" + lv + "になった！　最大HP+" + (c.maxHp - mhp) + "・最大MP+" + (c.maxMp - mmp) + (ups.length ? "・" + ups.join("・") : ""));
+      }
+    });
+    return lines;
   }
 
   function updatePositions(list) {
@@ -267,12 +308,12 @@ RPG.Battle = (function () {
     if (result.reflected) {
       attacker.hp = Math.max(0, attacker.hp - result.damage);
       lines.push(defender.name + "のカウンターが成立！ " + attacker.name + "に" + result.damage + "のダメージ。");
-      if (attacker.hp === 0) attacker.defeated = true;
+      if (attacker.hp === 0) { attacker.defeated = true; attacker.defeatedBy = defender; }
     } else if (result.negated) {
       lines.push(defender.name + "は" + skill.name + "を完全に凌いだ！");
     } else {
       defender.hp = Math.max(0, defender.hp - result.damage);
-      if (defender.hp === 0) defender.defeated = true;
+      if (defender.hp === 0 && !defender.defeated) { defender.defeated = true; defender.defeatedBy = attacker; }
       var tag = (result.critical ? "（会心の一撃！）" : "") + (result.guaranteed ? "（保証ダメージ込み）" : "");
       if (result.damage > 0) lines.push(defender.name + "に" + result.damage + "のダメージ" + tag);
 
@@ -296,13 +337,13 @@ RPG.Battle = (function () {
       lines.push("追撃！ " + back.name + "のカウンターが成立、" + attacker.name + "に" + followResult.damage + "。");
     } else {
       back.hp = Math.max(0, back.hp - followResult.damage);
-      if (back.hp === 0) back.defeated = true;
+      if (back.hp === 0 && !back.defeated) { back.defeated = true; back.defeatedBy = attacker; }
       if (followResult.damage > 0) lines.push("追撃！ 後衛の" + back.name + "に" + followResult.damage + "のダメージ。");
     }
     // 前衛へのおまけダメージ（突破が判定に勝った場合のみ）
     var extra = Math.round(attacker.stats.atk * 0.3);
     frontDefender.hp = Math.max(0, frontDefender.hp - extra);
-    if (frontDefender.hp === 0) frontDefender.defeated = true;
+    if (frontDefender.hp === 0 && !frontDefender.defeated) { frontDefender.defeated = true; frontDefender.defeatedBy = attacker; }
     lines.push(frontDefender.name + "にもおまけダメージ" + extra + "。");
   };
 
@@ -484,5 +525,5 @@ RPG.Battle = (function () {
     return state;
   }
 
-  return { start: start, createCombatant: createCombatant };
+  return { start: start, createCombatant: createCombatant, setLevel: setLevel, awardExperience: awardExperience };
 })();
