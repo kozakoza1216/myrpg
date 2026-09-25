@@ -101,9 +101,9 @@ RPG.Engine = (function () {
   var CATEGORY_MULT = { normal: 1.0 };
 
   // 受け手が判定に勝てば attackerWins=false。
-  // 防御：勝てば半分に軽減（×0.5）、負けても3割は軽減（×0.7）＝振れ幅が小さい
+  // 防御：受け手が勝てば×0.3、負けても×0.5（PLAN.md §4-7）＝振れ幅が小さい
   function judgeResultMult(defStance, attackerWins) {
-    if (defStance === "defense") return attackerWins ? 0.7 : 0.5;
+    if (defStance === "defense") return attackerWins ? 0.5 : 0.3;
     if (defStance === "evade") return attackerWins ? 0.7 : 0;
     if (defStance === "hold") return attackerWins ? 1.0 : 0;
     return attackerWins ? 1.0 : 0; // フォールバック
@@ -156,7 +156,7 @@ RPG.Engine = (function () {
 
     // 最低保証ダメージ（攻撃力×1.0・PLAN.md §4-7）。味方がボスを攻撃し、ボスが防御で
     // 受けたときのみ乗る（プレイヤーが理不尽な大ダメージを受けることはしない）。
-    // 保証も防御の軽減（×0.5／×0.7）を受ける。
+    // 保証も防御の軽減（×0.3／×0.5）を受ける。
     var guaranteed = (!attacker.isEnemy && defender.isBoss && defStance === "defense") ? attacker.stats.atk * 1.0 : 0;
     if (guaranteed > 0) result.guaranteed = true;
 
