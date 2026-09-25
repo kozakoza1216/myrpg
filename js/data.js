@@ -122,8 +122,8 @@ RPG.Data = (function () {
       maxStats: { hp: 52, atk: 92, def: 40, spd: 92, mag: 72, men: 56, tec: 90, luck: 32 },
       skills: ["normal_attack", "normal_breakthrough"],
       // 技：ツインスラッシュ／ソニックウェーブ／デア・レーゲン（PLAN §5-2）。レベルが上がると順に覚える。
-      // 覚えるレベルは資料にないため仮：消費MPの軽い順に、切り札のデア・レーゲンは第二章の目安Lv6
-      learnset: [{ lv: 1, skill: "twin_slash" }, { lv: 3, skill: "sonic_wave" }, { lv: 6, skill: "der_regen" }],
+      // 覚えるレベルは資料にないため、Lv1〜20に散らして置く（Lv5＝第二章の途中、Lv10＝第三章の目安、Lv15＝第四章以降の切り札）
+      learnset: [{ lv: 5, skill: "twin_slash" }, { lv: 10, skill: "sonic_wave" }, { lv: 15, skill: "der_regen" }],
       canCounter: false,
       picto: { bodyColor: "#a03030", headColor: "#c85050", beakColor: "#e0b040" },
     },
@@ -163,11 +163,11 @@ RPG.Data = (function () {
       skills: ["bandit_strike", "enemy_step_in", "enemy_full_charge"],
       picto: { bodyColor: "#6a6a6a", headColor: "#9a9a90", isAnimal: true },
     },
-    // 赤い鳥人（ツェルフ）：加入時のステータスそのまま（HPは26%×4）。デア・レーゲンはイベント戦では使わない
+    // 赤い鳥人（ツェルフ）：加入時のステータスそのまま（HPは26%×4）。技も加入時と同じ（まだ技を覚えていない）
     tzelf_ambush: {
       id: "tzelf_ambush", exp: 0, name: "赤い鳥人", isBoss: false,
       stats: { hp: 104, atk: 46, def: 20, spd: 46, mag: 36, men: 28, tec: 45, luck: 16 },
-      skills: ["normal_attack", "twin_slash"],
+      skills: ["normal_attack", "normal_breakthrough"],
       picto: { bodyColor: "#a03030", headColor: "#c85050", beakColor: "#e0b040" },
     },
     kagari: {
