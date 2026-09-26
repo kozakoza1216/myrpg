@@ -1887,6 +1887,13 @@ RPG.Explore = (function () {
     "..kaaaaaakt.", ".kaAaaaaAst.", ".kaaaaaaakt.", ".kbbbbbbbkt.", "..kppppppkt.", "..kppkkppkt.", "..kpk..kpkt.",
     "..kpk..kpkt.", "..kfk..kfkt.", "..kkk..kkkt.",
   ];
+  // 徘徊する敵の姿（シンボル）：頭巾をかぶり、刃物を持った賊の影
+  var BANDIT_PAL = { k: "#120c08", h: "#3a2c1c", H: "#4e3c28", s: "#b08868", e: "#e05030", c: "#2e2418", C: "#40321f", b: "#5a4020", w: "#a8a8a0" };
+  var BANDIT = [
+    "....kkkk....", "...khhhhk...", "..khHHHhhk..", "..khsssshk..", "..kseesesk.w", "...khsshk..w",
+    "..kcccccck.w", ".kcCccccCckk", ".kcccccccck.", ".kcbbbbbbck.", "..kcccccck..", "..kcckkcck..",
+    "..kck..kck..", "..kck..kck..", "..kkk..kkk..", "............",
+  ];
   var CHEST_PAL = { k: "#1a1410", y: "#a8823c", Y: "#8a6a30", m: "#7a5a28", M: "#5a4020", g: "#e0c060" };
   var CHEST = [".kkkkkkkkkkkk.", "kyyyyyyyyyyyyk", "kyYyyyyyyyyYyk", "kkkkkkggkkkkkk", "kmmmmmggmmmmmk", "kmmmmmkkmmmmmk", "kmMmmmmmmmmMmk", "kmMmmmmmmmmMmk", "kMMMMMMMMMMMMk", ".kkkkkkkkkkkk."];
   var SIGN_PAL = { k: "#1a1410", b: "#8a6a40", B: "#6a5236", a: "#e8dcc8", p: "#4a3824" };
@@ -1900,6 +1907,7 @@ RPG.Explore = (function () {
     zoneSprites = {
       elder: spriteCanvas(ELDER, ELDER_PAL),
       guard: spriteCanvas(GUARD, GUARD_PAL),
+      bandit: spriteCanvas(BANDIT, BANDIT_PAL),
       chest: spriteCanvas(CHEST, CHEST_PAL),
       signR: spriteCanvas(SIGN_RIGHT, SIGN_PAL),
       signL: spriteCanvas(SIGN_RIGHT, SIGN_PAL, true),
@@ -1999,6 +2007,19 @@ RPG.Explore = (function () {
     // 一度離れてから踏み直したときだけ発動させる。
     var startZone = this.zoneAt(this.pos.x, this.pos.y);
     this.insideZoneId = startZone ? startZone.id : null;
+    // シンボルエンカウント：マップ上をうろつく敵の姿。倒したものは defeated（章が持つ記録）に残り、出てこない
+    var defeated = data.symbolDefeated || {}, selfA = this;
+    this.symbols = (data.symbols || []).filter(function (s) { return !defeated[s.id]; }).map(function (s) {
+      var p = toPx(s);
+      // 置き場所が瓦礫や建物で塞がっていたら、近くの歩ける所へずらす
+      for (var r = 0; r <= 6 * TILE && selfA.isBlocked(p.x, p.y); r += TILE / 2) {
+        for (var k = 0; k < 16; k++) {
+          var qx = toPx(s).x + Math.cos(k / 16 * Math.PI * 2) * r, qy = toPx(s).y + Math.sin(k / 16 * Math.PI * 2) * r;
+          if (!selfA.isBlocked(qx, qy)) { p = { x: qx, y: qy }; break; }
+        }
+      }
+      return { id: s.id, x: p.x, y: p.y, hx: p.x, hy: p.y, dx: 0, dy: 0, turn: 0, chasing: false };
+    });
   }
 
   // 画面に映る窓は固定サイズ（24×16タイル）。マップがこれより大きければ
@@ -2189,6 +2210,62 @@ RPG.Explore = (function () {
 
   var WALK_SPEED = 120; // ドット／秒
 
+  // ── シンボルの動き ──
+  // ふだんは持ち場から3タイル以内をうろつき、主人公が5タイル以内に来ると追ってくる（主人公より少し遅い）。
+  // 触れると戦闘。画面に戻ってから2秒は追ってこない（戦闘の直後に続けて捕まらないように）
+  var SYM_WANDER = 28, SYM_CHASE = 92, SYM_SIGHT = 5 * TILE, SYM_HOME = 3 * TILE, SYM_TOUCH = 11, SYM_GRACE = 2000;
+  FreeArea.prototype.startSymbolLoop = function () {
+    if (!this.symbols.length || this._symRaf) return;
+    var self = this, last = null;
+    this._graceUntil = performance.now() + SYM_GRACE;
+    function frame(t) {
+      self._symRaf = null;
+      if (!self._canvasEl || !document.body.contains(self._canvasEl) || self._symStopped) return;
+      if (last === null) last = t;
+      var dt = Math.min(0.05, (t - last) / 1000);
+      last = t;
+      if (self.updateSymbols(dt, t)) return;       // 触れて戦闘へ
+      if (!self._raf) self.draw();                  // 主人公が歩いている間は、そちらの描画に任せる
+      self._symRaf = requestAnimationFrame(frame);
+    }
+    this._symRaf = requestAnimationFrame(frame);
+  };
+  FreeArea.prototype.updateSymbols = function (dt, now) {
+    var self = this, grace = now < this._graceUntil;
+    for (var i = 0; i < this.symbols.length; i++) {
+      var s = this.symbols[i];
+      var ddx = this.pos.x - s.x, ddy = this.pos.y - s.y, d = Math.hypot(ddx, ddy);
+      s.chasing = !grace && d < SYM_SIGHT;
+      var vx, vy, sp;
+      if (s.chasing) { vx = ddx / (d || 1); vy = ddy / (d || 1); sp = SYM_CHASE; }
+      else {
+        s.turn -= dt;
+        var hd = Math.hypot(s.hx - s.x, s.hy - s.y);
+        if (hd > SYM_HOME) { s.dx = (s.hx - s.x) / hd; s.dy = (s.hy - s.y) / hd; s.turn = 1; }
+        else if (s.turn <= 0) {
+          var a = Math.random() * Math.PI * 2, still = Math.random() < 0.35;
+          s.dx = still ? 0 : Math.cos(a); s.dy = still ? 0 : Math.sin(a); s.turn = 1 + Math.random() * 1.5;
+        }
+        vx = s.dx; vy = s.dy; sp = SYM_WANDER;
+      }
+      var nx = s.x + vx * sp * dt, ny = s.y + vy * sp * dt;
+      if (!this.isBlocked(nx, s.y)) s.x = nx; else s.turn = 0;
+      if (!this.isBlocked(s.x, ny)) s.y = ny; else s.turn = 0;
+      if (!grace && Math.hypot(this.pos.x - s.x, this.pos.y - s.y) < SYM_TOUCH && this.cb.onSymbol) {
+        var hit = s;
+        this.detachKeyboard();
+        this._symStopped = true;
+        this.cb.onSymbol(hit.id, function (won) {
+          if (won) self.symbols = self.symbols.filter(function (x) { return x !== hit; });
+          self._symStopped = false;
+          self.render();
+        });
+        return true;
+      }
+    }
+    return false;
+  };
+
   // 毎フレーム連続座標で移動する。縦横を別々に判定するので、
   // 斜めに壁へ当たっても壁沿いに滑って進める。
   FreeArea.prototype.tick = function (dt) {
@@ -2210,8 +2287,9 @@ RPG.Explore = (function () {
     this._walkDist += moved;
     this.updateHudAndPlayer();
     this.checkZone(this.pos.x, this.pos.y);
-    // 安全地帯（data.safe）以外では、歩いた1タイルごとにエンカウントを数える。目印に入って画面が変わった時は数えない
-    if (this.data.safe || !this.cb.onEncounter || !this._kbAttached) return;
+    // 安全地帯（data.safe）以外では、歩いた1タイルごとにエンカウントを数える。目印に入って画面が変わった時は数えない。
+    // シンボルエンカウントの場所（data.symbols がある）では数えない
+    if (this.data.safe || this.data.symbols || !this.cb.onEncounter || !this._kbAttached) return;
     this._encAcc = (this._encAcc || 0) + moved;
     while (this._encAcc >= TILE) {
       this._encAcc -= TILE;
@@ -2269,6 +2347,14 @@ RPG.Explore = (function () {
         if (z.sprite === "guard") ctx.drawImage(sprites.guard, sx - 6, sy - 16);
         else ctx.drawImage(sprites.elder, sx - 6, sy - 15);
       }
+    });
+    // うろつく敵の姿（追ってくる時は頭の上に「！」）
+    this.symbols.forEach(function (s) {
+      var sx = Math.round(s.x - cam.x), sy = Math.round(s.y - cam.y);
+      if (sx < -20 || sy < -24 || sx > cam.vw + 20 || sy > cam.vh + 24) return;
+      px(ctx, "rgba(0,0,0,0.4)", sx - 5, sy, 10, 2);
+      ctx.drawImage(sprites.bandit, sx - 6, sy - 15);
+      if (s.chasing) { px(ctx, "#e05030", sx - 1, sy - 24, 2, 5); px(ctx, "#e05030", sx - 1, sy - 18, 2, 2); }
     });
     var hero = getHeroSprites()[this.facing];
     var frame = "idle";
@@ -2445,6 +2531,10 @@ RPG.Explore = (function () {
     this.draw();
     this.attachKeyboard();
     cv.focus();
+    if (this._symRaf) cancelAnimationFrame(this._symRaf);   // 前の画面の動きを止めてから動かし直す（二重に動かさない）
+    this._symRaf = null;
+    this._symStopped = false;
+    this.startSymbolLoop();
   };
 
   function startFreeArea(containerEl, data, gameState, callbacks, initialTaken) {

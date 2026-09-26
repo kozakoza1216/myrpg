@@ -102,6 +102,11 @@ RPG.Chapter1 = (function () {
       michi: { tx: 105, ty: 39 },
       fromHigh: { tx: 40, ty: 45 },
     },
+    // うろつくはぐれ賊（シンボルエンカウント）
+    symbols: [
+      { id: "s1", tx: 30, ty: 63 }, { id: "s2", tx: 44, ty: 55 }, { id: "s3", tx: 50, ty: 30 }, { id: "s4", tx: 28, ty: 29 },
+      { id: "s5", tx: 70, ty: 62 }, { id: "s6", tx: 86, ty: 49 }, { id: "s7", tx: 100, ty: 40 },
+    ],
     tilemap: {
       cols: 112, rows: 76, seed: 7,
       ops: [
@@ -151,6 +156,7 @@ RPG.Chapter1 = (function () {
     start: { tx: 40, ty: 45 },
     entryPoints: { fromStreet: { tx: 40, ty: 45 } },
     underlay: HAIREGION_AREA,
+    symbols: [{ id: "u1", tx: 56, ty: 34 }, { id: "u2", tx: 63, ty: 48 }, { id: "u3", tx: 89, ty: 37 }],
     tilemap: {
       cols: 112, rows: 76, seed: 9,
       ops: [
@@ -322,6 +328,8 @@ RPG.Chapter1 = (function () {
   // 中へ戻れなくなっていた。取得済みの宝箱等の状態を保ったまま再入場
   // できるように記憶しておく。
   var hairegionTaken = {};
+  // 廃区画で倒したシンボル。外（集落・焼けた集落跡・祭壇方面）から入り直すと復活する（層の行き来では復活しない）
+  var hairegionSymbolsDefeated = {};
 
   // ワールドマップは、ファストトラベルの時にしか開かない。ふだんの移動は、
   // エリアの出口を歩いて抜けると、つながった先の場所へそのまま入る。
@@ -371,7 +379,7 @@ RPG.Chapter1 = (function () {
   function snapshot() {
     var snap = {
       place: place.kind, layer: place.layer, floor: place.floor,
-      villageTaken: villageTaken, hairegionTaken: hairegionTaken, hairegionCleared: hairegionCleared,
+      villageTaken: villageTaken, hairegionTaken: hairegionTaken, hairegionCleared: hairegionCleared, hairegionSymbolsDefeated: hairegionSymbolsDefeated,
       shrineFloorId: shrineFloorId, shrineFloorVisited: shrineFloorVisited,
       world: worldMap ? { current: worldMap.current, visited: worldMap.visited } : null,
     };
@@ -387,6 +395,7 @@ RPG.Chapter1 = (function () {
     villageTaken = snap.villageTaken || {};
     hairegionTaken = snap.hairegionTaken || {};
     hairegionCleared = !!snap.hairegionCleared;
+    hairegionSymbolsDefeated = snap.hairegionSymbolsDefeated || {};
     shrineFloorId = snap.shrineFloorId || "ground";
     shrineFloorVisited = snap.shrineFloorVisited || { ground: {}, inner: {} };
     worldMap = null;
@@ -485,7 +494,8 @@ RPG.Chapter1 = (function () {
     hairegionCleared = true;
     var areaTemplate = layerId === "upper" ? HAIREGION_UPPER_AREA : HAIREGION_AREA;
     var entry = pos || areaTemplate.entryPoints[entryId] || areaTemplate.entryPoints[fromNodeId] || areaTemplate.start;
-    var areaData = Object.assign({}, areaTemplate, { start: entry, arrivedByStairs: !!entryId });
+    if (fromNodeId) hairegionSymbolsDefeated = {};
+    var areaData = Object.assign({}, areaTemplate, { start: entry, arrivedByStairs: !!entryId, symbolDefeated: hairegionSymbolsDefeated });
     place = { kind: "hairegion", layer: layerId === "upper" ? "upper" : "street" };
     resumePlace = function () { hairegionArea.render(); };
     hairegionArea = Explore.startFreeArea(app, areaData, game, {
@@ -501,8 +511,12 @@ RPG.Chapter1 = (function () {
         addItem("potion");
         Story.play(app, [{ kind: "narration", text: zoneId === "chest2" ? "荷箱の底に〈回復薬〉が一つ残っていた。" : "見張り塔に置き去りにされた荷から、〈回復薬〉を見つけた。" }], next);
       },
-      onEncounter: function (next) {
-        runBattle(["straggler_bandit"], "はぐれ賊", false, next);
+      // シンボルに触れた：はぐれ賊と戦う。勝てばそのシンボルは消える（全滅はゲームオーバー）
+      onSymbol: function (symbolId, done) {
+        runBattle(["straggler_bandit"], "はぐれ賊", false, function () {
+          hairegionSymbolsDefeated[symbolId] = true;
+          done(true);
+        });
       },
     }, hairegionTaken);
   }
