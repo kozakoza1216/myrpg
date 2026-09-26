@@ -70,6 +70,8 @@ RPG.Story = (function () {
         if (beat.kind !== "choice") frame.onclick = advance;
         placeFigures(frame, beat);
       }
+      // 演出：fx:"quake"＝画面が揺れて赤く光る（暗転はしない）
+      if (beat.fx) { var fxEl = frame || containerEl; fxEl.classList.add("fx-" + beat.fx); if (RPG.Sound) RPG.Sound.play(beat.fx); }
       var box = document.createElement("div");
 
       if (beat.kind === "header") {

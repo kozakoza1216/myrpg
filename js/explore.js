@@ -2271,14 +2271,21 @@ RPG.Explore = (function () {
       if (!this.isBlocked(nx, s.y)) s.x = nx; else s.turn = 0;
       if (!this.isBlocked(s.x, ny)) s.y = ny; else s.turn = 0;
       if (!grace && Math.hypot(this.pos.x - s.x, this.pos.y - s.y) < SYM_TOUCH && this.cb.onSymbol) {
+        // 捕まった：その場で動きを止め、大きな「！」を一瞬見せてから戦闘へ（暗転はしない）
         var hit = s;
         this.detachKeyboard();
         this._symStopped = true;
-        this.cb.onSymbol(hit.id, function (won) {
-          if (won) self.symbols = self.symbols.filter(function (x) { return x !== hit; });
-          self._symStopped = false;
-          self.render();
-        });
+        hit.caught = true;
+        this.draw();
+        if (RPG.Sound) RPG.Sound.play("caught");
+        setTimeout(function () {
+          self.cb.onSymbol(hit.id, function (won) {
+            hit.caught = false;
+            if (won) self.symbols = self.symbols.filter(function (x) { return x !== hit; });
+            self._symStopped = false;
+            self.render();
+          });
+        }, 450);
         return true;
       }
     }
@@ -2373,7 +2380,11 @@ RPG.Explore = (function () {
       if (sx < -20 || sy < -24 || sx > cam.vw + 20 || sy > cam.vh + 24) return;
       px(ctx, "rgba(0,0,0,0.4)", sx - 5, sy, 10, 2);
       ctx.drawImage(sprites.bandit, sx - 6, sy - 15);
-      if (s.chasing) { px(ctx, "#e05030", sx - 1, sy - 24, 2, 5); px(ctx, "#e05030", sx - 1, sy - 18, 2, 2); }
+      if (s.caught) {
+        // 捕まえた瞬間の大きな「！」（白い縁取り）
+        px(ctx, "#f0e8d8", sx - 3, sy - 34, 6, 11); px(ctx, "#f0e8d8", sx - 3, sy - 21, 6, 5);
+        px(ctx, "#e03020", sx - 2, sy - 33, 4, 9); px(ctx, "#e03020", sx - 2, sy - 20, 4, 3);
+      } else if (s.chasing) { px(ctx, "#e05030", sx - 1, sy - 24, 2, 5); px(ctx, "#e05030", sx - 1, sy - 18, 2, 2); }
     });
     var hero = getHeroSprites()[this.facing];
     var frame = "idle";

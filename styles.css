@@ -233,3 +233,10 @@ button {
 .story-box.emph { border-color: #c8a03c; box-shadow: 0 0 14px rgba(200, 160, 60, 0.35); }
 .story-box.emph p, .story-box.emph .story-text { color: #ffe0a0; }
 @media (prefers-reduced-motion: reduce) { .battle-screen.battle-enter, .combatant-box, .dmg-pop, .judge-strip, .result-banner { animation-duration: 0.01s !important; } }
+
+/* ── イベントの演出：揺れと赤い閃光（暗転はしない） ── */
+.fx-quake { animation: fx-quake 0.9s ease-out; position: relative; }
+.fx-quake::after { content: ""; position: absolute; inset: 0; background: #d02010; opacity: 0; pointer-events: none; animation: fx-redflash 0.9s ease-out; }
+@keyframes fx-quake { 0%, 100% { transform: translate(0, 0); } 10% { transform: translate(-8px, 4px); } 20% { transform: translate(7px, -5px); } 30% { transform: translate(-6px, 3px); } 45% { transform: translate(5px, -2px); } 60% { transform: translate(-3px, 2px); } 80% { transform: translate(2px, -1px); } }
+@keyframes fx-redflash { 0% { opacity: 0.55; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .fx-quake, .fx-quake::after { animation-duration: 0.01s !important; } }

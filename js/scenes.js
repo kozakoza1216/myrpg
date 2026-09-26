@@ -398,6 +398,26 @@ RPG.Scenes = (function () {
     img.glow(446, 120, 90, [200, 140, 100], 0.18);
   };
 
+  // 竜の活性化：廃墟の街の空が赤く焼け、割れた月が血の色に染まる。壊れた天井のかけらが降ってくる
+  PAINT.awakening = function (img) {
+    PAINT.ruins(img);
+    // 暗い所（家並みのシルエット・地面）は暗いまま、明るい所（空・裂け目）ほど赤く焼ける
+    img.all(function (x, y) { var c = img.get(x, y), lum = (c[0] + c[1] + c[2]) / 3, k = Math.min(1, lum / 60); return [c[0] * 0.8 + 90 * k, c[1] * 0.45 * (1 - k * 0.5), c[2] * 0.45 * (1 - k * 0.6)]; });
+    // 地平の赤い光（竜の寝床の方角）
+    img.glow(250, 226, 170, [220, 60, 20], 0.2);
+    // 血の色の割れた月
+    var RMOON = ramp(["#5a0e0a", "#8a1a10", "#b8301c", "#e0583a"]);
+    img.ellipse(357, 58, 17, 17, function (x, y, dx, dy) { if (dx > -0.08) return null; return rp(RMOON, 0.85 - (dx + dy) * 0.2 - Math.hypot(dx, dy) * 0.35, x, y); });
+    img.ellipse(363, 54, 17, 17, function (x, y, dx, dy) { if (dx < 0.08) return null; return rp(RMOON, 0.7 - (dx + dy) * 0.2 - Math.hypot(dx, dy) * 0.35, x, y); });
+    img.glow(360, 56, 60, [240, 70, 40], 0.3);
+    // 降ってくる天井の板（傾いた四角と、赤く光る縁）
+    for (var i = 0; i < 16; i++) {
+      var fx = 20 + ((i * 131) % 440), fy = 40 + ((i * 71) % 130), fw = 6 + (i % 4) * 4, fh = 3 + (i % 3) * 2, sl = ((i % 5) - 2) * 0.5;
+      img.poly([[fx, fy], [fx + fw, fy + fw * sl * 0.3], [fx + fw - fh * sl * 0.3, fy + fh + fw * sl * 0.3], [fx - fh * sl * 0.3, fy + fh]], function (x, y) { return [14, 8, 8]; });
+      for (var k2 = 0; k2 < fw; k2++) img.set(Math.round(fx + k2), Math.round(fy + k2 * sl * 0.3), [170, 60, 40]);
+    }
+  };
+
   // おまけ部屋（時間切れの後のセオの家）：同じ部屋が血に濡れ、戸口の外は赤く焼けている
   PAINT.bloodroom = function (img) {
     PAINT.house(img);

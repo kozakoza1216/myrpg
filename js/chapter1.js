@@ -257,8 +257,8 @@ RPG.Chapter1 = (function () {
   // その後は強い敵（竜の眷属）が出て、倒しても経験値は入らない。閉ざされていた集落の門が開き、
   // セオの家が「おまけ部屋」になる（二周目スイッチがまだないので、血まみれの部屋＝ボスとの連戦）
   var timeUpBeats = [
-    { kind: "header", text: "竜の活性化", bg: "ruins" },
-    { kind: "narration", text: "地の底から、低い咆哮が響いた。割れた月が赤く染まり、壊れた天井の空が、端から黒く崩れていく。" },
+    { kind: "header", text: "竜の活性化", bg: "awakening", fx: "quake" },
+    { kind: "narration", text: "地の底から、低い咆哮が響いた。割れた月が赤く染まり、壊れた天井の空が、端から黒く崩れていく。", fx: "quake" },
     { kind: "narration", text: "竜の活性化は誰も止めることはできない。あなたはこの世界で飢えを待つ放浪者となる。" },
   ];
   function onTimeUp(cont) { Story.play(app, timeUpBeats, cont); }
