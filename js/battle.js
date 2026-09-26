@@ -325,10 +325,13 @@ RPG.Battle = (function () {
     var stances = [];
     // 敵の攻撃／突破は選択時にプレイヤーへ知らせない。伏せられた応答では、
     // 両方を読む受動を提示する。足止めは常に選べる読みの選択肢である。
-    // 遠距離で撃たれた側は「反撃」（判定なし・確定）か防御で受ける（PLAN §4-11）
+    // 遠距離で撃たれた側は「反撃」（判定なし・確定）・防御・回避で受ける（PLAN §4-11＋回避）。
+    // 反撃は、撃ってきた相手に近距離の攻撃が届くか、遠距離武器（弓）を持っているときだけ
     if (this.pending && this.pending.target === defender && Data.SKILLS[this.pending.skillId] && Data.SKILLS[this.pending.skillId].range === "far") {
-      stances.push("riposte", "defense");
+      if (this.canRiposte(defender, this.pending.actor)) stances.push("riposte");
+      stances.push("defense");
       if (this.canDefenseStance(defender)) stances.push("defenseStance");
+      stances.push("evade");
       return stances;
     }
     if (concealAttackType) {
@@ -351,13 +354,25 @@ RPG.Battle = (function () {
     return stances;
   };
 
+  // 反撃できるか：弓があれば遠距離で必ず返せる。なければ、近距離の攻撃が撃ってきた相手に届くとき
+  // （自分が前衛にいて、相手が狙える前衛にいる）だけ
+  State.prototype.canRiposte = function (defender, attacker) {
+    if (defender.hasBow) return true;
+    if (defender.position !== "front") return false;
+    return reachTargets(defender, Data.SKILLS.normal_attack, defender.isEnemy ? this.party : this.enemies).indexOf(attacker) >= 0;
+  };
+
   // 防御姿勢（防御カテゴリの技）を覚えていて、MPが足りれば、防御の代わりに選べる
   State.prototype.canDefenseStance = function (c) {
     return !c.isEnemy && c.skills.indexOf("defense_stance") >= 0 && c.mp >= Data.SKILLS.defense_stance.mp;
   };
 
   State.prototype.aiPickStance = function (defender, attacker, category, skill) {
-    if (skill && skill.range === "far") return Math.random() < 0.35 ? "riposte" : "defense";
+    if (skill && skill.range === "far") {
+      var rf = Math.random();
+      if (this.canRiposte(defender, attacker) && rf < 0.35) return "riposte";
+      return rf < 0.75 ? "defense" : "evade";
+    }
     if (defender.isBoss && !defender.canCounter) {
       // カウンターを持たないボス：通常の受動（防御60%／足止め20%／回避10%）。残り10%（逆のカウンター）は防御に寄せる
       var rb = Math.random();
@@ -436,7 +451,10 @@ RPG.Battle = (function () {
       this.applyDamage(attacker, defender, hit);
       lines.push(defender.name + "に" + hit + "のダメージ。");
       if (!defender.defeated) {
-        var back = Math.round(Engine.applyDefenseReduction(Engine.baseDamage(defender, Data.SKILLS.normal_attack), attacker.stats.def));
+        // 弓があれば遠距離（後衛どうしなら-50%）、なければ近距離のノーマル攻撃で返す
+        var rs = defender.hasBow ? Data.SKILLS.normal_ranged : Data.SKILLS.normal_attack;
+        var rm = defender.hasBow && defender.position === "back" && attacker.position === "back" ? FAR_BACK_TO_BACK : 1;
+        var back = Math.round(Engine.applyDefenseReduction(Engine.baseDamage(defender, rs) * rm, attacker.stats.def));
         this.applyDamage(defender, attacker, back);
         lines.push(defender.name + "の反撃！ " + attacker.name + "に" + back + "のダメージ。");
       }
