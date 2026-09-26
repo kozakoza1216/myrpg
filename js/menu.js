@@ -121,7 +121,8 @@ RPG.Menu = (function () {
 
       if (msg) wrap.appendChild(div("menu-msg", msg));
       var foot = div("menu-foot");
-      foot.appendChild(btn("閉じる", function () { opts.onClose(); }));
+      // 閉じたとき、歩数が上限に達していれば、その場で竜の活性化を起こす（デバッグで歩数を足した時など）
+      foot.appendChild(btn("閉じる", function () { if (!RPG.Explore.checkTimeUp(game, opts.onClose)) opts.onClose(); }));
       wrap.appendChild(foot);
       app.appendChild(wrap);
     }
@@ -267,6 +268,18 @@ RPG.Menu = (function () {
       });
       if (!cur) lb.disabled = true;
       body.appendChild(lb);
+      // デバッグ：時間切れの確認用
+      var dbg = div("menu-card");
+      dbg.appendChild(div("menu-name", "デバッグ"));
+      dbg.appendChild(div("menu-row-sub", "歩数を一気に3000増やす（メニューを閉じると、竜の活性化が起きる）。"));
+      var db = btn("歩数を+3000する", function () {
+        game.steps += 3000;
+        msg = "歩数を3000増やした（" + game.steps + " / " + game.stepLimit + "）。メニューを閉じると竜の活性化が起きる。";
+        render();
+      });
+      if (game.flags && game.flags.timeUp) db.disabled = true;
+      dbg.appendChild(db);
+      body.appendChild(dbg);
     }
 
     render();
