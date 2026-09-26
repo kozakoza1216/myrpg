@@ -245,47 +245,78 @@ RPG.Scenes = (function () {
 
   // ── 共通の部品 ──
   var SKY = ramp(["#140f1e", "#1e1628", "#2a1c34", "#3c243a", "#56303c", "#763e3a", "#98543a", "#b86e40", "#d08c4c"]);
-  var ROCK = ramp(["#08070a", "#0e0c10", "#141217", "#1b181e", "#232026", "#2c282e"]);
 
-  // 人工天井と、その裂け目から見える夕空・割れた月。裂け目の位置を返す
+  // 壊れた人工天井（PLAN §8-0・§8-2）：空は本物ではなく、天井の投影装置と液晶が映す人工の空。
+  // 故障して慢性的な薄暮になり、色ムラ・走査線・ドット欠け・映像のずれが出ている。洞窟の岩天井としては描かない。
+  // 天井は頭上に広がる板なので、液晶の継ぎ目は遠近で地平へ向かって詰まって見える。
+  // bottom より上は頭上（故障がはっきり見える）、下は遠く（地平の薄暮に溶ける）。
+  // x0〜x1 はまだ比較的よく映っている区画（明るく、割れた月もここに出る）。月を置く高さを返す
+  var LCD = ramp(["#0b0b0f", "#121217", "#19181f", "#211f27", "#2a2730", "#343037", "#40393f", "#4e4446", "#5e514f", "#705f58", "#846f63", "#9a806d"]);
   function ceiling(img, bottom, crackX0, crackX1) {
-    var crack = function (x) { return 18 + Math.sin(x * 0.045) * 6 + (nz("a", x * 2, 7) - 0.5) * 16; };
-    var wid = function (x) { var t = (x - crackX0) / (crackX1 - crackX0); return t <= 0 || t >= 1 ? 0 : Math.sin(t * Math.PI) * (14 + nz("c", x, 3) * 12); };
-    img.all(function (x, y) {
-      var edge = bottom + Math.sin(x * 0.02) * 5 + (nz("a", x, 40) - 0.5) * 18;
-      if (y > edge) return null;
-      var cy = crack(x), w = wid(x);
-      if (w > 0 && Math.abs(y - cy) < w / 2) {
-        // 裂け目の向こうの空（上ほど暗い）
-        var t = 1 - (y - (cy - w / 2)) / Math.max(1, w) * 0.4 - 0.25 + (1 - Math.abs(x - (crackX0 + crackX1) / 2) / ((crackX1 - crackX0) / 2)) * 0.45;
-        return rp(SKY, t, x, y);
+    var yh = Math.min(H - 20, bottom + 150), vx = W / 2;                 // 地平（天井の板が消えていく高さ）と消失点
+    var lit = function (x) { var t = (x - crackX0) / (crackX1 - crackX0); return t <= 0 || t >= 1 ? 0 : Math.sin(t * Math.PI); };
+    var moonY = Math.round(bottom * 0.42);
+    // 映像のずれ（横に裂けて左右へずれた帯）：月の高さと、あと二本
+    var tears = [{ y: moonY + 2, h: 2, dx: 5 }, { y: Math.round(bottom * 0.75), h: 3, dx: -7 }, { y: Math.round(bottom * 1.5), h: 2, dx: 4 }];
+    var sky = function (x, y) {
+      var depth = Math.max(0, Math.min(1, y / yh));                      // 0＝真上、1＝地平
+      var near = Math.max(0, 1 - depth * 1.25);                          // 故障の見えやすさ
+      // 天井の板：地平へ向かう奥行き（1/距離）と、消失点へ集まる縦の継ぎ目
+      var zz = yh / Math.max(1, yh - y + 1);                             // 奥行き（真上で1、地平で大）
+      var u = (x - vx) * zz / 96, v = (zz - 1) * 1.6;
+      var pu = Math.floor(u), pv = Math.floor(v);
+      var fu = u - pu, fv = v - pv;
+      var seamW = 0.018 * zz;
+      var seam = near > 0.25 && (fu < seamW || fv < seamW * 1.6);
+      // 基本の明るさ：上ほど暗く、地平ほど薄暮。まだ映っている区画は明るい
+      var L = lit(x);
+      var t = 0.12 + depth * 0.5 + L * (0.3 - depth * 0.12) + (nz("c", x * 0.7, y * 0.9) - 0.5) * 0.16;
+      // 死んだ板（信号が来ず暗いまま）と、色の狂った板
+      var ph = hash2(pu + 50, pv, 61), dead = ph < 0.07 && near > 0.5, wrong = ph > 0.92 && near > 0.3;
+      if (dead) t = t * 0.35 + (hash2(x, y, 62) < 0.03 ? 0.1 : 0);
+      if (seam) t -= 0.06 * near;
+      if (near > 0 && (y & 1)) t -= 0.05 * near;                         // 走査線
+      var c = rp(LCD, t, x, y).slice();
+      // 色ムラ：緑がかった斑と、赤紫がかった斑
+      var m1 = nz("a", x * 0.5 + 40, y * 0.8), m2 = nz("a", x * 0.4 + 170, y * 0.7 + 90);
+      var k1 = Math.max(0, m1 - 0.6) * 0.5 * (0.3 + near), k2 = Math.max(0, m2 - 0.62) * 0.5 * (0.3 + near);
+      if (wrong) k1 += 0.22;
+      c[0] = c[0] * (1 - k1) + (c[0] + 8) * k2; c[1] = c[1] + 30 * k1 - 10 * k2; c[2] = c[2] + 14 * k1 + 18 * k2;
+      // ドット欠け（黒い点）と、点きっぱなしの点
+      if (near > 0.15 && !dead) {
+        var hp = hash2(x, y, 63);
+        if (hp < 0.003 * near) c = [c[0] * 0.3, c[1] * 0.3, c[2] * 0.3];
+        else if (hp > 1 - 0.0012 * near) c = hp > 1 - 0.0004 ? [150, 210, 196] : [196, 120, 178];
       }
-      // 天井：岩盤と、組み込まれた梁・板
-      var t2 = 0.35 + (nz("a", x, y) - 0.5) * 0.4 + (nz("b", x, y) - 0.5) * 0.2;
-      if (x % 64 < 4) t2 += 0.25;
-      if (Math.abs(y - (bottom - 14)) < 2) t2 += 0.2;
-      if (w > 0 && Math.abs(y - cy) < w / 2 + 3) t2 += 0.45;           // 裂け目の縁に当たる光
-      t2 -= (edge - y) < 4 ? 0.2 : 0;
-      return rp(ROCK, t2, x, y);
+      if (seam && !dead) { c[0] -= 4; c[1] -= 4; c[2] -= 2; }
+      return c;
+    };
+    img.all(function (x, y) {
+      for (var i = 0; i < tears.length; i++) {
+        var tr = tears[i];
+        if (y >= tr.y && y < tr.y + tr.h) {
+          var c = sky(((x - tr.dx) % W + W) % W, y), b = i === 0 ? 1.25 : 1.12;
+          return [c[0] * b + 6, c[1] * b, c[2] * b + 10];
+        }
+      }
+      return sky(x, y);
     });
-    return { crack: crack, wid: wid };
+    return { crack: function () { return moonY; }, wid: lit };
   }
-  // 二つに割れた月（裂け目の中に、少しずれた二つの半円）
+  // 二つに割れた月：表示の破損で、少しずれた二つの半円に見える。裂けた行がさらに横へずれ、薄い残像が重なる
   function splitMoon(img, cx, cy, r) {
     var MOON = ramp(["#8a7a6a", "#b0a088", "#d4c6a8", "#ece2c8"]);
+    img.glow(cx + 1, cy - 1, r * 3.2, [236, 210, 170], 0.14);
+    // 残像（色のずれた、薄い三つめの像）
+    img.ellipse(cx + 9, cy + 1, r, r, function (x, y) { img.add(x, y, [110, 170, 190], 0.16); return null; });
     img.ellipse(cx - 1, cy, r, r, function (x, y, dx, dy) { if (dx > -0.08) return null; return rp(MOON, 0.8 - (dx + dy) * 0.2 - Math.hypot(dx, dy) * 0.3, x, y); });
     img.ellipse(cx + 4, cy - 3, r, r, function (x, y, dx, dy) { if (dx < 0.08) return null; return rp(MOON, 0.65 - (dx + dy) * 0.2 - Math.hypot(dx, dy) * 0.3, x, y); });
-    img.glow(cx + 1, cy - 1, r * 3.2, [236, 210, 170], 0.18);
-  }
-  // 遠くの、天井を支える巨大な柱
-  function pillars(img, xs, top, base, col) {
-    xs.forEach(function (px, i) {
-      var w = 16 + (i % 3) * 6;
-      img.poly([[px - w / 2, top], [px + w / 2, top], [px + w / 2 + 3, base], [px - w / 2 - 3, base]], function (x, y) {
-        var t = 0.5 + (x - px) / w * -0.3 + (nz("a", x * 2, y) - 0.5) * 0.25;
-        return rp(col, t, x, y);
-      });
-    });
+    // 裂けた行：月の真ん中あたりの2行が、右へずれる
+    for (var yy = cy + 2; yy < cy + 4; yy++) {
+      var row = [];
+      for (var xx = cx - r - 8; xx <= cx + r + 12; xx++) row.push(img.get(xx, yy));
+      for (var j = 0; j < row.length; j++) img.set(cx - r - 8 + j + 5, yy, row[j]);
+    }
   }
   // 灰の積もった地面
   function ground(img, top, r) {
@@ -345,12 +376,10 @@ RPG.Scenes = (function () {
   // ── 場面 ──
   var PAINT = {};
 
-  // 第一章の扉絵：人工天井の裂け目、割れた月、天井を支える柱、灰縁の集落
+  // 第一章の扉絵：壊れた人工天井（故障した液晶の空）、割れた月、灰縁の集落
   PAINT.village = function (img) {
-    img.all(function (x, y) { return rp(ramp(["#0e0b10", "#171219", "#221a22", "#2e2229"]), 0.2 + y / H * 0.5, x, y); });
     var cz = ceiling(img, 78, 150, 390);
     splitMoon(img, 262, cz.crack(262) - 1, 7);
-    pillars(img, [40, 118, 408, 452], 60, 212, ramp(["#141117", "#1c181f", "#252027", "#2f2931"]));
     img.beam([[210, 30], [300, 30], [340, 230], [150, 230]], [210, 150, 110], 0.22);
     img.beam([[300, 34], [340, 34], [420, 230], [360, 230]], [210, 150, 110], 0.12);
     // 霞
@@ -443,10 +472,8 @@ RPG.Scenes = (function () {
 
   // くじ：篝火に照らされた広場。壇上で木札の箱を掲げるカガリと、見守る集落の人々
   PAINT.plaza = function (img) {
-    img.all(function (x, y) { return rp(ramp(["#0e0b10", "#171219", "#221a22"]), 0.2 + y / H * 0.4, x, y); });
     var cz = ceiling(img, 60, 60, 300);
     splitMoon(img, 190, cz.crack(190) - 1, 6);
-    pillars(img, [30, 440], 44, 200, ramp(["#141117", "#1c181f", "#252027"]));
     ground(img, 196, ramp(["#1a1210", "#241914", "#302119", "#3c2a1e", "#4a3424"]));
     var HUT = [18, 12, 11];
     hutSil(img, 60, 198, 60, 52, HUT, true); hutSil(img, 420, 198, 64, 56, HUT, true);
@@ -488,14 +515,15 @@ RPG.Scenes = (function () {
 
   // 集落の門：開いた門の向こうに荒れた広域。後ろ姿で出ていくセオの影
   PAINT.gate = function (img, variant) {
-    img.all(function (x, y) { return rp(ramp(["#0e0b10", "#171219", "#221a22", "#2e2229"]), 0.2 + y / H * 0.5, x, y); });
     var cz = ceiling(img, 64, 200, 470);
     splitMoon(img, 330, cz.crack(330) - 1, 6);
     // 門の向こうの荒野と、遠くの廃墟
     img.all(function (x, y) {
       if (y < 150 || y > 206) return null;
       var sky = 150 + (nz("a", x, 200) - 0.5) * 20;
-      if (y < sky + 10 && hash2(Math.floor(x / 9), 0, 31) < 0.6 && y > sky - hash2(Math.floor(x / 9), 1, 32) * 26) return rp(ramp(["#1c181e", "#242028", "#2c2830"]), 0.5, x, y);
+      var far = ramp(["#1c181e", "#242028", "#2c2830"]);
+      if (y >= sky + 8) return rp(far, 0.3 + (y - sky) / 120, x, y);          // 地平の荒野
+      if (hash2(Math.floor(x / 9), 0, 31) < 0.6 && y > sky - hash2(Math.floor(x / 9), 1, 32) * 26) return rp(far, 0.5, x, y);   // 遠くの廃墟
       return null;
     });
     ground(img, 190, ramp(["#141012", "#1c1619", "#251e1f", "#2f2726", "#3a302d"]));
@@ -523,7 +551,6 @@ RPG.Scenes = (function () {
 
   // 廃区画：崩れた建物が幾重にも重なる街並み
   PAINT.ruins = function (img) {
-    img.all(function (x, y) { return rp(ramp(["#0c0b0e", "#141218", "#1c1a20", "#26222a"]), 0.25 + y / H * 0.5, x, y); });
     var cz = ceiling(img, 50, 250, 470);
     img.beam([[330, 26], [380, 26], [420, 240], [300, 240]], [190, 140, 110], 0.16);
     // 崩れた石造りの家並み：切妻屋根の家、尖り屋根の塔、屋根の落ちた壁だけの家。窓は小さなアーチ窓がまばらに開くだけ
@@ -577,7 +604,6 @@ RPG.Scenes = (function () {
 
   // 祭壇へ続く隘路：両側に迫る廃墟の壁、瓦礫の上に立ち塞がる灰色の鳥人の影
   PAINT.narrow = function (img) {
-    img.all(function (x, y) { return rp(ramp(["#0e0b10", "#1a1216", "#28181a", "#3a2020"]), 0.2 + (1 - Math.abs(x - 240) / 240) * 0.3 + y / H * 0.2, x, y); });
     var cz = ceiling(img, 40, 180, 310);
     img.beam([[210, 20], [270, 20], [300, 230], [190, 230]], [220, 120, 90], 0.22);
     // 両側の壁
@@ -753,5 +779,9 @@ RPG.Scenes = (function () {
     return (cache[id] = cv);
   }
 
-  return { canvasFor: canvasFor, figureFor: figureFor, figureForSpeaker: figureForSpeaker, figIdForSpeaker: figIdForSpeaker, ids: Object.keys(PAINT), figIds: Object.keys(FIG) };
+  // 壊れた人工天井（空）が見える場面
+  var SKY_SCENES = { village: 1, plaza: 1, gate: 1, gateClosed: 1, ruins: 1, narrow: 1, awakening: 1 };
+  function hasSky(id) { return !!SKY_SCENES[id]; }
+
+  return { canvasFor: canvasFor, hasSky: hasSky, figureFor: figureFor, figureForSpeaker: figureForSpeaker, figIdForSpeaker: figIdForSpeaker, ids: Object.keys(PAINT), figIds: Object.keys(FIG) };
 })();

@@ -65,6 +65,13 @@ RPG.Story = (function () {
         frame = document.createElement("div");
         frame.className = "scene-frame";
         frame.appendChild(bgCanvas);
+        // 壊れた人工天井の空：走査線の帯が流れ、ときどき表示がちらつく（絵の上、人物の影の下）
+        if (RPG.Scenes.hasSky && RPG.Scenes.hasSky(bgId)) {
+          var skyFx = document.createElement("div");
+          skyFx.className = "scene-sky";
+          skyFx.appendChild(document.createElement("div")).className = "cl-scan";
+          frame.appendChild(skyFx);
+        }
         stage.appendChild(frame);
         containerEl.appendChild(stage);
         if (beat.kind !== "choice") frame.onclick = advance;
