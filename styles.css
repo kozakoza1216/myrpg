@@ -93,9 +93,14 @@ button {
 .battle-screen {
   background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem;
 }
-.battle-title { text-align: center; color: var(--accent); letter-spacing: 0.1em; margin: 0 0 1rem; }
-.battle-field { display: flex; justify-content: space-between; gap: 1.5rem; margin-bottom: 1rem; }
-.combatant-column { flex: 1; display: flex; flex-direction: column; gap: 0.6rem; }
+.battle-title { text-align: center; color: var(--accent); letter-spacing: 0.1em; margin: 0 0 0.6rem; font-size: 1.1rem; }
+.battle-side { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.8rem; }
+.battle-lane { display: flex; align-items: stretch; gap: 0.4rem; }
+.lane-label { flex: 0 0 2.2rem; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; line-height: 1.2; color: #9a8a70; border-right: 1px solid var(--border); padding-right: 0.3rem; }
+.combatant-column { flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+.battle-lane.back .combatant-box { transform: scale(0.94); opacity: 0.88; }
+.combatant-box.unreachable { opacity: 0.45; }
+.combatant-box.acting { outline: 2px solid #c8a03c; }
 .combatant-box {
   background: #241c16; border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.7rem;
   text-align: center;
@@ -111,7 +116,7 @@ button {
 .bar-fill.mp { background: #3a6bab; }
 .bar-fill.atb { background: #c8a03c; }
 .bar-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: #f0e8d8; text-shadow: 0 1px 2px #000; }
-.battle-log { background: #100c08; border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.8rem; min-height: 5rem; margin-bottom: 1rem; font-size: 0.85rem; }
+.battle-log { background: #100c08; border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.7rem; min-height: 4.5rem; margin-bottom: 0.8rem; font-size: 0.8rem; }
 .battle-log p { margin: 0.15rem 0; }
 .battle-controls { text-align: center; }
 .prompt { margin-bottom: 0.6rem; color: var(--accent); }

@@ -69,9 +69,21 @@ RPG.Battle = (function () {
     return lines;
   }
 
+  // 前衛・後衛（PLAN §3、enemies.md）：並び順で前から2人までが前衛、残りは後衛。
+  // 前衛が倒れれば、後衛が前衛へ繰り上がる。並び順は「交代」で入れ替える
+  var FRONT_MAX = 2;
+  // 後衛からの攻撃は威力が下がる（PLAN §3「後衛は攻撃（威力-補正）」。数値は資料にないため、
+  // 唯一の記載「後衛vs後衛-50%」に合わせた仮の値）
+  var BACK_ATTACK_MULT = 0.5;
   function updatePositions(list) {
     var alive = list.filter(function (c) { return !c.defeated; });
-    alive.forEach(function (c, i) { c.position = i < 2 ? "front" : "back"; });
+    alive.forEach(function (c, i) { c.position = i < FRONT_MAX ? "front" : "back"; });
+  }
+  // 狙える相手：前衛が残っている限り、後衛は狙えない（範囲技は後衛にも届く）
+  function targetable(list) {
+    var alive = list.filter(function (c) { return !c.defeated; });
+    var front = alive.filter(function (c) { return c.position === "front"; });
+    return front.length ? front : alive;
   }
 
   // opts.items：持ち物（ゲーム全体の持ち物をそのまま渡す。戦闘中に使えば減る）。opts.crit：クリティカル周期 { period, count }（ゲーム全体で数える・PLAN §8-5b）。
@@ -201,7 +213,8 @@ RPG.Battle = (function () {
       return;
     }
 
-    var target = alive[Math.floor(Math.random() * alive.length)];
+    var reach = targetable(this.party);
+    var target = reach[Math.floor(Math.random() * reach.length)];
     this.pending = { actor: enemy, skillId: skillId, target: target, concealAttackType: true };
     this.phase = "response";
     this.render();
@@ -216,8 +229,10 @@ RPG.Battle = (function () {
       if (Math.random() < 0.3) return "kagari_chant";
       return "kagari_staff";
     }
+    // 後衛からは突破できない（PLAN §3：後衛は攻撃／交代のみ）
     var attackSkills = enemy.skills.filter(function (id) {
-      return Data.SKILLS[id].category === "attack" || Data.SKILLS[id].category === "breakthrough";
+      var cat = Data.SKILLS[id].category;
+      return cat === "attack" || (cat === "breakthrough" && enemy.position !== "back");
     });
     return attackSkills[Math.floor(Math.random() * attackSkills.length)];
   };
@@ -367,6 +382,7 @@ RPG.Battle = (function () {
     bonuses.evadeAutoLose = backline; // 回避は突破に確定負け（後衛がいないときだけ例外）
     var result = Engine.resolveAction(attacker, skill, defender, stance, {
       forceCrit: forceCrit, bonuses: bonuses,
+      powerMult: attacker.position === "back" ? BACK_ATTACK_MULT : 1,
       ignoreStanceOnWin: isBreakthrough && !backline, // 後衛なし＝前衛の背面攻撃（防御無効・§4-8）
     });
 
@@ -427,8 +443,8 @@ RPG.Battle = (function () {
   State.prototype.playerChooseSkill = function (skillId) {
     this.pending.skillId = skillId;
     var skill = Data.SKILLS[skillId];
-    var targets = this.enemies.filter(function (c) { return !c.defeated; });
-    if (targets.length === 1) {
+    var targets = skill.area ? this.enemies.filter(function (c) { return !c.defeated; }) : targetable(this.enemies);
+    if (targets.length === 1 || skill.area) {
       this.playerChooseTarget(targets[0]);
     } else {
       this.phase = "target";
@@ -442,6 +458,19 @@ RPG.Battle = (function () {
     var category = Data.SKILLS[skillId].category === "breakthrough" ? "breakthrough" : "attack";
     var stance = this.aiPickStance(target, actor, category);
     this.performResolve(actor, skillId, target, stance);
+    this.endTurn(actor);
+  };
+
+  // 交代：手番の者と、反対の列の味方の並び順を入れ替える（1手を使う）
+  State.prototype.swapPartners = function (actor) {
+    return this.party.filter(function (c) { return !c.defeated && c !== actor && c.position !== actor.position; });
+  };
+  State.prototype.playerSwap = function (partner) {
+    var actor = this.pending.actor, list = this.party;
+    var i = list.indexOf(actor), j = list.indexOf(partner);
+    list[i] = partner; list[j] = actor;
+    updatePositions(list);
+    this.pushLog([actor.name + "は" + partner.name + "と交代し、" + (actor.position === "front" ? "前衛" : "後衛") + "に移った。"]);
     this.endTurn(actor);
   };
 
@@ -479,20 +508,20 @@ RPG.Battle = (function () {
     title.textContent = this.enemies.map(function (e) { return e.name; }).join(" / ");
     el.appendChild(title);
 
-    var field = document.createElement("div");
-    field.className = "battle-field";
-    field.appendChild(this.renderColumn(this.enemies, "enemy"));
-    field.appendChild(this.renderColumn(this.party, "ally"));
-    el.appendChild(field);
+    // 縦並び：上から 敵の後衛 → 敵の前衛 → ログ → 味方の前衛 → 味方の後衛 → 行動
+    el.appendChild(this.renderSide(this.enemies, "enemy"));
 
     var log = document.createElement("div");
     log.className = "battle-log";
-    this.log.forEach(function (l) {
+    // スマホの縦画面に収まるよう、直近の5行だけ見せる
+    this.log.slice(-5).forEach(function (l) {
       var p = document.createElement("p");
       p.textContent = l;
       log.appendChild(p);
     });
     el.appendChild(log);
+
+    el.appendChild(this.renderSide(this.party, "ally"));
 
     var controls = document.createElement("div");
     controls.className = "battle-controls";
@@ -500,10 +529,35 @@ RPG.Battle = (function () {
     el.appendChild(controls);
   };
 
+  // 陣営ごとに前衛・後衛の2列。敵は後衛が上（奥）、味方は後衛が下（手前）。
+  // 倒れた者は倒れた時の列に残して薄く見せる。後衛がいなければ後衛の列は出さない
+  State.prototype.renderSide = function (list, faction) {
+    var side = document.createElement("div");
+    side.className = "battle-side " + faction;
+    var self = this;
+    var lanes = faction === "enemy" ? ["back", "front"] : ["front", "back"];
+    lanes.forEach(function (pos) {
+      // 倒れた者は列の後ろへ回す（生きている者から並べる）
+      var members = list.filter(function (c) { return c.position === pos && !c.defeated; })
+        .concat(list.filter(function (c) { return c.position === pos && c.defeated; }));
+      if (!members.length && pos === "back") return;
+      var lane = document.createElement("div");
+      lane.className = "battle-lane " + pos;
+      var lab = document.createElement("div");
+      lab.className = "lane-label";
+      lab.textContent = pos === "front" ? "前衛" : "後衛";
+      lane.appendChild(lab);
+      lane.appendChild(self.renderColumn(members, faction));
+      side.appendChild(lane);
+    });
+    return side;
+  };
+
   State.prototype.renderColumn = function (list, faction) {
     var col = document.createElement("div");
     col.className = "combatant-column";
     var self = this;
+    var reach = this.phase === "target" && faction === "enemy" ? targetable(this.enemies) : [];
     list.forEach(function (c) {
       var box = document.createElement("div");
       // 戦闘画面には人物のピクトグラムを出さず、名前とゲージだけで示す。
@@ -511,15 +565,18 @@ RPG.Battle = (function () {
       box.className = "combatant-box" + (c.defeated ? " defeated" : "") + (self.pending && self.pending.target === c ? " selected" : "");
       var name = document.createElement("div");
       name.className = "combatant-name";
-      name.textContent = c.name + (c.position === "back" ? "（後衛）" : "");
+      name.textContent = c.name;
       box.appendChild(name);
       box.appendChild(bar(c.hp, c.maxHp, "hp", "HP " + c.hp + "/" + c.maxHp));
       if (!c.isEnemy) box.appendChild(bar(c.mp, c.maxMp, "mp", "MP " + c.mp + "/" + c.maxMp));
       box.appendChild(bar(Math.min(c.atb, ATB_MAX), ATB_MAX, "atb", "ATB"));
       if (self.phase === "target" && faction === "enemy" && !c.defeated) {
-        box.classList.add("clickable");
-        box.onclick = function () { self.playerChooseTarget(c); };
+        if (reach.indexOf(c) >= 0) {
+          box.classList.add("clickable");
+          box.onclick = function () { self.playerChooseTarget(c); };
+        } else box.classList.add("unreachable");                       // 前衛の陰で狙えない
       }
+      if (self.pending && self.pending.actor === c && self.phase !== "response") box.classList.add("acting");
       col.appendChild(box);
     });
     return col;
@@ -556,13 +613,29 @@ RPG.Battle = (function () {
         var skill = Data.SKILLS[skillId];
         // 防御の技（防御姿勢など）は、自分の手番に使う行動ではないので並べない
         if (!skill || skill.category === "defense") return;
-        var usable = self.canUse(self.pending.actor, skillId);
+        var usable = self.canUse(self.pending.actor, skillId) && !(skill.category === "breakthrough" && self.pending.actor.position === "back");
         var label = skill.name + (skill.mp > 0 ? "(MP" + skill.mp + ")" : "");
         grid.appendChild(button(label, function () { self.playerChooseSkill(skillId); }, !usable));
       });
+      // 交代：前衛と後衛を入れ替える（反対の列に味方がいるときだけ）
+      if (this.swapPartners(this.pending.actor).length) grid.appendChild(button("交代", function () { self.phase = "swap"; self.render(); }));
       // アイテムも1手分の行動（PLAN.md：アイテム使用も能動1回分を消費する）
       grid.appendChild(button("アイテム", function () { self.phase = "item"; self.render(); }, !this.battleItems().length));
       root.appendChild(grid);
+      return;
+    }
+    if (this.phase === "swap") {
+      var ps = document.createElement("p");
+      ps.className = "prompt";
+      ps.textContent = this.pending.actor.name + "と入れ替わる味方を選択";
+      root.appendChild(ps);
+      var gs = document.createElement("div");
+      gs.className = "btn-grid";
+      this.swapPartners(this.pending.actor).forEach(function (c) {
+        gs.appendChild(button(c.name + "（" + (c.position === "front" ? "前衛" : "後衛") + "）", function () { self.playerSwap(c); }));
+      });
+      gs.appendChild(button("戻る", function () { self.phase = "playerAct"; self.render(); }));
+      root.appendChild(gs);
       return;
     }
     if (this.phase === "item") {
@@ -599,7 +672,7 @@ RPG.Battle = (function () {
     if (this.phase === "target") {
       var p2 = document.createElement("p");
       p2.className = "prompt";
-      p2.textContent = "対象を選択（敵をクリック）";
+      p2.textContent = "狙う相手を選択（敵をタップ）";
       root.appendChild(p2);
       return;
     }
