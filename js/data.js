@@ -125,7 +125,7 @@ RPG.Data = (function () {
       // 覚えるレベルは資料にないため、Lv1〜20に散らして置く（Lv5＝第二章の途中、Lv10＝第三章の目安、Lv15＝第四章以降の切り札）
       learnset: [{ lv: 5, skill: "twin_slash" }, { lv: 10, skill: "sonic_wave" }, { lv: 15, skill: "der_regen" }],
       canCounter: false,
-      picto: { bodyColor: "#a03030", headColor: "#c85050", beakColor: "#e0b040" },
+      picto: { bodyColor: "#6e6c68", headColor: "#8e8b86", beakColor: "#e0b040" },
     },
   };
 
@@ -163,12 +163,12 @@ RPG.Data = (function () {
       skills: ["bandit_strike", "enemy_step_in", "enemy_full_charge"],
       picto: { bodyColor: "#6a6a6a", headColor: "#9a9a90", isAnimal: true },
     },
-    // 赤い鳥人（ツェルフ）：加入時のステータスそのまま（HPは26%×4）。技も加入時と同じ（まだ技を覚えていない）
+    // 灰色の鳥人（ツェルフ）：加入時のステータスそのまま（HPは26%×4）。技も加入時と同じ（まだ技を覚えていない）
     tzelf_ambush: {
-      id: "tzelf_ambush", exp: 0, name: "赤い鳥人", isBoss: false,
+      id: "tzelf_ambush", exp: 0, name: "灰色の鳥人", isBoss: false,
       stats: { hp: 104, atk: 46, def: 20, spd: 46, mag: 36, men: 28, tec: 45, luck: 16 },
       skills: ["normal_attack", "normal_breakthrough"],
-      picto: { bodyColor: "#a03030", headColor: "#c85050", beakColor: "#e0b040" },
+      picto: { bodyColor: "#6e6c68", headColor: "#8e8b86", beakColor: "#e0b040" },
     },
     kagari: {
       id: "kagari", exp: 350, name: "カガリ", isBoss: true,

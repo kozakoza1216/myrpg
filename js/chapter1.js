@@ -510,13 +510,13 @@ RPG.Chapter1 = (function () {
 
   var roadBeats = [
     { kind: "header", text: "祭壇へ続く隘路", bg: "narrow" },
-    { kind: "narration", text: "赤い羽を持つ鳥人が、前触れもなく道を塞いだ。絶滅したはずの種族が、目の前に立っている。素足のまま瓦礫を踏みしめ、鋭い目でセオを見据える。" },
-    { speaker: "赤い鳥人", text: "そこを通してもらう。お前に用はないが、邪魔なら退かす。" },
+    { kind: "narration", text: "灰色の羽を持つ鳥人が、前触れもなく道を塞いだ。絶滅したはずの種族が、目の前に立っている。素足のまま瓦礫を踏みしめ、鋭い目でセオを見据える。" },
+    { speaker: "灰色の鳥人", text: "そこを通してもらう。お前に用はないが、邪魔なら退かす。" },
   ];
 
   function afterRoad() {
-    // セオでは勝てない設計。赤い鳥人の攻撃を3回しのぐか、HPを半分まで削れば打ち切り（攻略チャート第一章⑥。回数と割合は資料に数値がないため仮）
-    runBattle(["tzelf_ambush"], "赤い鳥人との死闘", true, afterTzelfFight, { enemyActions: 3, enemyHpRatio: 0.5 });
+    // セオでは勝てない設計。灰色の鳥人の攻撃を3回しのぐか、HPを半分まで削れば打ち切り（攻略チャート第一章⑥。回数と割合は資料に数値がないため仮）
+    runBattle(["tzelf_ambush"], "灰色の鳥人との死闘", true, afterTzelfFight, { enemyActions: 3, enemyHpRatio: 0.5 });
   }
 
   function afterTzelfFight() {
@@ -525,7 +525,7 @@ RPG.Chapter1 = (function () {
 
   var teamUpBeats = [
     { kind: "narration", bg: "narrow", text: "セオは膝をつく。勝てる相手ではなかった。だが鳥人はとどめを刺さず、剣を収めた。" },
-    { speaker: "赤い鳥人", text: "……招竜派の祭壇に用があるのはこっちも同じだ。今は敵対する理由がないだけだ。" },
+    { speaker: "灰色の鳥人", text: "……招竜派の祭壇に用があるのはこっちも同じだ。今は敵対する理由がないだけだ。" },
     { kind: "choice", prompt: "利害が一致した、ということらしい。", options: ["「好都合だ」と手を貸す", "黙って頷く"] },
     { kind: "narration", text: "こうして二人は、目的の違う共闘を始めた。祭壇の入口はすぐそこだった。" },
   ];
@@ -605,7 +605,7 @@ RPG.Chapter1 = (function () {
     { kind: "choice", prompt: "ミラの問いに答える。", options: ["「置いて生きろって？　できるわけないだろ」", "「決まってるだろ」とだけ言う"] },
     { kind: "narration", text: "ミラは何か言いかけて、結局は小さく笑っただけだった。" },
     { kind: "narration", text: "奪還は成ったが、儀式の余波か、遠くの空に巨大な影がよぎった。灰色の竜だ。誰も、あれには手を出せない。" },
-    { speaker: "赤い鳥人", text: "竜は殺せない。挑んだ奴は皆、灰になった。" },
+    { speaker: "灰色の鳥人", text: "竜は殺せない。挑んだ奴は皆、灰になった。" },
     { kind: "narration", text: "世界が、静かに詰んでいるという事実だけが突きつけられた。祭壇を出よう。" },
   ];
 
@@ -620,8 +620,8 @@ RPG.Chapter1 = (function () {
     { speaker: "集落長トキ", text: "帰ってくるなと言ったはずだ。" },
     { speaker: "ミラ", text: "上等じゃない。こっちから願い下げよ。" },
     { kind: "narration", text: "奪還は成功したのに、帰る場所を失った。帰れない三人が、旅を続ける理由だけがここに残った。" },
-    { kind: "narration", text: "赤い鳥人が、ふと口を開いた。" },
-    { speaker: "赤い鳥人", text: "……名か。持ったことがない。招竜派に、要らぬものだとずっと言われてきた。" },
+    { kind: "narration", text: "灰色の鳥人が、ふと口を開いた。" },
+    { speaker: "灰色の鳥人", text: "……名か。持ったことがない。招竜派に、要らぬものだとずっと言われてきた。" },
     { kind: "narration", text: "ミラは少し考えて、口にした。" },
     { speaker: "ミラ", text: "……ツェルフ、なんてどう？　特に意味はないけど。" },
     { kind: "narration", text: "鳥人は小さく頷いた。理由なんて要らなかった。帰れない者同士になった瞬間、彼は名を得た。" },
