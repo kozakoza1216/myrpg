@@ -252,8 +252,23 @@ RPG.Chapter1 = (function () {
     },
   };
 
+  // ── 時間切れ（PLAN §8-3b） ──
+  // 歩数が上限に達したその歩で、竜の活性化が起きる。ゲームオーバーにはしないが、本筋は進めなくなる。
+  // その後は強い敵（竜の眷属）が出て、倒しても経験値は入らない。閉ざされていた集落の門が開き、
+  // セオの家が「おまけ部屋」になる（二周目スイッチがまだないので、血まみれの部屋＝ボスとの連戦）
+  var timeUpBeats = [
+    { kind: "header", text: "竜の活性化", bg: "ruins" },
+    { kind: "narration", text: "地の底から、低い咆哮が響いた。割れた月が赤く染まり、壊れた天井の空が、端から黒く崩れていく。" },
+    { kind: "narration", text: "竜の活性化は誰も止めることはできない。あなたはこの世界で飢えを待つ放浪者となる。" },
+  ];
+  function onTimeUp(cont) { Story.play(app, timeUpBeats, cont); }
+  function timeUp() { return !!(game.flags && game.flags.timeUp); }
+  // 時間切れの後は、どこで出会う敵も竜の眷属に置き換わる
+  function foes(ids) { return timeUp() ? ["dragon_kin"] : ids; }
+
   function run(appEl, gameState, endCallback) {
     app = appEl; game = gameState; onChapterEnd = endCallback;
+    game.onTimeUp = onTimeUp;
     Story.play(app, wakeBeats, function () { enterVillage(); });
   }
 
@@ -354,7 +369,7 @@ RPG.Chapter1 = (function () {
   var resumePlace = null;
   // いまいる場所（セーブのため）。kind: village / outskirts / hairegion / shrine
   var place = null;
-  var PLACE_LABEL = { village: "灰縁の集落", outskirts: "灰縁の集落・外縁", hairegion: "廃区画", shrine: "招竜の祭壇" };
+  var PLACE_LABEL = { village: "灰縁の集落", villageRuin: "灰縁の集落（竜の活性化のあと）", outskirts: "灰縁の集落・外縁", hairegion: "廃区画", shrine: "招竜の祭壇" };
 
   function openMenu() {
     RPG.Menu.open(app, game, {
@@ -383,7 +398,7 @@ RPG.Chapter1 = (function () {
       shrineFloorId: shrineFloorId, shrineFloorVisited: shrineFloorVisited,
       world: worldMap ? { current: worldMap.current, visited: worldMap.visited } : null,
     };
-    var area = place.kind === "village" ? villageArea : place.kind === "outskirts" ? outskirtsArea : place.kind === "hairegion" ? hairegionArea : null;
+    var area = place.kind === "village" ? villageArea : place.kind === "villageRuin" ? villageRuinArea : place.kind === "outskirts" ? outskirtsArea : place.kind === "hairegion" ? hairegionArea : null;
     if (area) snap.pos = { x: area.pos.x, y: area.pos.y };
     if (place.kind === "shrine" && shrineDungeon) snap.dpos = { x: shrineDungeon.x, y: shrineDungeon.y, dir: shrineDungeon.dir };
     return JSON.parse(JSON.stringify(snap));
@@ -392,6 +407,7 @@ RPG.Chapter1 = (function () {
   // セーブした場所から再開する
   function resume(appEl, gameState, snap, endCallback) {
     app = appEl; game = gameState; onChapterEnd = endCallback;
+    game.onTimeUp = onTimeUp;
     villageTaken = snap.villageTaken || {};
     hairegionTaken = snap.hairegionTaken || {};
     hairegionCleared = !!snap.hairegionCleared;
@@ -405,6 +421,7 @@ RPG.Chapter1 = (function () {
       worldMap.visited = snap.world.visited;
     }
     if (snap.place === "village") enterVillage(snap.pos);
+    else if (snap.place === "villageRuin") enterVillageRuin(snap.pos);
     else if (snap.place === "outskirts") enterOutskirts(snap.pos);
     else if (snap.place === "hairegion") enterHairegion(null, snap.layer, null, snap.pos);
     else enterShrineFloor(snap.floor || shrineFloorId, snap.dpos);
@@ -427,10 +444,14 @@ RPG.Chapter1 = (function () {
   // 祭壇へ続く道（祭壇⇔隘路は危険な道。歩数を使い、はぐれ賊に出くわすことがある）
   function walkRoad(text, steps, rate, then) {
     game.steps += steps;
-    Story.play(app, [{ kind: "narration", bg: "narrow", text: text }], function () {
-      if (Math.random() < rate) { runBattle(["straggler_bandit"], "はぐれ賊", false, then); return; }
-      then();
-    });
+    var go = function () {
+      Story.play(app, [{ kind: "narration", bg: "narrow", text: text }], function () {
+        if (Math.random() < rate) { runBattle(foes(["straggler_bandit"]), timeUp() ? "竜の眷属" : "はぐれ賊", false, then); return; }
+        then();
+      });
+    };
+    if (Explore.checkTimeUp(game, go)) return;
+    go();
   }
 
   function enterPlace(id, fromId, firstVisit) {
@@ -460,6 +481,13 @@ RPG.Chapter1 = (function () {
       }
       return;
     }
+    // 時間切れの後は、祭壇へ向かう本筋が閉ざされる
+    if ((id === "michi" || id === "saidan") && timeUp()) {
+      Story.play(app, [{ kind: "narration", bg: "narrow", text: "祭壇へ続く隘路は、竜の瘴気に呑まれていた。これ以上は、どうやっても進めない。" }], function () {
+        worldMap.current = "hairegion"; enterHairegion("michi");
+      });
+      return;
+    }
     if (id === "michi") {
       if (firstVisit) { Story.play(app, roadBeats, afterRoad); return; }
       walkRoad("瓦礫の隘路を抜け、招竜の祭壇へ向かう。", 15, 0.2, function () { goTo("saidan", "michi"); });
@@ -467,6 +495,59 @@ RPG.Chapter1 = (function () {
     }
     // 祭壇は、出た時にいたフロア（記憶した探索状況込み）へ入り直す
     if (id === "saidan") { enterShrineFloor(shrineFloorId); return; }
+  }
+
+  // 時間切れの後の灰縁の集落。人は消え、セオの家が「おまけ部屋」への入口になる（安全地帯のまま）
+  var villageRuinArea = null, villageRuinTaken = {};
+  function enterVillageRuin(pos) {
+    place = { kind: "villageRuin" };
+    resumePlace = function () { villageRuinArea.render(); };
+    var data = Object.assign({}, HAIBERI_VILLAGE, {
+      label: "灰縁の集落（竜の活性化のあと）",
+      start: pos || { tx: 43, ty: 16.5 },
+      zones: [
+        { id: "bonus", kind: "talk", tx: 19, ty: 24.6, r: 14, label: "セオの家（血に濡れた戸口）" },
+        { id: "exit_out", kind: "exit", to: "outskirts", tx: 46.5, ty: 16.5, r: 22, dir: "e", steps: 0, label: "集落の外縁へ" },
+      ],
+    });
+    var start = function () {
+      villageRuinArea = Explore.startFreeArea(app, data, game, {
+        openMenu: openMenu,
+        onExit: function () { enterOutskirts({ tx: 27.5, ty: 13 }); },
+        onTalk: function (zone, next) { bonusRoom(next); },
+      }, villageRuinTaken);
+    };
+    if (!game.flags.ruinSeen) {
+      game.flags.ruinSeen = true;
+      Story.play(app, [{ kind: "narration", bg: "village", text: "集落は、もぬけの殻だった。井戸端にも広場にも人の気配はなく、灰だけが積もっている。" }], start);
+      return;
+    }
+    start();
+  }
+
+  // おまけ部屋（二周目スイッチOFF＝血まみれの部屋）：歴代ボスの連戦。倒しても経験値は入らない＝挑戦ではなく処刑。
+  // いま連戦に並ぶのは、実装済みのボス（カガリ）だけ。ボスが増えたらここへ足す
+  var BOSS_RUSH = [{ id: "kagari", title: "祭司カガリ" }];
+  var bonusBeats = [
+    { kind: "header", text: "おまけ部屋", bg: "bloodroom" },
+    { kind: "narration", text: "セオの家の戸口は、赤黒く濡れていた。見慣れた部屋のはずなのに、床も壁も、乾ききらない血に覆われている。" },
+    { kind: "narration", text: "部屋の奥に、見覚えのある影が並んで立っていた。" },
+    { kind: "narration", text: "時間切れになるまで歩き続けられたのなら、さぞ腕を磨いてきたのだろう。――その成果を、見せてみろ。" },
+    { kind: "choice", prompt: "影たちが、こちらへ向き直った。", options: ["挑む", "引き返す"] },
+  ];
+  function bonusRoom(back) {
+    Story.play(app, bonusBeats, function (choice) {
+      if (choice === 1) { back(); return; }
+      var i = 0;
+      (function nextBoss() {
+        if (i >= BOSS_RUSH.length) {
+          Story.play(app, [{ kind: "narration", bg: "bloodroom", text: "最後の影が崩れ落ちた。だが、部屋に残るのは血の匂いだけだった。竜の活性化は、誰にも止められない。" }], back);
+          return;
+        }
+        var b = BOSS_RUSH[i++];
+        runBattle([b.id], b.title + "（おまけ部屋）", false, nextBoss);
+      })();
+    });
   }
 
   // 集落の外縁を歩く。門に近づくと門番に拒まれ、門の前から押し戻される。
@@ -479,6 +560,10 @@ RPG.Chapter1 = (function () {
       openMenu: openMenu,
       onExit: function (to) { goTo(to, "haiberi"); },
       onTalk: function (zone, next) {
+        if (timeUp()) {
+          Story.play(app, [{ kind: "narration", bg: "gate", text: "門は開け放たれたまま、風に軋んでいた。門番の姿は、どこにもない。" }], function () { enterVillageRuin(); });
+          return;
+        }
         Story.play(app, [
           { kind: "narration", bg: "gateClosed", text: "門番が槍の柄で道を塞いだ。" },
           { speaker: "門番", text: "集落長の命だ。追放された者を通すわけにはいかない。" },
@@ -513,7 +598,7 @@ RPG.Chapter1 = (function () {
       },
       // シンボルに触れた：はぐれ賊と戦う。勝てばそのシンボルは消える（全滅はゲームオーバー）
       onSymbol: function (symbolId, done) {
-        runBattle(["straggler_bandit"], "はぐれ賊", false, function () {
+        runBattle(foes(["straggler_bandit"]), timeUp() ? "竜の眷属" : "はぐれ賊", false, function () {
           hairegionSymbolsDefeated[symbolId] = true;
           done(true);
         });
@@ -573,7 +658,7 @@ RPG.Chapter1 = (function () {
       onEvent: onDungeonEvent,
       onChest: onDungeonChest,
       onEncounter: function () {
-        runBattle(["shrine_guard", "shrine_beast"], "祭壇の守衛", false, function () { shrineDungeon.render(); });
+        runBattle(foes(["shrine_guard", "shrine_beast"]), timeUp() ? "竜の眷属" : "祭壇の守衛", false, function () { shrineDungeon.render(); });
       },
       onStairs: function (targetFloorId) {
         if (targetFloorId === "ground" && game.flags.kagariDefeated) { afterDungeonExit(); return; }
@@ -592,6 +677,10 @@ RPG.Chapter1 = (function () {
   }
 
   function onDungeonEvent(id) {
+    if (id === "kagari" && timeUp()) {
+      Story.play(app, [{ kind: "narration", bg: "shrine", text: "儀式の間は崩れ落ち、奥へ続く道は瓦礫に埋もれていた。もう、誰の声も届かない。" }], function () { shrineDungeon.render(); });
+      return;
+    }
     if (id === "kagari") {
       Story.play(app, kagariPreBeats, function () {
         runBattle(["kagari"], "祭司カガリ", false, afterKagari);
@@ -623,6 +712,10 @@ RPG.Chapter1 = (function () {
   ];
 
   function afterDungeonExit() {
+    if (timeUp()) {
+      Story.play(app, [{ kind: "narration", bg: "narrow", text: "祭壇を出た先の道も、竜の瘴気に閉ざされていた。帰る先は、もうどこにもない。" }], function () { shrineDungeon.render(); });
+      return;
+    }
     game.companions.push("mira");
     Story.play(app, endBeats, function () { onChapterEnd(); });
   }
@@ -654,11 +747,12 @@ RPG.Chapter1 = (function () {
       // 戦闘が終わった時点の速さ低下・判定低下は持ち越さない
       game.party.forEach(function (c) { c.spdMul = 1; c.spdDownTurns = 0; c.scoreDebuff = 0; c.debuffTurns = 0; });
       // 経験値は、戦闘不能を戻す前（＝誰が倒れていたか分かるうち）に配る
-      var lines = Battle.awardExperience(game.party, state.enemies, RPG.Data.expRate(game.steps, game.stepLimit));
+      // 時間切れの後は、倒しても経験値は入らない
+      var lines = Battle.awardExperience(game.party, state.enemies, timeUp() ? 0 : RPG.Data.expRate(game.steps, game.stepLimit));
       game.party.forEach(function (c) { c.defeated = false; c.atb = 0; if (c.hp === 0) c.hp = 1; });
       if (!lines.length) { next(); return; }
       Story.play(app, lines.map(function (t) { return { kind: "narration", text: t }; }), next);
-    }, { items: game.items, crit: game.crit, eventEnd: eventEnd });
+    }, { items: game.items, crit: game.crit, eventEnd: eventEnd, strength: RPG.Data.strengthRate(game.steps, game.stepLimit) });
   }
 
   // 全滅：記録から再開するか、タイトルへ戻る。やり直すときはシードを引き直す（§4-11）

@@ -49,6 +49,15 @@ RPG.Data = (function () {
       name: "全力突撃", category: "breakthrough", attribute: "physical",
       mp: 0, power: 1.9, techBonus: -30, isMagic: false,
     },
+    // 竜の眷属の技（enemies.md：力押し1.4／薙ぎ払い1.7／踏み込み1.5。技リストの値＋敵専用の底上げ0.3）
+    kin_power_strike: {
+      name: "力押し", category: "attack", attribute: "physical",
+      mp: 0, power: 1.4, techBonus: 20, isMagic: false,
+    },
+    kin_sweep: {
+      name: "薙ぎ払い", category: "attack", attribute: "physical",
+      mp: 0, power: 1.7, techBonus: 20, isMagic: false, area: true,
+    },
     // ツェルフ（PS-012）の技（PLAN §5-2・技リスト）。中MPは20-35、高MPは45-60の帯から25・50を置く
     // ツインスラッシュ：物理・近距離・中MP・1.4・技+20。二連斬＝判定1回で2発（1発あたり威力0.7）
     twin_slash: {
@@ -110,7 +119,7 @@ RPG.Data = (function () {
     double_slash: "near", power_strike: "near", step_in: "near", vital_strike: "near", naginata_sweep: "near",
     bandit_strike: "near", enemy_step_in: "near", enemy_full_charge: "near",
     twin_slash: "near", sonic_wave: "far", der_regen: "all", fire_bolt: "all",
-    kagari_staff: "near", kagari_chant: "all",
+    kagari_staff: "near", kagari_chant: "all", kin_power_strike: "near", kin_sweep: "near",
   };
   Object.keys(RANGE).forEach(function (id) { SKILLS[id].range = RANGE[id]; });
 
@@ -183,6 +192,13 @@ RPG.Data = (function () {
       skills: ["normal_attack", "normal_breakthrough"],
       picto: { bodyColor: "#6e6c68", headColor: "#8e8b86", beakColor: "#e0b040" },
     },
+    // 時間切れの後に出る強敵：竜の眷属（enemies.md の通常種の値のまま）。倒しても経験値は0（PLAN §8-3b）
+    dragon_kin: {
+      id: "dragon_kin", exp: 0, name: "竜の眷属", isBoss: false,
+      stats: { hp: 850, atk: 81, def: 34, spd: 51, mag: 37, men: 36, tec: 74, luck: 38 },
+      skills: ["kin_power_strike", "kin_sweep", "enemy_step_in"],
+      picto: { bodyColor: "#3a2a2a", headColor: "#5a4040", isAnimal: true },
+    },
     kagari: {
       id: "kagari", exp: 350, name: "カガリ", isBoss: true,
       stats: { hp: 300, atk: 60, def: 32, spd: 55, mag: 40, men: 32, tec: 62, luck: 50 },
@@ -247,6 +263,11 @@ RPG.Data = (function () {
     Object.keys(c.stats).forEach(function (k) { out[k] = Math.round(c.stats[k] + (c.maxStats[k] - c.stats[k]) * f); });
     return out;
   }
+  // 残り歩数が減るほど敵が強くなる（PLAN §8-3b：100〜75%×1.0／75〜50%×1.15／50〜25%×1.3／25〜0%×1.5）
+  function strengthRate(steps, limit) {
+    var left = 1 - steps / limit;
+    return left > 0.75 ? 1.0 : left > 0.5 ? 1.15 : left > 0.25 ? 1.3 : 1.5;
+  }
   // 残り歩数が減るほど経験値が増える（100〜75%：×1.0／75〜50%：×1.4／50〜25%：×1.9／25〜0%：×2.5）
   function expRate(steps, limit) {
     var left = 1 - steps / limit;
@@ -273,5 +294,5 @@ RPG.Data = (function () {
 
   return { SKILLS: SKILLS, CHARACTERS: CHARACTERS, ENEMIES: ENEMIES, ITEMS: ITEMS, cloneStats: cloneStats,
     useHealItem: useHealItem, healNeeded: healNeeded,
-    MAX_LEVEL: MAX_LEVEL, expForLevel: expForLevel, levelForExp: levelForExp, statsAt: statsAt, skillsAt: skillsAt, expRate: expRate, newSeed: newSeed };
+    MAX_LEVEL: MAX_LEVEL, expForLevel: expForLevel, levelForExp: levelForExp, statsAt: statsAt, skillsAt: skillsAt, expRate: expRate, strengthRate: strengthRate, newSeed: newSeed };
 })();

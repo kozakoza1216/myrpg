@@ -127,7 +127,16 @@ RPG.Battle = (function () {
     this.crit = opts.crit || { period: 15 + Math.floor(Math.random() * 26), count: 0 };
     this.eventEnd = opts.eventEnd || null;
     this.enemyActionCount = 0;
-    this.enemies = enemyIds.map(function (id) { return createCombatant(id, true); });
+    // opts.strength：残り歩数による敵の強さの倍率（ボス以外。HPと各能力値に掛ける）
+    var strength = opts.strength || 1;
+    this.enemies = enemyIds.map(function (id) {
+      var e = createCombatant(id, true);
+      if (strength !== 1 && !e.isBoss) {
+        Object.keys(e.stats).forEach(function (k) { e.stats[k] = Math.round(e.stats[k] * strength); });
+        e.maxHp = e.hp = e.stats.hp;
+      }
+      return e;
+    });
     updatePositions(this.party);
     updatePositions(this.enemies);
     this.onEnd = onEnd;

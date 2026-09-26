@@ -98,7 +98,7 @@ RPG.Menu = (function () {
       var wrap = div("menu-screen");
       var head = div("menu-head");
       head.appendChild(div("menu-title", "メニュー"));
-      head.appendChild(div("menu-place", (opts.placeLabel || "") + "　歩数 " + game.steps + " / " + game.stepLimit));
+      head.appendChild(div("menu-place", (opts.placeLabel || "") + "　歩数 " + game.steps + " / " + game.stepLimit + (game.flags && game.flags.timeUp ? "（時間切れ）" : "")));
       wrap.appendChild(head);
 
       var tabs = div("menu-tabs");

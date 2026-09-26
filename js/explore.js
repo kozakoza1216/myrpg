@@ -88,6 +88,21 @@ RPG.Explore = (function () {
     }, 340);
   };
 
+  // ── 時間切れ（PLAN §8-3b）：歩数が上限に達した、その歩で竜の活性化が起きる（ゲームオーバーにはしない）。
+  // cont＝イベントの後で続ける処理。起きた（止めた）ら true
+  function checkTimeUp(game, cont) {
+    game.flags = game.flags || {};
+    if (game.flags.timeUp) { if (game.steps > game.stepLimit) game.steps = game.stepLimit; return false; }
+    if (game.steps < game.stepLimit || !game.onTimeUp) return false;
+    game.flags.timeUp = true;
+    game.steps = game.stepLimit;
+    game.onTimeUp(cont);
+    return true;
+  }
+  function stepsText(game) {
+    return "歩数 " + game.steps + " / " + game.stepLimit + (game.flags && game.flags.timeUp ? "（時間切れ）" : "");
+  }
+
   // ── ランダムエンカウント（PLAN §8-3b・§8-5c）：安全地帯以外を歩くと、15〜25歩（平均20）に1回。
   // 残り歩数はゲーム全体で持ち越す（場所を移っても数え直さない）。1タイル＝1歩として数える
   function nextEncounterIn() { return 15 + Math.floor(Math.random() * 11); }
@@ -110,6 +125,8 @@ RPG.Explore = (function () {
     this.markVisited(this.x, this.y);
     this.game.steps += 1;
     this.lastAction = backward ? "step-back" : "step-fwd";
+    var selfD = this;
+    if (checkTimeUp(this.game, function () { selfD.render(); })) return;
     var leftScreen = this.onEnterTile(tile);
     if (!leftScreen) this.render();
   };
@@ -370,7 +387,7 @@ RPG.Explore = (function () {
 
     var hud = document.createElement("div");
     hud.className = "dungeon-hud";
-    hud.textContent = "歩数 " + this.game.steps + " / " + this.game.stepLimit + "　向き: " + DIR_NAMES[this.dir];
+    hud.textContent = stepsText(this.game) + "　向き: " + DIR_NAMES[this.dir];
     wrap.appendChild(hud);
 
     var frame = document.createElement("div");
@@ -491,11 +508,12 @@ RPG.Explore = (function () {
       self.render();
     };
 
-    if (edge.encounterRate && Math.random() < edge.encounterRate && this.cb.onEncounter) {
-      this.cb.onEncounter(edge.enemy, arrive);
-      return;
-    }
-    arrive();
+    var go = function () {
+      if (edge.encounterRate && Math.random() < edge.encounterRate && self.cb.onEncounter) { self.cb.onEncounter(edge.enemy, arrive); return; }
+      arrive();
+    };
+    if (checkTimeUp(this.game, go)) return;
+    go();
   };
 
   // ノード内部（局所エリア）を通り抜けた結果として、経路を辿らず直接そのノードへ
@@ -571,11 +589,12 @@ RPG.Explore = (function () {
     var fromNodeId = this.current;
     this.game.steps += cost;
     this.current = nodeId;
-    if (this.cb.onArrive) {
-      this.cb.onArrive(nodeId, false, function () { self.render(); }, { from: fromNodeId, fastTravel: true, cost: cost });
-      return;
-    }
-    this.render();
+    var go = function () {
+      if (self.cb.onArrive) { self.cb.onArrive(nodeId, false, function () { self.render(); }, { from: fromNodeId, fastTravel: true, cost: cost }); return; }
+      self.render();
+    };
+    if (checkTimeUp(this.game, go)) return;
+    go();
   };
 
   // ノードの種別ごとの簡易ピクトグラムアイコン
@@ -610,7 +629,7 @@ RPG.Explore = (function () {
 
     var hud = document.createElement("div");
     hud.className = "dungeon-hud";
-    hud.textContent = (this.data.label || "") + "　歩数 " + this.game.steps + " / " + this.game.stepLimit;
+    hud.textContent = (this.data.label || "") + "　" + stepsText(this.game);
     wrap.appendChild(hud);
 
     var w = this.data.width || 400, h = this.data.height || 260;
@@ -2304,7 +2323,7 @@ RPG.Explore = (function () {
   };
 
   FreeArea.prototype.updateHudAndPlayer = function () {
-    if (this._hudEl) this._hudEl.textContent = (this.data.label || "") + "　歩数 " + this.game.steps + " / " + this.game.stepLimit;
+    if (this._hudEl) this._hudEl.textContent = (this.data.label || "") + "　" + stepsText(this.game);
     this.draw();
   };
 
@@ -2418,7 +2437,9 @@ RPG.Explore = (function () {
     // 固定歩数をここでまとめて消費する（ノードの経路にsteps値を持たせるのと同じ形）。
     if (zone.kind === "exit") {
       this.game.steps += zone.steps === undefined ? 15 : zone.steps;
-      if (this.cb.onExit) this.cb.onExit(zone.to);
+      var exitTo = function () { if (self.cb.onExit) self.cb.onExit(zone.to); };
+      if (checkTimeUp(this.game, exitTo)) return;
+      exitTo();
       return;
     }
     if (zone.kind === "stairs") {
@@ -2462,7 +2483,7 @@ RPG.Explore = (function () {
 
     var hud = document.createElement("div");
     hud.className = "dungeon-hud";
-    hud.textContent = (this.data.label || "") + "　歩数 " + this.game.steps + " / " + this.game.stepLimit;
+    hud.textContent = (this.data.label || "") + "　" + stepsText(this.game);
     wrap.appendChild(hud);
     this._hudEl = hud;
 
@@ -2543,5 +2564,5 @@ RPG.Explore = (function () {
     return f;
   }
 
-  return { start: start, startWorldMap: startWorldMap, createWorldMap: createWorldMap, startFreeArea: startFreeArea };
+  return { start: start, startWorldMap: startWorldMap, createWorldMap: createWorldMap, startFreeArea: startFreeArea, checkTimeUp: checkTimeUp };
 })();

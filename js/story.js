@@ -4,6 +4,7 @@ window.RPG = window.RPG || {};
 RPG.Story = (function () {
   function play(containerEl, beats, onDone) {
     var index = 0;
+    var lastChoice = null;
     // いま映している背景（場面の見出しなどの bg で切り替わり、次に変わるまで続く）
     var bgId = null;
     // 画面に出ている人物（左・右の2枠）。last はその人物が最後に話した順番
@@ -49,7 +50,7 @@ RPG.Story = (function () {
         // Android系ブラウザで入力イベントとDOM差し替えが競合して
         // 「最後の文章から先へ進まない」状態になることがある。
         // 会話終了後の画面遷移はイベント処理を抜けてから行う。
-        setTimeout(function () { onDone(); }, 0);
+        setTimeout(function () { onDone(lastChoice); }, 0);   // 最後に選んだ選択肢の番号（選択肢がなければ null）を渡す
         return;
       }
       containerEl.innerHTML = "";
@@ -95,10 +96,10 @@ RPG.Story = (function () {
         beat.options.forEach(function () {
           // どれを選んでも同じ流れへ（§5-2 セオの台詞は画面に出さない）
         });
-        beat.options.forEach(function (opt) {
+        beat.options.forEach(function (opt, oi) {
           var b = document.createElement("button");
           b.textContent = opt;
-          b.onclick = advance;
+          b.onclick = function () { lastChoice = oi; advance(); };
           opts.appendChild(b);
         });
         box.appendChild(opts);

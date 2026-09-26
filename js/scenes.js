@@ -398,6 +398,29 @@ RPG.Scenes = (function () {
     img.glow(446, 120, 90, [200, 140, 100], 0.18);
   };
 
+  // おまけ部屋（時間切れの後のセオの家）：同じ部屋が血に濡れ、戸口の外は赤く焼けている
+  PAINT.bloodroom = function (img) {
+    PAINT.house(img);
+    // 部屋全体を暗く沈め、赤みを差す
+    img.all(function (x, y) { var c = img.get(x, y); return [c[0] * 0.62 + 18, c[1] * 0.38, c[2] * 0.36]; });
+    var BLOOD = ramp(["#1e0404", "#3a0808", "#560c0c", "#701414"]);
+    // 床の血だまり
+    [[150, 222, 46, 9], [300, 236, 60, 11], [236, 214, 24, 5], [420, 226, 30, 6]].forEach(function (b) {
+      img.ellipse(b[0], b[1], b[2], b[3], function (x, y, dx, dy) { return rp(BLOOD, 0.55 - (dx * dx + dy * dy) * 0.4 + (nz("b", x * 3, y * 3) - 0.5) * 0.3, x, y); });
+    });
+    // 壁を伝う血の筋（棚の縁と梁から垂れる）
+    for (var i = 0; i < 14; i++) {
+      var dx0 = 20 + ((i * 97) % 380), top = i % 3 === 0 ? 19 : i % 3 === 1 ? 93 : 30, len = 20 + ((i * 53) % 70);
+      for (var y = top; y < top + len; y++) {
+        var w = y > top + len - 4 ? 2 : 1;
+        for (var x = dx0; x < dx0 + w; x++) img.set(x, y, rp(BLOOD, 0.7 - (y - top) / len * 0.4, x, y));
+      }
+    }
+    // 戸口の外は赤く焼けた空
+    img.all(function (x, y) { if (x < 418 || x >= 476 || y < 30 || y >= 196) return null; img.add(x, y, [200, 30, 20], 0.45); return null; });
+    img.glow(446, 120, 110, [220, 40, 30], 0.2);
+  };
+
   // くじ：篝火に照らされた広場。壇上で木札の箱を掲げるカガリと、見守る集落の人々
   PAINT.plaza = function (img) {
     img.all(function (x, y) { return rp(ramp(["#0e0b10", "#171219", "#221a22"]), 0.2 + y / H * 0.4, x, y); });
