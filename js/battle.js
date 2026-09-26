@@ -105,17 +105,14 @@ RPG.Battle = (function () {
   // 技の距離で届く相手（PLAN §4-11 の距離カテゴリを、前衛・後衛の2列に当てはめたもの）。
   // 盤面は 自後衛｜自前衛｜敵前衛｜敵後衛 の並び＝前衛どうしが隣接している
   //   近距離：前衛から、隣接する相手の前衛にだけ届く（後衛からは使えない）
-  //   遠距離：隣接する相手には撃てない＝前衛からは相手の後衛だけ、後衛からは相手の前衛と後衛
+  //   遠距離：どの列からでも、相手の前衛にも後衛にも届く（設計書の「隣接不可」は採らない）
   //   全距離（魔法）：どの列からでも使える。狙えるのは通常どおり（前衛が残っていれば前衛）
   //   範囲の技：生きている相手全員
   function reachTargets(attacker, skill, opp) {
     var alive = opp.filter(function (c) { return !c.defeated; });
     if (skill.area) return alive;
     var range = skill.range || "near";
-    if (range === "far") {
-      if (attacker.position === "front") return alive.filter(function (c) { return c.position === "back"; });
-      return alive;
-    }
+    if (range === "far") return alive;
     if (range === "near" && attacker.position === "back") return [];
     return targetable(opp);
   }
