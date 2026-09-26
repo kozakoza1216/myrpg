@@ -257,7 +257,11 @@ button {
 @keyframes cl-scan { 0% { top: -20%; } 55% { top: 105%; } 100% { top: 105%; } }
 .ceiling-light.cl-flicker { animation: cl-flicker 0.22s steps(2, end); }
 @keyframes cl-flicker { 0% { background: rgba(4, 4, 8, 0.35); } 50% { background: rgba(4, 4, 8, 0.12); } 100% { background: transparent; } }
-@media (prefers-reduced-motion: reduce) { .cl-tint, .cl-scan, .ceiling-light.cl-flicker { animation: none !important; } .cl-scan { display: none; } }
+/* 映像のざらつき：粒を毎コマずらして揺らす。ちらつく瞬間だけ濃くなる */
+.cl-noise { position: absolute; inset: -8px; background-size: 192px 192px; image-rendering: pixelated; opacity: 0.32; animation: cl-noise 0.5s steps(6) infinite; }
+@keyframes cl-noise { 0% { transform: translate(0, 0); } 17% { transform: translate(-5px, 3px); } 33% { transform: translate(4px, -6px); } 50% { transform: translate(-7px, -2px); } 67% { transform: translate(6px, 5px); } 83% { transform: translate(-2px, 7px); } 100% { transform: translate(3px, -4px); } }
+.ceiling-light.cl-flicker .cl-noise { opacity: 0.6; }
+@media (prefers-reduced-motion: reduce) { .cl-tint, .cl-scan, .ceiling-light.cl-flicker, .cl-noise { animation: none !important; } .cl-scan { display: none; } }
 .freearea-label, .layer-badge, .layer-banner { z-index: 2; }
 .menu-foot { gap: 0.5rem; }
 .sound-toggle { font-size: 0.85rem; padding: 0.35rem 0.9rem; opacity: 0.85; }

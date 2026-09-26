@@ -2583,6 +2583,10 @@ RPG.Explore = (function () {
     ceil.className = "ceiling-light";
     ceil.appendChild(document.createElement("div")).className = "cl-tint";
     ceil.appendChild(document.createElement("div")).className = "cl-scan";
+    // 映像のノイズ：この俯瞰は、壊れた天井の上から誰かが観ている映像。細かなざらつきが絶えず揺れる
+    var noiseEl = ceil.appendChild(document.createElement("div"));
+    noiseEl.className = "cl-noise";
+    noiseEl.style.backgroundImage = "url(" + noiseTile() + ")";
     frameEl.appendChild(ceil);
     this.startCeilingFlicker(ceil);
 
@@ -2611,6 +2615,19 @@ RPG.Explore = (function () {
     this._symStopped = false;
     this.startSymbolLoop();
   };
+
+  // ざらつきの素（128×128の明暗の粒。一度だけ作って使い回す）
+  var _noiseUrl = null;
+  function noiseTile() {
+    if (_noiseUrl) return _noiseUrl;
+    var n = 128, c = makeCanvas(n, n), ctx = c.getContext("2d"), im = ctx.createImageData(n, n), d = im.data;
+    for (var i = 0; i < d.length; i += 4) {
+      var v = Math.random() < 0.5 ? 0 : 255;
+      d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = Math.floor(Math.random() * 70);
+    }
+    ctx.putImageData(im, 0, 0);
+    return (_noiseUrl = c.toDataURL());
+  }
 
   // 天井の液晶が不規則にちらつく：6〜14秒おきに、一瞬だけ暗く（ときに二度続けて）
   FreeArea.prototype.startCeilingFlicker = function (ceil) {
