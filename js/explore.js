@@ -2543,6 +2543,23 @@ RPG.Explore = (function () {
       }
     }
 
+    // 地名：エリアに入った時だけ大きく出して消す（階段で層を移った時は、層の名前の方を出す）
+    if (!this._nameShown && !this.data.arrivedByStairs && this.data.label) {
+      this._nameShown = true;
+      var nb = document.createElement("div");
+      nb.className = "area-banner";
+      nb.textContent = this.data.label;
+      frameEl.appendChild(nb);
+    }
+    this._nameShown = true;
+    // 壊れた人工天井の光（PLAN §8-0）：色むら・ときどき走る走査線・不規則なちらつき
+    var ceil = document.createElement("div");
+    ceil.className = "ceiling-light";
+    ceil.appendChild(document.createElement("div")).className = "cl-tint";
+    ceil.appendChild(document.createElement("div")).className = "cl-scan";
+    frameEl.appendChild(ceil);
+    this.startCeilingFlicker(ceil);
+
     wrap.appendChild(frameEl);
     this.attachPointer(cv);
 
@@ -2567,6 +2584,21 @@ RPG.Explore = (function () {
     this._symRaf = null;
     this._symStopped = false;
     this.startSymbolLoop();
+  };
+
+  // 天井の液晶が不規則にちらつく：6〜14秒おきに、一瞬だけ暗く（ときに二度続けて）
+  FreeArea.prototype.startCeilingFlicker = function (ceil) {
+    var self = this;
+    clearTimeout(this._flickerTimer);
+    var next = function () {
+      self._flickerTimer = setTimeout(function () {
+        if (!document.body.contains(ceil)) return;
+        ceil.classList.remove("cl-flicker"); void ceil.offsetWidth; ceil.classList.add("cl-flicker");
+        if (Math.random() < 0.4) setTimeout(function () { ceil.classList.remove("cl-flicker"); void ceil.offsetWidth; ceil.classList.add("cl-flicker"); }, 260);
+        next();
+      }, 6000 + Math.random() * 8000);
+    };
+    next();
   };
 
   function startFreeArea(containerEl, data, gameState, callbacks, initialTaken) {
