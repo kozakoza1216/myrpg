@@ -257,11 +257,17 @@ RPG.Menu = (function () {
     function renderSave(body) {
       var cur = RPG.Save.read();
       body.appendChild(div("menu-row-sub", cur ? "記録：" + cur.placeLabel + "（" + formatTime(cur.savedAt) + "）" : "記録はまだない。"));
-      body.appendChild(btn("ここでセーブする", function () {
+      // 時間切れの後はセーブできない（その状態を記録に残させない。ロードで時間切れの前へは戻れる）
+      var timeUp = !!(game.flags && game.flags.timeUp);
+      var sb = btn("ここでセーブする", function () {
+        if (timeUp) return;
         var ok = opts.onSave();
         msg = ok ? "セーブした。" : "この環境ではブラウザに保存できないため、セーブできなかった。";
         render();
-      }));
+      });
+      if (timeUp) sb.disabled = true;
+      body.appendChild(sb);
+      if (timeUp) body.appendChild(div("menu-row-sub", "竜の活性化のあとは、セーブできない。"));
       var lb = btn("記録から再開する（ロード）", function () {
         if (!RPG.Save.read()) return;
         opts.onLoad();
