@@ -218,7 +218,7 @@ RPG.Menu = (function () {
       var B = RPG.Battle;
       B.updatePositions(game.party);
       game.party.forEach(function (c) { if (!c.row) c.row = c.position; });
-      body.appendChild(div("menu-row-sub", "前衛は1〜" + B.FRONT_MAX + "人。後衛は、前衛が残っている間は敵に狙われないが、突破ができず、攻撃の威力が下がる。"));
+      body.appendChild(div("menu-row-sub", "前衛は1〜" + B.FRONT_MAX + "人。後衛は、前衛が残っている間は敵の近距離の攻撃に狙われない。ただし後衛からは突破と近距離の技が使えず、使えるのは遠距離の技と魔法（全距離）だけ。"));
       ["front", "back"].forEach(function (row) {
         var card = div("menu-card");
         card.appendChild(div("menu-name", row === "front" ? "前衛" : "後衛"));

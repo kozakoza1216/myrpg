@@ -101,6 +101,19 @@ RPG.Data = (function () {
     },
   };
 
+  // ノーマル遠距離攻撃：弓を装備しているときだけ使える（弓がないと、この行動そのものができない。遠距離の「技」は弓がなくても使える）
+  SKILLS.normal_ranged = { name: "ノーマル遠距離攻撃", category: "attack", attribute: "none", mp: 0, power: 1.0, techBonus: 0, isMagic: false, requiresBow: true };
+
+  // 距離カテゴリ（PLAN §4-11・技リストの「距離」列）。near＝近距離／far＝遠距離／all＝全距離（魔法はすべて全距離）
+  var RANGE = {
+    normal_attack: "near", normal_breakthrough: "near", normal_ranged: "far",
+    double_slash: "near", power_strike: "near", step_in: "near", vital_strike: "near", naginata_sweep: "near",
+    bandit_strike: "near", enemy_step_in: "near", enemy_full_charge: "near",
+    twin_slash: "near", sonic_wave: "far", der_regen: "all", fire_bolt: "all",
+    kagari_staff: "near", kagari_chant: "all",
+  };
+  Object.keys(RANGE).forEach(function (id) { SKILLS[id].range = RANGE[id]; });
+
   // ── キャラクター（Lv1・第一章時点） ──
   const CHARACTERS = {
     seo: {

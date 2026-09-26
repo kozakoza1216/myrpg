@@ -74,9 +74,8 @@ RPG.Battle = (function () {
   //   味方：各自の希望の列（c.row＝"front"/"back"。メニューの「配置」や戦闘中の「列を移る」「交代」で変える）。
   //         希望がなければ並び順で前から詰める
   var FRONT_MAX = 2;
-  // 後衛からの攻撃は威力が下がる（PLAN §3「後衛は攻撃（威力-補正）」。数値は資料にないため、
-  // 唯一の記載「後衛vs後衛-50%」に合わせた仮の値）
-  var BACK_ATTACK_MULT = 0.5;
+  // 遠距離で後衛から後衛を撃つと威力-50%（PLAN §4-11）
+  var FAR_BACK_TO_BACK = 0.5;
   function updatePositions(list) {
     var alive = list.filter(function (c) { return !c.defeated; });
     if (!alive.length || alive[0].isEnemy) {
@@ -102,6 +101,23 @@ RPG.Battle = (function () {
     var alive = list.filter(function (c) { return !c.defeated; });
     var front = alive.filter(function (c) { return c.position === "front"; });
     return front.length ? front : alive;
+  }
+  // 技の距離で届く相手（PLAN §4-11 の距離カテゴリを、前衛・後衛の2列に当てはめたもの）。
+  // 盤面は 自後衛｜自前衛｜敵前衛｜敵後衛 の並び＝前衛どうしが隣接している
+  //   近距離：前衛から、隣接する相手の前衛にだけ届く（後衛からは使えない）
+  //   遠距離：隣接する相手には撃てない＝前衛からは相手の後衛だけ、後衛からは相手の前衛と後衛
+  //   全距離（魔法）：どの列からでも使える。狙えるのは通常どおり（前衛が残っていれば前衛）
+  //   範囲の技：生きている相手全員
+  function reachTargets(attacker, skill, opp) {
+    var alive = opp.filter(function (c) { return !c.defeated; });
+    if (skill.area) return alive;
+    var range = skill.range || "near";
+    if (range === "far") {
+      if (attacker.position === "front") return alive.filter(function (c) { return c.position === "back"; });
+      return alive;
+    }
+    if (range === "near" && attacker.position === "back") return [];
+    return targetable(opp);
   }
 
   // opts.items：持ち物（ゲーム全体の持ち物をそのまま渡す。戦闘中に使えば減る）。opts.crit：クリティカル周期 { period, count }（ゲーム全体で数える・PLAN §8-5b）。
@@ -224,6 +240,12 @@ RPG.Battle = (function () {
     if (alive.length === 0) return;
 
     var skillId = this.pickEnemySkill(enemy);
+    if (!skillId) {
+      // 届く技がない（近距離しか持たない後衛など）：判定不発で手番を終える（PLAN §4-10）
+      this.pushLog([enemy.name + "は、様子をうかがっている。"]);
+      this.endTurn(enemy);
+      return;
+    }
     var skill = Data.SKILLS[skillId];
 
     if (skill.category === "special" || skill.category === "hold") {
@@ -231,7 +253,7 @@ RPG.Battle = (function () {
       return;
     }
 
-    var reach = targetable(this.party);
+    var reach = reachTargets(enemy, skill, this.party);
     var target = reach[Math.floor(Math.random() * reach.length)];
     this.pending = { actor: enemy, skillId: skillId, target: target, concealAttackType: true };
     this.phase = "response";
@@ -247,12 +269,19 @@ RPG.Battle = (function () {
       if (Math.random() < 0.3) return "kagari_chant";
       return "kagari_staff";
     }
-    // 後衛からは突破できない（PLAN §3：後衛は攻撃／交代のみ）
-    var attackSkills = enemy.skills.filter(function (id) {
-      var cat = Data.SKILLS[id].category;
-      return cat === "attack" || (cat === "breakthrough" && enemy.position !== "back");
-    });
-    return attackSkills[Math.floor(Math.random() * attackSkills.length)];
+    // 後衛からは突破できない（PLAN §3：後衛は攻撃／交代のみ）。距離で届かない技も選ばない
+    var self = this;
+    var attackSkills = enemy.skills.filter(function (id) { return self.canReach(enemy, id); });
+    return attackSkills.length ? attackSkills[Math.floor(Math.random() * attackSkills.length)] : null;
+  };
+
+  // その技を、いまの列から使えて、届く相手がいるか
+  State.prototype.canReach = function (c, skillId) {
+    var skill = Data.SKILLS[skillId];
+    if (!skill || (skill.category !== "attack" && skill.category !== "breakthrough")) return false;
+    if (skill.category === "breakthrough" && c.position === "back") return false;
+    if (skill.requiresBow && !c.hasBow) return false;
+    return reachTargets(c, skill, c.isEnemy ? this.party : this.enemies).length > 0;
   };
 
   State.prototype.canUse = function (c, skillId) {
@@ -299,6 +328,12 @@ RPG.Battle = (function () {
     var stances = [];
     // 敵の攻撃／突破は選択時にプレイヤーへ知らせない。伏せられた応答では、
     // 両方を読む受動を提示する。足止めは常に選べる読みの選択肢である。
+    // 遠距離で撃たれた側は「反撃」（判定なし・確定）か防御で受ける（PLAN §4-11）
+    if (this.pending && this.pending.target === defender && Data.SKILLS[this.pending.skillId] && Data.SKILLS[this.pending.skillId].range === "far") {
+      stances.push("riposte", "defense");
+      if (this.canDefenseStance(defender)) stances.push("defenseStance");
+      return stances;
+    }
     if (concealAttackType) {
       stances.push("defense");
       if (this.canDefenseStance(defender)) stances.push("defenseStance");
@@ -324,7 +359,8 @@ RPG.Battle = (function () {
     return !c.isEnemy && c.skills.indexOf("defense_stance") >= 0 && c.mp >= Data.SKILLS.defense_stance.mp;
   };
 
-  State.prototype.aiPickStance = function (defender, attacker, category) {
+  State.prototype.aiPickStance = function (defender, attacker, category, skill) {
+    if (skill && skill.range === "far") return Math.random() < 0.35 ? "riposte" : "defense";
     if (defender.isBoss && !defender.canCounter) {
       // カウンターを持たないボス：通常の受動（防御60%／足止め20%／回避10%）。残り10%（逆のカウンター）は防御に寄せる
       var rb = Math.random();
@@ -378,7 +414,7 @@ RPG.Battle = (function () {
     }
     var self = this;
     targets.forEach(function (t, i) {
-      var st = t === defender ? stance : self.aiPickStance(t, attacker, skill.category === "breakthrough" ? "breakthrough" : "attack");
+      var st = t === defender ? stance : (t.isEnemy ? self.aiPickStance(t, attacker, skill.category === "breakthrough" ? "breakthrough" : "attack", skill) : "defense");   // 範囲技で巻き込まれた味方は防御で受ける
       self.resolveOne(attacker, skill, t, st, forceCrit && i === 0, lines, i === 0);
     });
     this.pushLog(lines);
@@ -392,15 +428,28 @@ RPG.Battle = (function () {
       bonuses.defenderBonus = Data.SKILLS.defense_stance.techBonus;
       defender.mp = Math.max(0, defender.mp - Data.SKILLS.defense_stance.mp);
     }
-    var stanceLabel = { defense: "防御", evade: "回避", hold: "足止め", counter: "カウンター", breakthroughCounter: "突破カウンター" }[stance] || "応答なし";
+    var stanceLabel = { defense: "防御", evade: "回避", hold: "足止め", counter: "カウンター", breakthroughCounter: "突破カウンター", riposte: "反撃" }[stance] || "応答なし";
     if (bonuses.defenderBonus) stanceLabel = "防御姿勢";
     lines.push((first ? attacker.name + "の" + skill.name + "！ " : "") + defender.name + "は" + stanceLabel + "を選択。");
 
+    var farMult = skill.range === "far" && attacker.position === "back" && defender.position === "back" ? FAR_BACK_TO_BACK : 1;
+    if (stance === "riposte") {
+      // 反撃：判定をせず、撃たれた分はそのまま受け、こちらのノーマル攻撃を確実に返す（技の威力だけで決まる）
+      var hit = Math.round(Engine.applyDefenseReduction(Engine.baseDamage(attacker, skill) * farMult, defender.stats.def));
+      this.applyDamage(attacker, defender, hit);
+      lines.push(defender.name + "に" + hit + "のダメージ。");
+      if (!defender.defeated) {
+        var back = Math.round(Engine.applyDefenseReduction(Engine.baseDamage(defender, Data.SKILLS.normal_attack), attacker.stats.def));
+        this.applyDamage(defender, attacker, back);
+        lines.push(defender.name + "の反撃！ " + attacker.name + "に" + back + "のダメージ。");
+      }
+      return;
+    }
     var backline = this.hasBackline(defender);
     bonuses.evadeAutoLose = backline; // 回避は突破に確定負け（後衛がいないときだけ例外）
     var result = Engine.resolveAction(attacker, skill, defender, stance, {
       forceCrit: forceCrit, bonuses: bonuses,
-      powerMult: attacker.position === "back" ? BACK_ATTACK_MULT : 1,
+      powerMult: farMult,
       ignoreStanceOnWin: isBreakthrough && !backline, // 後衛なし＝前衛の背面攻撃（防御無効・§4-8）
     });
 
@@ -461,7 +510,7 @@ RPG.Battle = (function () {
   State.prototype.playerChooseSkill = function (skillId) {
     this.pending.skillId = skillId;
     var skill = Data.SKILLS[skillId];
-    var targets = skill.area ? this.enemies.filter(function (c) { return !c.defeated; }) : targetable(this.enemies);
+    var targets = reachTargets(this.pending.actor, skill, this.enemies);
     if (targets.length === 1 || skill.area) {
       this.playerChooseTarget(targets[0]);
     } else {
@@ -474,7 +523,7 @@ RPG.Battle = (function () {
     var actor = this.pending.actor;
     var skillId = this.pending.skillId;
     var category = Data.SKILLS[skillId].category === "breakthrough" ? "breakthrough" : "attack";
-    var stance = this.aiPickStance(target, actor, category);
+    var stance = this.aiPickStance(target, actor, category, Data.SKILLS[skillId]);
     this.performResolve(actor, skillId, target, stance);
     this.endTurn(actor);
   };
@@ -586,7 +635,7 @@ RPG.Battle = (function () {
     var col = document.createElement("div");
     col.className = "combatant-column";
     var self = this;
-    var reach = this.phase === "target" && faction === "enemy" ? targetable(this.enemies) : [];
+    var reach = this.phase === "target" && faction === "enemy" ? reachTargets(this.pending.actor, Data.SKILLS[this.pending.skillId], this.enemies) : [];
     list.forEach(function (c) {
       var box = document.createElement("div");
       // 戦闘画面には人物のピクトグラムを出さず、名前とゲージだけで示す。
@@ -642,8 +691,8 @@ RPG.Battle = (function () {
         var skill = Data.SKILLS[skillId];
         // 防御の技（防御姿勢など）は、自分の手番に使う行動ではないので並べない
         if (!skill || skill.category === "defense") return;
-        var usable = self.canUse(self.pending.actor, skillId) && !(skill.category === "breakthrough" && self.pending.actor.position === "back");
-        var label = skill.name + (skill.mp > 0 ? "(MP" + skill.mp + ")" : "");
+        var usable = self.canUse(self.pending.actor, skillId) && self.canReach(self.pending.actor, skillId);
+        var label = skill.name + (skill.mp > 0 ? "(MP" + skill.mp + ")" : "") + (self.canReach(self.pending.actor, skillId) ? "" : "（届かない）");
         grid.appendChild(button(label, function () { self.playerChooseSkill(skillId); }, !usable));
       });
       // 列を移る（前衛は1〜2人の範囲で）／交代（反対の列の味方と入れ替わる）
@@ -712,7 +761,9 @@ RPG.Battle = (function () {
       var category = skill.category === "breakthrough" ? "breakthrough" : "attack";
       var p3 = document.createElement("p");
       p3.className = "prompt";
-      p3.textContent = this.pending.concealAttackType
+      p3.textContent = skill.range === "far"
+        ? atk.name + "が遠くから狙っている！ " + target.name + "はどう受ける？"
+        : this.pending.concealAttackType
         ? atk.name + "が仕掛けてくる。" + target.name + "はどう受ける？"
         : atk.name + "が" + skill.name + "を仕掛けてくる！ " + target.name + "はどう受ける？";
       root.appendChild(p3);
@@ -724,7 +775,7 @@ RPG.Battle = (function () {
       }
       var grid2 = document.createElement("div");
       grid2.className = "btn-grid";
-      var labels = { defense: "防御", defenseStance: "防御姿勢(MP" + Data.SKILLS.defense_stance.mp + ")", evade: "回避", hold: "足止め", counter: "カウンター", breakthroughCounter: "突破カウンター" };
+      var labels = { riposte: "反撃", defense: "防御", defenseStance: "防御姿勢(MP" + Data.SKILLS.defense_stance.mp + ")", evade: "回避", hold: "足止め", counter: "カウンター", breakthroughCounter: "突破カウンター" };
       this.availableStances(target, category, this.pending.concealAttackType).forEach(function (st) {
         grid2.appendChild(button(labels[st], function () { self.playerChooseStance(st); }));
       });
