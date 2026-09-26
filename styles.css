@@ -259,3 +259,7 @@ button {
 .freearea-label, .layer-badge, .layer-banner { z-index: 2; }
 .menu-foot { gap: 0.5rem; }
 .sound-toggle { font-size: 0.85rem; padding: 0.35rem 0.9rem; opacity: 0.85; }
+
+.judge-text { display: block; text-align: center; font-size: 0.82rem; color: #ffe0a0; margin-bottom: 0.3rem; }
+.result-card { background: #1a140e; border: 1px solid #6a5638; border-radius: 6px; padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; text-align: left; font-size: 0.88rem; }
+.result-card p { margin: 0.15rem 0; }
