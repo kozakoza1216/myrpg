@@ -236,6 +236,7 @@ RPG.Battle = (function () {
 
   State.prototype.finish = function (result) {
     this.phase = "done";
+    if (RPG.Sound) RPG.Sound.play(result === "defeat" ? "defeat" : "victory");
     this.render();
     var self = this;
     setTimeout(function () { self.onEnd(result); }, 700);
@@ -885,6 +886,7 @@ RPG.Battle = (function () {
 
   function start(containerEl, party, enemyIds, onEnd, opts) {
     var state = new State(containerEl, party, enemyIds, onEnd, opts);
+    if (RPG.Sound) { RPG.Sound.bgm(state.enemies.some(function (e) { return e.isBoss; }) ? "boss" : "battle"); RPG.Sound.play("encounter"); }
     state.render();
     return state;
   }

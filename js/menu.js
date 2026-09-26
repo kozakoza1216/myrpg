@@ -122,6 +122,7 @@ RPG.Menu = (function () {
       if (msg) wrap.appendChild(div("menu-msg", msg));
       var foot = div("menu-foot");
       // 閉じたとき、歩数が上限に達していれば、その場で竜の活性化を起こす（デバッグで歩数を足した時など）
+      if (RPG.Sound) foot.appendChild(RPG.Sound.toggleButton());
       foot.appendChild(btn("閉じる", function () { if (!RPG.Explore.checkTimeUp(game, opts.onClose)) opts.onClose(); }));
       wrap.appendChild(foot);
       app.appendChild(wrap);

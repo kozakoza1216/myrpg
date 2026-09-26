@@ -257,3 +257,5 @@ button {
 @keyframes cl-flicker { 0% { background: rgba(4, 4, 8, 0.35); } 50% { background: rgba(4, 4, 8, 0.12); } 100% { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .cl-tint, .cl-scan, .ceiling-light.cl-flicker { animation: none !important; } .cl-scan { display: none; } }
 .freearea-label, .layer-badge, .layer-banner { z-index: 2; }
+.menu-foot { gap: 0.5rem; }
+.sound-toggle { font-size: 0.85rem; padding: 0.35rem 0.9rem; opacity: 0.85; }

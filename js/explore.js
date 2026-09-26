@@ -382,6 +382,7 @@ RPG.Explore = (function () {
   Dungeon.prototype.render = function () {
     var self = this;
     this.el.innerHTML = "";
+    if (RPG.Sound) RPG.Sound.bgm(this.game.flags && this.game.flags.timeUp ? "ruin" : "field");
     var wrap = document.createElement("div");
     wrap.className = "dungeon-wrap";
 
@@ -624,6 +625,7 @@ RPG.Explore = (function () {
   WorldMap.prototype.render = function () {
     var self = this;
     this.el.innerHTML = "";
+    if (RPG.Sound) RPG.Sound.bgm(this.game.flags && this.game.flags.timeUp ? "ruin" : "field");
     var wrap = document.createElement("div");
     wrap.className = "worldmap-wrap";
 
@@ -2488,6 +2490,7 @@ RPG.Explore = (function () {
   FreeArea.prototype.render = function () {
     var self = this;
     this.detachKeyboard();
+    if (RPG.Sound) RPG.Sound.bgm(this.game.flags && this.game.flags.timeUp ? "ruin" : "field");
     this.el.innerHTML = "";
     var wrap = document.createElement("div");
     wrap.className = "dungeon-wrap";

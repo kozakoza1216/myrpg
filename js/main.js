@@ -58,6 +58,8 @@ window.RPG = window.RPG || {};
     wrap.appendChild(sub);
     wrap.appendChild(btn);
     if (cont) wrap.appendChild(cont);
+    // 音のON/OFF（タイトルの曲は、最初に画面に触れたところから鳴り始める）
+    if (RPG.Sound) { wrap.appendChild(RPG.Sound.toggleButton("primary-btn sound-toggle")); RPG.Sound.bgm("title"); }
     wrap.appendChild(foot);
     app.appendChild(wrap);
   }

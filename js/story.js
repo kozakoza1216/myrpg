@@ -71,6 +71,7 @@ RPG.Story = (function () {
         placeFigures(frame, beat);
       }
       // 演出：fx:"quake"＝画面が揺れて赤く光る（暗転はしない）
+      if (beat.emph && RPG.Sound) RPG.Sound.play("levelup");
       if (beat.fx) { var fxEl = frame || containerEl; fxEl.classList.add("fx-" + beat.fx); if (RPG.Sound) RPG.Sound.play(beat.fx); }
       var box = document.createElement("div");
 
