@@ -245,6 +245,8 @@ button {
 .area-banner { position: absolute; left: 0; right: 0; top: 34%; text-align: center; font-size: 1.35rem; letter-spacing: 0.25em; color: #e8dcc8; text-shadow: 0 0 8px #000, 0 2px 0 #000; background: linear-gradient(90deg, transparent, rgba(10, 8, 6, 0.75) 20%, rgba(10, 8, 6, 0.75) 80%, transparent); padding: 0.45rem 0; pointer-events: none; opacity: 0; animation: layer-banner 2.2s ease-out forwards; z-index: 3; }
 /* 壊れた人工天井の光。探索画面の上に、色むら・走査線・ちらつきを薄く重ねる */
 .ceiling-light { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+/* 四隅だけをわずかに沈める（中央の6割には掛からない。敵の近づく画面の端も、見えなくなるほどは暗くしない） */
+.ceiling-light::before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 75% 75% at 50% 50%, transparent 62%, rgba(6, 5, 9, 0.26) 100%); }
 .cl-tint { position: absolute; inset: 0; mix-blend-mode: soft-light; opacity: 0.55;
   background: radial-gradient(ellipse at 22% 18%, rgba(120, 150, 190, 0.35), transparent 55%), radial-gradient(ellipse at 78% 70%, rgba(190, 110, 70, 0.3), transparent 60%), radial-gradient(ellipse at 60% 10%, rgba(90, 170, 150, 0.22), transparent 50%);
   animation: cl-drift 22s ease-in-out infinite alternate; }

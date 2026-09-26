@@ -1758,6 +1758,8 @@ RPG.Explore = (function () {
             }
           }
           D[di] = r; D[di + 1] = g; D[di + 2] = b; D[di + 3] = 255;
+          if (!e.fromLower) e.fromLower = new Uint8Array(CHUNK_P * CHUNK_P);
+          e.fromLower[di >> 2] = 1;
         } else {
           D[di] = 10; D[di + 1] = 8; D[di + 2] = 6; D[di + 3] = 255;
         }
@@ -1776,10 +1778,30 @@ RPG.Explore = (function () {
       drawObjectHD(ctx, o);
     });
     ctx.restore();
-    e.img = null; e.cache = null; e.lowerD = null;
+    gradeCanvas(e.cv, e.fromLower);
+    e.img = null; e.cache = null; e.lowerD = null; e.fromLower = null;
     e.done = true;
     return true;
   };
+
+  // 画面の色の調子（PLAN §8-2：灰色基調＋慢性的な薄暮）。壊れた人工天井の光の下にいる色にする。
+  // 地形の絵にだけ、描き上がった時に一度だけかける（毎フレームはかけない）。
+  // 人物・敵・宝箱・出口などの目印はかけずに上から描くので、地面より鮮やかに浮いて見える（見やすさを落とさない）。
+  // 明るさはほぼ変えず、色味だけを動かす：彩度を落として灰色へ寄せ、暗い所は薄暮の青紫、明るい所は褪せた夕焼け色へ
+  var GRADE = { sat: 0.6, shadow: [-3, -2, 7], light: [9, 3, -6] };
+  function gradeCanvas(cv, skip) {
+    var ctx = cv.getContext("2d"), im = ctx.getImageData(0, 0, cv.width, cv.height), d = im.data;
+    var S = GRADE.sat, sh = GRADE.shadow, li = GRADE.light;
+    for (var i = 0, p = 0; i < d.length; i += 4, p++) {
+      if (skip && skip[p]) continue;
+      var r = d[i], g = d[i + 1], b = d[i + 2];
+      var l = 0.299 * r + 0.587 * g + 0.114 * b, t = Math.min(1, l / 150);
+      d[i] = l + (r - l) * S + sh[0] * (1 - t) + li[0] * t;
+      d[i + 1] = l + (g - l) * S + sh[1] * (1 - t) + li[1] * t;
+      d[i + 2] = l + (b - l) * S + sh[2] * (1 - t) + li[2] * t;
+    }
+    ctx.putImageData(im, 0, 0);
+  }
 
   // 描き上がる前に見せる仮の絵（1タイル＝1画素の平均色を、ぼかして引き伸ばす）
   var PREVIEW_COLOR = {};
@@ -1792,6 +1814,7 @@ RPG.Explore = (function () {
     if (this._preview) return this._preview;
     var g = this.grid, cv = makeCanvas(g.cols, g.rows), ctx = cv.getContext("2d");
     for (var y = 0; y < g.rows; y++) for (var x = 0; x < g.cols; x++) { ctx.fillStyle = PREVIEW_COLOR[g.get(x, y)] || "#0a0806"; ctx.fillRect(x, y, 1, 1); }
+    gradeCanvas(cv, null);
     return (this._preview = cv);
   };
 
