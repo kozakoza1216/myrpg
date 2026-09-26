@@ -15,7 +15,7 @@ RPG.Save = (function () {
   function packGame(game) {
     return {
       steps: game.steps, stepLimit: game.stepLimit,
-      party: game.party.map(function (c) { return { defId: c.defId, level: c.level, exp: c.exp, hp: c.hp, mp: c.mp, skills: c.skills.slice() }; }),
+      party: game.party.map(function (c) { return { defId: c.defId, level: c.level, exp: c.exp, hp: c.hp, mp: c.mp, skills: c.skills.slice(), row: c.row || null }; }),
       companions: game.companions.slice(), flags: Object.assign({}, game.flags), items: Object.assign({}, game.items || {}),
       crit: game.crit ? Object.assign({}, game.crit) : null,
     };
@@ -42,6 +42,7 @@ RPG.Save = (function () {
         var c = RPG.Battle.createCombatant(m.defId, false);
         if (m.level) { RPG.Battle.setLevel(c, m.level); c.exp = m.exp; }
         c.hp = Math.min(m.hp, c.maxHp); c.mp = Math.min(m.mp, c.maxMp); c.skills = migrateSkills(m);
+        if (m.row) c.row = m.row;
         return c;
       }),
       companions: p.companions.slice(), flags: Object.assign({}, p.flags), items: Object.assign({}, p.items || {}),
@@ -99,7 +100,7 @@ RPG.Menu = (function () {
       wrap.appendChild(head);
 
       var tabs = div("menu-tabs");
-      var list = [["status", "ステータス"], ["skills", "技"], ["items", "持ち物"]];
+      var list = [["status", "ステータス"], ["skills", "技"], ["items", "持ち物"], ["formation", "配置"]];
       if (opts.fastTravel) list.push(["travel", "ファストトラベル"]);
       list.push(["save", "セーブ／ロード"]);
       list.forEach(function (t) {
@@ -111,6 +112,7 @@ RPG.Menu = (function () {
       if (tab === "status") renderStatus(body);
       else if (tab === "skills") renderSkills(body);
       else if (tab === "items") renderItems(body);
+      else if (tab === "formation") renderFormation(body);
       else if (tab === "travel") renderTravel(body);
       else renderSave(body);
       wrap.appendChild(body);
@@ -207,6 +209,36 @@ RPG.Menu = (function () {
           row.appendChild(who);
         }
         body.appendChild(row);
+      });
+    }
+
+    // 配置：戦闘での前衛・後衛。前衛は1〜2人。後衛は、前衛が残っている間は狙われないが、
+    // 突破ができず、攻撃の威力が下がる
+    function renderFormation(body) {
+      var B = RPG.Battle;
+      B.updatePositions(game.party);
+      game.party.forEach(function (c) { if (!c.row) c.row = c.position; });
+      body.appendChild(div("menu-row-sub", "前衛は1〜" + B.FRONT_MAX + "人。後衛は、前衛が残っている間は敵に狙われないが、突破ができず、攻撃の威力が下がる。"));
+      ["front", "back"].forEach(function (row) {
+        var card = div("menu-card");
+        card.appendChild(div("menu-name", row === "front" ? "前衛" : "後衛"));
+        var members = game.party.filter(function (c) { return c.row === row; });
+        if (!members.length) card.appendChild(div("menu-empty", "（いない）"));
+        members.forEach(function (c) {
+          var r = div("menu-row");
+          r.appendChild(div("menu-row-main", c.name + "　HP " + c.hp + "/" + c.maxHp));
+          var to = row === "front" ? "back" : "front";
+          var b = btn(to === "front" ? "前衛へ" : "後衛へ", function () {
+            c.row = to;
+            B.updatePositions(game.party);
+            msg = c.name + "を" + (to === "front" ? "前衛" : "後衛") + "にした。";
+            render();
+          });
+          if (!B.canSetRow(game.party, c, to)) b.disabled = true;
+          r.appendChild(b);
+          card.appendChild(r);
+        });
+        body.appendChild(card);
       });
     }
 

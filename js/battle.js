@@ -69,15 +69,33 @@ RPG.Battle = (function () {
     return lines;
   }
 
-  // 前衛・後衛（PLAN §3、enemies.md）：並び順で前から2人までが前衛、残りは後衛。
-  // 前衛が倒れれば、後衛が前衛へ繰り上がる。並び順は「交代」で入れ替える
+  // 前衛・後衛（PLAN §3、enemies.md）。前衛は1〜2人。前衛が倒れれば、後衛が前衛へ繰り上がる。
+  //   敵：並び順で前から2体までが前衛、残りは後衛（enemies.md の雑魚敵グループの配置）
+  //   味方：各自の希望の列（c.row＝"front"/"back"。メニューの「配置」や戦闘中の「列を移る」「交代」で変える）。
+  //         希望がなければ並び順で前から詰める
   var FRONT_MAX = 2;
   // 後衛からの攻撃は威力が下がる（PLAN §3「後衛は攻撃（威力-補正）」。数値は資料にないため、
   // 唯一の記載「後衛vs後衛-50%」に合わせた仮の値）
   var BACK_ATTACK_MULT = 0.5;
   function updatePositions(list) {
     var alive = list.filter(function (c) { return !c.defeated; });
-    alive.forEach(function (c, i) { c.position = i < FRONT_MAX ? "front" : "back"; });
+    if (!alive.length || alive[0].isEnemy) {
+      alive.forEach(function (c, i) { c.position = i < FRONT_MAX ? "front" : "back"; });
+      return;
+    }
+    var front = 0;
+    alive.forEach(function (c) {
+      var want = c.row || (front < FRONT_MAX ? "front" : "back");
+      c.position = want === "front" && front < FRONT_MAX ? "front" : "back";
+      if (c.position === "front") front++;
+    });
+    if (!front) alive[0].position = "front";                        // 前衛がいなくなれば、後衛の先頭が繰り上がる
+  }
+  // 味方の希望の列を変えられるか（前衛は1〜2人）
+  function canSetRow(list, c, row) {
+    var alive = list.filter(function (m) { return !m.defeated; });
+    var front = alive.filter(function (m) { return m !== c && (m.row || m.position) === "front"; }).length;
+    return row === "front" ? front < FRONT_MAX : front >= 1;
   }
   // 狙える相手：前衛が残っている限り、後衛は狙えない（範囲技は後衛にも届く）
   function targetable(list) {
@@ -461,16 +479,27 @@ RPG.Battle = (function () {
     this.endTurn(actor);
   };
 
-  // 交代：手番の者と、反対の列の味方の並び順を入れ替える（1手を使う）
+  // 交代：手番の者と、反対の列の味方が入れ替わる（1手を使う）
   State.prototype.swapPartners = function (actor) {
     return this.party.filter(function (c) { return !c.defeated && c !== actor && c.position !== actor.position; });
   };
   State.prototype.playerSwap = function (partner) {
-    var actor = this.pending.actor, list = this.party;
-    var i = list.indexOf(actor), j = list.indexOf(partner);
-    list[i] = partner; list[j] = actor;
-    updatePositions(list);
+    var actor = this.pending.actor, a = actor.position, b = partner.position;
+    actor.row = b; partner.row = a;
+    updatePositions(this.party);
     this.pushLog([actor.name + "は" + partner.name + "と交代し、" + (actor.position === "front" ? "前衛" : "後衛") + "に移った。"]);
+    this.endTurn(actor);
+  };
+  // 列を移る：ひとりで反対の列へ（前衛は1〜2人の範囲で。1手を使う）
+  State.prototype.canMoveRow = function (actor) {
+    for (var i = 0; i < this.party.length; i++) { var m = this.party[i]; if (!m.row) m.row = m.position; }
+    return canSetRow(this.party, actor, actor.position === "front" ? "back" : "front");
+  };
+  State.prototype.playerMoveRow = function () {
+    var actor = this.pending.actor;
+    actor.row = actor.position === "front" ? "back" : "front";
+    updatePositions(this.party);
+    this.pushLog([actor.name + "は" + (actor.position === "front" ? "前衛へ出た。" : "後衛へ下がった。")]);
     this.endTurn(actor);
   };
 
@@ -617,8 +646,10 @@ RPG.Battle = (function () {
         var label = skill.name + (skill.mp > 0 ? "(MP" + skill.mp + ")" : "");
         grid.appendChild(button(label, function () { self.playerChooseSkill(skillId); }, !usable));
       });
-      // 交代：前衛と後衛を入れ替える（反対の列に味方がいるときだけ）
-      if (this.swapPartners(this.pending.actor).length) grid.appendChild(button("交代", function () { self.phase = "swap"; self.render(); }));
+      // 列を移る（前衛は1〜2人の範囲で）／交代（反対の列の味方と入れ替わる）
+      var actorNow = this.pending.actor;
+      if (this.canMoveRow(actorNow)) grid.appendChild(button(actorNow.position === "front" ? "後衛へ下がる" : "前衛へ出る", function () { self.playerMoveRow(); }));
+      if (this.swapPartners(actorNow).length) grid.appendChild(button("交代", function () { self.phase = "swap"; self.render(); }));
       // アイテムも1手分の行動（PLAN.md：アイテム使用も能動1回分を消費する）
       grid.appendChild(button("アイテム", function () { self.phase = "item"; self.render(); }, !this.battleItems().length));
       root.appendChild(grid);
@@ -724,5 +755,6 @@ RPG.Battle = (function () {
     return state;
   }
 
-  return { start: start, createCombatant: createCombatant, setLevel: setLevel, awardExperience: awardExperience };
+  return { start: start, createCombatant: createCombatant, setLevel: setLevel, awardExperience: awardExperience,
+    updatePositions: updatePositions, canSetRow: canSetRow, FRONT_MAX: FRONT_MAX };
 })();
