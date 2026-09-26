@@ -18,6 +18,7 @@ RPG.Save = (function () {
       party: game.party.map(function (c) { return { defId: c.defId, level: c.level, exp: c.exp, hp: c.hp, mp: c.mp, skills: c.skills.slice(), row: c.row || null }; }),
       companions: game.companions.slice(), flags: Object.assign({}, game.flags), items: Object.assign({}, game.items || {}),
       crit: game.crit ? Object.assign({}, game.crit) : null,
+      encounterIn: game.encounterIn || 0,
     };
   }
   // 記録の技を今の定義に合わせる：初めから持つ技とレベルで覚える技は定義から出し直し、記憶結晶で覚えた技だけを記録から残す。
@@ -47,6 +48,7 @@ RPG.Save = (function () {
       }),
       companions: p.companions.slice(), flags: Object.assign({}, p.flags), items: Object.assign({}, p.items || {}),
       crit: p.crit ? Object.assign({}, p.crit) : RPG.Data.newSeed(),
+      encounterIn: p.encounterIn || 0,
     };
   }
   return { read: read, write: write, packGame: packGame, unpackGame: unpackGame };

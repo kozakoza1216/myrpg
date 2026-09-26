@@ -10,6 +10,7 @@ RPG.Chapter1 = (function () {
   // 地形はタイル単位（1タイル＝16ドット）で組む。座標もタイル単位。
   var HAIBERI_VILLAGE = {
     label: "灰縁の集落",
+    safe: true,   // 安全地帯（歩いてもエンカウントしない）
     start: { tx: 19.5, ty: 25.5 },
     tilemap: {
       cols: 48, rows: 32, seed: 3, rubbleBase: "grass",
@@ -130,8 +131,6 @@ RPG.Chapter1 = (function () {
       ],
     },
     zones: [
-      { id: "danger1", kind: "danger", tx: 45, ty: 34, r: 70, encounterRate: 0.5, label: "崩落した交差路" },
-      { id: "danger2", kind: "danger", tx: 86, ty: 46, r: 80, encounterRate: 0.35, label: "見通しの悪い市場跡" },
       { id: "chest1", kind: "chest", tx: 13.5, ty: 23, r: 14, label: "北の住居跡" },
       { id: "chest2", kind: "chest", tx: 91, ty: 68.5, r: 14, label: "水路脇の荷箱" },
       { id: "stairs_up", kind: "stairs", toLayer: "upper", entry: "fromStreet", tx: 40, ty: 45, r: 16, label: "城壁へ上る石段" },
@@ -171,7 +170,6 @@ RPG.Chapter1 = (function () {
       ],
     },
     zones: [
-      { id: "upper_danger", kind: "danger", tx: 73, ty: 29, r: 72, encounterRate: 0.55, label: "崩れた歩廊" },
       { id: "upper_chest", kind: "chest", tx: 97, ty: 24.5, r: 14, label: "見張り塔の遺品" },
       { id: "stairs_down", kind: "stairs", toLayer: "street", entry: "fromHigh", tx: 40, ty: 45, r: 16, label: "下層街路へ戻る" },
     ],
@@ -182,6 +180,7 @@ RPG.Chapter1 = (function () {
   // 門番が立っていて、門に近づいた時にだけ拒まれる（そのまま引き返すしかない）。
   var OUTSKIRTS_AREA = {
     label: "灰縁の集落・外縁",
+    safe: true,   // 安全地帯（集落の柵の外だが、門番の目が届く）
     start: { tx: 50, ty: 35 },
     entryPoints: { hairegion: { tx: 50, ty: 35 } },
     tilemap: {

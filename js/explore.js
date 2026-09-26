@@ -88,6 +88,17 @@ RPG.Explore = (function () {
     }, 340);
   };
 
+  // ── ランダムエンカウント（PLAN §8-3b・§8-5c）：安全地帯以外を歩くと、15〜25歩（平均20）に1回。
+  // 残り歩数はゲーム全体で持ち越す（場所を移っても数え直さない）。1タイル＝1歩として数える
+  function nextEncounterIn() { return 15 + Math.floor(Math.random() * 11); }
+  function encounterStep(game) {
+    if (!game.encounterIn) game.encounterIn = nextEncounterIn();
+    game.encounterIn -= 1;
+    if (game.encounterIn > 0) return false;
+    game.encounterIn = nextEncounterIn();
+    return true;
+  }
+
   Dungeon.prototype.step = function (backward) {
     var target = this.forward(backward ? -1 : 1);
     var tile = this.tileAt(target.x, target.y);
@@ -125,9 +136,8 @@ RPG.Explore = (function () {
       var floorId = tile.slice(7);
       if (this.cb.onStairs) { this.cb.onStairs(floorId); return true; }
     }
-    if (tile === "encounter" || tile === "floor") {
-      var rate = tile === "encounter" ? 0.35 : 0.06;
-      if (Math.random() < rate && this.cb.onEncounter) { this.cb.onEncounter(); return true; }
+    if ((tile === "encounter" || tile === "floor") && !this.data.safe && this.cb.onEncounter && encounterStep(this.game)) {
+      this.cb.onEncounter(); return true;
     }
     return false;
   };
@@ -2200,6 +2210,19 @@ RPG.Explore = (function () {
     this._walkDist += moved;
     this.updateHudAndPlayer();
     this.checkZone(this.pos.x, this.pos.y);
+    // 安全地帯（data.safe）以外では、歩いた1タイルごとにエンカウントを数える。目印に入って画面が変わった時は数えない
+    if (this.data.safe || !this.cb.onEncounter || !this._kbAttached) return;
+    this._encAcc = (this._encAcc || 0) + moved;
+    while (this._encAcc >= TILE) {
+      this._encAcc -= TILE;
+      if (encounterStep(this.game)) {
+        var self = this;
+        this._encAcc = 0;
+        this.detachKeyboard();
+        this.cb.onEncounter(function () { self.render(); });
+        return;
+      }
+    }
   };
 
   FreeArea.prototype.updateHudAndPlayer = function () {
