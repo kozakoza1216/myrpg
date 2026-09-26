@@ -751,7 +751,8 @@ RPG.Chapter1 = (function () {
       var lines = Battle.awardExperience(game.party, state.enemies, timeUp() ? 0 : RPG.Data.expRate(game.steps, game.stepLimit));
       game.party.forEach(function (c) { c.defeated = false; c.atb = 0; if (c.hp === 0) c.hp = 1; });
       if (!lines.length) { next(); return; }
-      Story.play(app, lines.map(function (t) { return { kind: "narration", text: t }; }), next);
+      // レベルアップと技の習得は、枠を光らせて目立たせる
+      Story.play(app, lines.map(function (t) { return { kind: "narration", text: t, emph: /レベル\d+になった|を覚えた/.test(t) }; }), next);
     }, { items: game.items, crit: game.crit, eventEnd: eventEnd, strength: RPG.Data.strengthRate(game.steps, game.stepLimit) });
   }
 

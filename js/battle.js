@@ -144,6 +144,20 @@ RPG.Battle = (function () {
     this.phase = "intro"; // intro/idle/playerAct/target/response/message/done
   }
 
+  // ── 演出：行動のあと一拍おいて、判定の競り合い・被弾・数字を見せてから次の手番へ進む ──
+  var FX_MS = 900;
+  State.prototype.fxReset = function () { this.fx = { judge: null, marks: [] }; };
+  // kind：hit／crit／negate／reflect／heal／miss（数字の横の文字は text）
+  State.prototype.fxMark = function (c, kind, amount, text) { if (!this.fx) this.fxReset(); this.fx.marks.push({ c: c, kind: kind, amount: amount, text: text }); };
+  State.prototype.afterAction = function (actor) {
+    var self = this;
+    if (!this.fx || (!this.fx.judge && !this.fx.marks.length)) { this.fx = null; this.endTurn(actor); return; }
+    this.phase = "fx";
+    this.render();
+    if (RPG.Sound) RPG.Sound.battleFx(this.fx);
+    setTimeout(function () { self.fx = null; self.endTurn(actor); }, FX_MS);
+  };
+
   State.prototype.allCombatants = function () {
     return this.party.concat(this.enemies);
   };
@@ -314,14 +328,16 @@ RPG.Battle = (function () {
       var heal = Math.round(actor.maxHp * skill.selfHealPercent);
       actor.hp = Math.min(actor.maxHp, actor.hp + heal);
       lines.push(actor.name + "の" + skill.name + "！ HPを" + heal + "回復した。");
+      this.fxMark(actor, "heal", heal);
     } else if (skill.category === "hold" && skill.guaranteedHit) {
       var target = allyList[Math.floor(Math.random() * allyList.length)];
       target.scoreDebuff = (target.scoreDebuff || 0) + skill.scoreDebuff;
       target.debuffTurns = skill.permanent ? 0 : (skill.debuffTurns || 3);
       lines.push(actor.name + "の" + skill.name + "！ " + target.name + "の判定が" + skill.scoreDebuff + "下がった" + (skill.permanent ? "（戦闘が終わるまで治らない）" : "") + "。");
+      this.fxMark(target, "miss", 0, "判定−" + skill.scoreDebuff);
     }
     this.pushLog(lines);
-    this.endTurn(actor);
+    this.afterAction(actor);
   };
 
   // ── 受動フェーズの選択肢（§7-2 大前提1・1b） ──
@@ -419,6 +435,7 @@ RPG.Battle = (function () {
     var skill = Data.SKILLS[skillId];
     this.markUsed(attacker, skillId);
     var lines = [];
+    this.fxReset();
 
     // クリティカル周期：パーティ全体の累計攻撃回数（攻撃・突破を行った数）で数える（PLAN §8-5b）
     var forceCrit = false;
@@ -458,6 +475,7 @@ RPG.Battle = (function () {
       // 反撃：判定をせず、撃たれた分はそのまま受け、こちらのノーマル攻撃を確実に返す（技の威力だけで決まる）
       var hit = Math.round(Engine.applyDefenseReduction(Engine.baseDamage(attacker, skill) * farMult, defender.stats.def));
       this.applyDamage(attacker, defender, hit);
+      this.fxMark(defender, "hit", hit);
       lines.push(defender.name + "に" + hit + "のダメージ。");
       if (!defender.defeated) {
         // 弓があれば遠距離（後衛どうしなら-50%）、なければ近距離のノーマル攻撃で返す
@@ -465,6 +483,7 @@ RPG.Battle = (function () {
         var rm = defender.hasBow && defender.position === "back" && attacker.position === "back" ? FAR_BACK_TO_BACK : 1;
         var back = Math.round(Engine.applyDefenseReduction(Engine.baseDamage(defender, rs) * rm, attacker.stats.def));
         this.applyDamage(defender, attacker, back);
+        this.fxMark(attacker, "reflect", back, "反撃");
         lines.push(defender.name + "の反撃！ " + attacker.name + "に" + back + "のダメージ。");
       }
       return;
@@ -477,13 +496,17 @@ RPG.Battle = (function () {
       ignoreStanceOnWin: isBreakthrough && !backline, // 後衛なし＝前衛の背面攻撃（防御無効・§4-8）
     });
 
+    // 判定の競り合い（範囲技は最初の相手の分だけ見せる）
+    if (first && !skill.guaranteedHit) this.fx.judge = { a: attacker.name, as: result.attackerScore, d: defender.name, ds: result.defenderScore, win: result.attackerWins, stance: stanceLabel };
     if (result.reflected) {
       attacker.hp = Math.max(0, attacker.hp - result.damage);
+      this.fxMark(attacker, "reflect", result.damage, "反射");
       lines.push(defender.name + "のカウンターが成立！ " + attacker.name + "に" + result.damage + "のダメージ。");
       if (attacker.hp === 0) { attacker.defeated = true; attacker.defeatedBy = defender; }
       return;
     }
     if (result.negated) {
+      this.fxMark(defender, "negate", 0, stance === "evade" ? "回避" : "無効");
       lines.push(defender.name + "は" + skill.name + "を完全に凌いだ！");
       return;
     }
@@ -493,6 +516,7 @@ RPG.Battle = (function () {
       return;
     }
     this.applyDamage(attacker, defender, result.damage);
+    this.fxMark(defender, result.critical ? "crit" : "hit", result.damage, result.critical ? "会心" : "");
     var tag = (result.critical ? "（会心の一撃！）" : "") + (result.guaranteed ? "（保証ダメージ込み）" : "");
     if (result.damage > 0) lines.push(defender.name + "に" + result.damage + "のダメージ" + (result.hits > 1 ? "（" + result.hits + "発）" : "") + tag + (isBreakthrough && result.attackerWins ? "（背面を突いた）" : ""));
     // 速さ低下（ソニックウェーブ等）：判定に勝てば必中・3回固定（PLAN §4-11）
@@ -514,6 +538,7 @@ RPG.Battle = (function () {
     var back = side.filter(function (c) { return !c.defeated && c.position === "back"; })[0];
     var extra = Math.round(attacker.stats.atk * 0.3);
     this.applyDamage(attacker, frontDefender, extra);
+    this.fxMark(frontDefender, "hit", extra, "突破");
     lines.push(frontDefender.name + "を突破した！ おまけダメージ" + extra + "。");
     if (!back) return;
     var followSkill = { name: skill.name + "（追撃）", category: "attack", attribute: skill.attribute, power: (skill.power || 1) * 1.5, techBonus: (skill.techBonus || 0), isMagic: skill.isMagic };
@@ -522,10 +547,12 @@ RPG.Battle = (function () {
     var followResult = Engine.resolveAction(attacker, followSkill, back, stance, { bonuses: { judgeMult: 2.0 } });
     if (followResult.reflected) {
       attacker.hp = Math.max(0, attacker.hp - followResult.damage);
+      this.fxMark(attacker, "reflect", followResult.damage, "反射");
       if (attacker.hp === 0) { attacker.defeated = true; attacker.defeatedBy = back; }
       lines.push("追撃！ " + back.name + "のカウンターが成立、" + attacker.name + "に" + followResult.damage + "。");
     } else {
       this.applyDamage(attacker, back, followResult.damage);
+      if (followResult.damage > 0) this.fxMark(back, "hit", followResult.damage, "追撃");
       if (followResult.damage > 0) lines.push("追撃！ 後衛の" + back.name + "に" + followResult.damage + "のダメージ。");
     }
   };
@@ -549,7 +576,7 @@ RPG.Battle = (function () {
     var category = Data.SKILLS[skillId].category === "breakthrough" ? "breakthrough" : "attack";
     var stance = this.aiPickStance(target, actor, category, Data.SKILLS[skillId]);
     this.performResolve(actor, skillId, target, stance);
-    this.endTurn(actor);
+    this.afterAction(actor);
   };
 
   // 交代：手番の者と、反対の列の味方が入れ替わる（1手を使う）
@@ -579,7 +606,7 @@ RPG.Battle = (function () {
   State.prototype.playerChooseStance = function (stance) {
     var p = this.pending;
     this.performResolve(p.actor, p.skillId, p.target, stance);
-    this.endTurn(p.actor);
+    this.afterAction(p.actor);
   };
 
   // 戦闘中に使える持ち物（回復の品だけ。記憶結晶や食料は戦闘では使わない）
@@ -596,7 +623,9 @@ RPG.Battle = (function () {
     if (this.items[itemId] <= 0) delete this.items[itemId];
     this.pushLog([actor.name + "は" + it.name + "を使った。" + (actor === target ? "" : target.name + "の") +
       (got.hp ? "HPが" + got.hp + "回復" : "") + (got.hp && got.mp ? "、" : "") + (got.mp ? "MPが" + got.mp + "回復" : "") + "。"]);
-    this.endTurn(actor);
+    this.fxReset();
+    this.fxMark(target, "heal", got.hp || got.mp, got.hp ? "" : "MP");
+    this.afterAction(actor);
   };
 
   // ── 描画 ──
@@ -604,6 +633,8 @@ RPG.Battle = (function () {
     var self = this;
     var el = this.el;
     el.innerHTML = "";
+    // 戦闘開始の切り替わり（最初の1回だけ）
+    if (this.phase === "intro" && !this._entered) { this._entered = true; if (el.classList && el.classList.remove) { el.classList.remove("battle-enter"); void el.offsetWidth; el.classList.add("battle-enter"); } }
 
     var title = document.createElement("h2");
     title.className = "battle-title";
@@ -615,6 +646,17 @@ RPG.Battle = (function () {
 
     var log = document.createElement("div");
     log.className = "battle-log";
+    // 演出中は、ログの上に判定の競り合いを出す（攻める側のスコアと受ける側のスコア。勝った側が光る）
+    if (this.phase === "fx" && this.fx && this.fx.judge) {
+      var j = this.fx.judge, strip = document.createElement("div");
+      strip.className = "judge-strip";
+      strip.innerHTML = "";
+      var mk = function (cls, t) { var d = document.createElement("span"); d.className = cls; d.textContent = t; return d; };
+      strip.appendChild(mk("judge-side" + (j.win ? " win" : ""), j.a + "　" + j.as));
+      strip.appendChild(mk("judge-vs", "判定"));
+      strip.appendChild(mk("judge-side" + (j.win ? "" : " win"), j.ds + "　" + j.d + "・" + j.stance));
+      log.appendChild(strip);
+    }
     // スマホの縦画面に収まるよう、直近の5行だけ見せる
     this.log.slice(-5).forEach(function (l) {
       var p = document.createElement("p");
@@ -678,7 +720,19 @@ RPG.Battle = (function () {
           box.onclick = function () { self.playerChooseTarget(c); };
         } else box.classList.add("unreachable");                       // 前衛の陰で狙えない
       }
-      if (self.pending && self.pending.actor === c && self.phase !== "response") box.classList.add("acting");
+      if (self.pending && self.pending.actor === c && self.phase !== "response" && self.phase !== "fx") box.classList.add("acting");
+      // 演出：当たった側の揺れ・閃光と、飛び出す数字
+      if (self.phase === "fx" && self.fx) {
+        self.fx.marks.filter(function (m) { return m.c === c; }).forEach(function (m, mi) {
+          box.classList.add("fx-" + m.kind);
+          var pop = document.createElement("div");
+          pop.className = "dmg-pop " + m.kind;
+          pop.style.animationDelay = (mi * 0.15) + "s";
+          pop.textContent = (m.text ? m.text + (m.amount ? " " : "") : "") + (m.amount ? (m.kind === "heal" ? "+" : "") + m.amount : "");
+          box.appendChild(pop);
+        });
+        if (self.pending && self.pending.actor === c) box.classList.add("fx-actor");
+      }
       col.appendChild(box);
     });
     return col;
@@ -701,6 +755,10 @@ RPG.Battle = (function () {
   State.prototype.renderControls = function (root) {
     var self = this;
     if (this.phase === "intro") {
+      var pi0 = document.createElement("p");
+      pi0.className = "prompt";
+      pi0.textContent = this.enemies.map(function (e) { return e.name; }).join("と") + "が現れた！";
+      root.appendChild(pi0);
       root.appendChild(button("戦闘開始", function () { self.startLoop(); }));
       return;
     }
@@ -794,7 +852,7 @@ RPG.Battle = (function () {
       if (target.isEnemy) {
         var stance = this.aiPickStance(target, atk, category);
         this.performResolve(atk, this.pending.skillId, target, stance);
-        setTimeout(function () { self.endTurn(atk); }, 10);
+        setTimeout(function () { self.afterAction(atk); }, 10);
         return;
       }
       var grid2 = document.createElement("div");
@@ -811,6 +869,7 @@ RPG.Battle = (function () {
       var p4 = document.createElement("p");
       p4.className = "prompt";
       p4.textContent = result === "victory" ? "勝利した！" : result === "event" ? "戦いが止んだ。" : "……敗北した。";
+      p4.className = "prompt result-banner " + (result === "victory" ? "win" : result === "event" ? "event" : "lose");
       root.appendChild(p4);
     }
   };

@@ -104,7 +104,7 @@ RPG.Story = (function () {
         });
         box.appendChild(opts);
       } else {
-        box.className = "story-box " + (beat.speaker ? "dialogue" : "narration");
+        box.className = "story-box " + (beat.speaker ? "dialogue" : "narration") + (beat.emph ? " emph" : "");
         if (beat.speaker) {
           var sp = document.createElement("div");
           sp.className = "speaker";
