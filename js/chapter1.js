@@ -286,6 +286,7 @@ RPG.Chapter1 = (function () {
     { kind: "header", text: "第一章　灰縁（はいべり）の集落", bg: "village" },
     { kind: "header", text: "セオの住居", bg: "house" },
     { kind: "choice", speaker: "ミラ", text: "セオ、起きて。今日は「くじ」の日でしょ。寝坊したら承知しないから。", options: ["「わかってる。今起きる」", "「……くじ、か」と呟く", "何も言わず起き上がる"] },
+    { speaker: "ミラ", text: "竜に捧げる供物を、招竜派がくじで決める日。遅れたら、あいつらに何を言われるか。" },
     { speaker: "ミラ", text: "棚の干し肉と薬、持っていきなよ。くじまではまだ時間あるから。……遅れないでね。" },
   ];
 
@@ -322,14 +323,15 @@ RPG.Chapter1 = (function () {
         ], next);
       },
       onEncounter: function (next) {
-        runBattle(["ash_rat"], "灰ネズミとの戦い", true, next);
+        runBattle(["ash_rat"], "灰ネズミとの戦い", true, next, null, null, { tutorial: true });
       },
     }, villageTaken);
   }
 
   var kujiBeats = [
     { kind: "header", text: "集落中央広場・くじ", bg: "plaza" },
-    { speaker: "カガリ", text: "竜の機嫌を損ねぬよう、此度も一人を捧げる。木札を引く。誰に当たろうと、恨みは無しだ。" },
+    { speaker: "信徒", text: "静まれ。招竜派の祭司、カガリ様がくじを引かれる。" },
+    { speaker: "カガリ", text: "供物を捧げれば、竜はこの地を避けて通る。此度も一人を選ぶ。木札を引く。誰に当たろうと、恨みは無しだ。" },
     { speaker: "カガリ", text: "此度の供物は……セオ、お前だ。" },
     { speaker: "信徒", text: "来い。祭壇まで連れて行く。" },
     { speaker: "ミラ", text: "待って。……私が行く。" },
@@ -366,7 +368,10 @@ RPG.Chapter1 = (function () {
     game.flags.exiled = true;
     createWorld();
     // くじの後、門を出たそのままの場所＝集落の外縁に立つ
-    enterOutskirts();
+    Story.play(app, [
+      { kind: "narration", bg: "gate", text: "（画面上の「歩数」は、歩くほど増える。" + game.stepLimit + "に達すると竜が活性化し、先へ進めなくなる）" },
+      { kind: "narration", text: "（一度訪れた場所へは、メニューの「ファストトラベル」で移れる。減る歩数は、歩いたときと同じ）" },
+    ], function () { enterOutskirts(); });
   }
   function createWorld() {
     worldMap = Explore.createWorldMap(app, WORLD, game, {
@@ -474,6 +479,7 @@ RPG.Chapter1 = (function () {
       if (!hairegionCleared) {
         Story.play(app, [
           { kind: "header", text: "廃区画", bg: "ruins" },
+          { kind: "narration", text: "（うろつく賊の影に触れると戦いになる。近づくと追ってくる）" },
         ], enter);
       } else {
         enter();
@@ -633,7 +639,8 @@ RPG.Chapter1 = (function () {
   var teamUpBeats = [
     { speaker: "灰色の鳥人", bg: "narrow", text: "……勝負にならないな。剣は収める。" },
     { kind: "choice", speaker: "灰色の鳥人", text: "その腕で、なぜ祭壇へ急ぐ。信徒の加勢には見えないが。", options: ["「幼馴染が供物にされる。取り戻しに行く」", "「連れて行かれた人を、取り返す」"] },
-    { speaker: "灰色の鳥人", text: "供物を奪い返す、か。……招竜派の祭壇に用があるのはこっちも同じだ。今は敵対する理由がないだけだ。" },
+    { speaker: "灰色の鳥人", text: "供物を奪い返す、か。……奴らの儀式は、生贄で竜を呼び寄せる。こっちはそれが邪魔だ。" },
+    { speaker: "灰色の鳥人", text: "招竜派の祭壇に用があるのはこっちも同じだ。今は敵対する理由がないだけだ。" },
     { kind: "choice", speaker: "灰色の鳥人", text: "来るなら勝手にしろ。足手まといなら置いていく。", options: ["「好都合だ」と手を貸す", "黙って頷く"] },
   ];
 
@@ -646,7 +653,9 @@ RPG.Chapter1 = (function () {
     game.party.push(Battle.createCombatant("tzelf", false));
     worldMap.current = "saidan";
     worldMap.visited.saidan = true;
-    enterShrineFloor("ground");
+    Story.play(app, [
+      { kind: "narration", bg: "narrow", text: "（灰色の鳥人が戦いに加わる。前衛・後衛の並びは、メニューの「配置」で変えられる。後衛は、前衛がいるうちは近距離の攻撃で狙われないが、自分の近距離の攻撃も届かない）" },
+    ], function () { enterShrineFloor("ground"); });
   }
 
   function enterShrineFloor(floorId, dpos) {
@@ -749,7 +758,8 @@ RPG.Chapter1 = (function () {
   // forceProceed：負けても話が進む戦い（チュートリアル・イベント戦）。eventEnd：イベント戦の打ち切り条件
   // 戦闘の背景：いま居る場所の絵（会話場面の絵を使い回す）
   var BATTLE_BG = { village: "village", villageRuin: "awakening", outskirts: "gate", hairegion: "ruins", shrine: "shrine" };
-  function runBattle(enemyIds, title, forceProceed, next, eventEnd, bg) {
+  // extra：戦いに足す設定（{ tutorial: true } で戦い方の手ほどきを出す）
+  function runBattle(enemyIds, title, forceProceed, next, eventEnd, bg, extra) {
     app.innerHTML = "";
     var box = document.createElement("div");
     box.className = "battle-screen";
@@ -768,7 +778,7 @@ RPG.Chapter1 = (function () {
       if (!lines.length) { next(); return; }
       // レベルアップと技の習得は、枠を光らせて目立たせる
       Story.play(app, lines.map(function (t) { return { kind: "narration", text: t, emph: /レベル\d+になった|を覚えた/.test(t) }; }), next);
-    }, { items: game.items, crit: game.crit, eventEnd: eventEnd, strength: RPG.Data.strengthRate(game.steps, game.stepLimit), bg: bg || (place && BATTLE_BG[place.kind]) || null });
+    }, Object.assign({ items: game.items, crit: game.crit, eventEnd: eventEnd, strength: RPG.Data.strengthRate(game.steps, game.stepLimit), bg: bg || (place && BATTLE_BG[place.kind]) || null }, extra || {}));
   }
 
   // 全滅：記録から再開するか、タイトルへ戻る。やり直すときはシードを引き直す（§4-11）

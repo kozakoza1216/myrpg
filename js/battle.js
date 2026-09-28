@@ -128,6 +128,9 @@ RPG.Battle = (function () {
     this.eventEnd = opts.eventEnd || null;
     // opts.bg：背景にする場所の絵（会話場面の絵の名前。RPG.Scenes）
     this.bg = opts.bg || null;
+    // opts.tutorial：戦い方の手ほどき（攻略チャート第一章①：攻撃と防御だけ教える）。初めての行動・受けのときに一度ずつ案内を出す
+    this.tutorial = !!opts.tutorial;
+    this._tipsShown = {};
     this.enemyActionCount = 0;
     // opts.strength：残り歩数による敵の強さの倍率（ボス以外。HPと各能力値に掛ける）
     var strength = opts.strength || 1;
@@ -1099,6 +1102,7 @@ RPG.Battle = (function () {
       p.className = "prompt";
       p.textContent = this.pending.actor.name + "の行動を選択";
       root.appendChild(p);
+      this.tip(root, "act", "「ノーマル攻撃」で攻める。攻められた側は受け方を選び、両者の判定のスコアを比べて、高い方が勝つ。攻めが勝てばダメージが通る。");
       var grid = document.createElement("div");
       grid.className = "btn-grid";
       this.pending.actor.skills.forEach(function (skillId) {
@@ -1172,6 +1176,7 @@ RPG.Battle = (function () {
     }
     if (this.phase === "response") {
       var atk = this.pending.actor, skill = Data.SKILLS[this.pending.skillId], target = this.pending.target;
+      if (!target.isEnemy) this.tip(root, "resp", "敵の攻撃をどう受けるかを選ぶ。「防御」は、判定に勝てばダメージを大きく減らし、負けても半分ほどに抑えられる。");
       var category = skill.category === "breakthrough" ? "breakthrough" : "attack";
       var p3 = document.createElement("p");
       p3.className = "prompt";
@@ -1206,6 +1211,17 @@ RPG.Battle = (function () {
       p4.className = "prompt result-banner " + (result === "victory" ? "win" : result === "event" ? "event" : "lose");
       root.appendChild(p4);
     }
+  };
+
+  // 手ほどきの案内（手ほどきのある戦いで、その種類の場面に初めて来たときだけ）
+  State.prototype.tip = function (root, key, text) {
+    if (!this.tutorial) return;
+    if (this._tipsShown[key] && this._tipsShown[key] !== this.pending) return;
+    this._tipsShown[key] = this.pending;      // 同じ手番のあいだ（描き直しても）は出し続ける
+    var t = document.createElement("p");
+    t.className = "battle-tip";
+    t.textContent = text;
+    root.appendChild(t);
   };
 
   function button(label, onClick, disabled) {

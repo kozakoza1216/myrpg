@@ -354,3 +354,6 @@ button {
 /* 早送り：残りの動きを止めて、最後の形だけ見せる */
 .battle-screen.fx-instant *, .battle-screen.fx-instant { animation-duration: 0.01s !important; animation-delay: 0s !important; transition-duration: 0.01s !important; }
 @media (prefers-reduced-motion: reduce) { .clash-side, .fx-callout, .fx-hint, .combatant-box.fx-fall { animation-duration: 0.01s !important; } }
+
+/* 戦い方の手ほどき（初めての場面で一度だけ） */
+.battle-tip { font-size: 0.8rem; line-height: 1.5; text-align: left; color: #e8dcc8; background: #231b12; border: 1px dashed #8a6a3a; border-radius: 6px; padding: 0.45rem 0.6rem; margin: 0 0 0.6rem; }
