@@ -602,6 +602,19 @@ RPG.Scenes = (function () {
     for (var k = 0; k < 6; k++) { var bx = 30 + k * 13; img.poly([[bx, 238], [bx + 2, 200 - k * 4], [bx + 3, 238]], function () { return [36, 20, 14]; }); }
   };
 
+  // 灰色竜の型（いただいた絵 art/dragon_silhouette.png を横360ドットに縮めたもの。行ごとに a=透明・b=体・c=体の中の線 と、その長さ）
+  var DRAGON_MASK = "360x167:b16a344|b10c1b2c2b1a344|a7b7c1b9a336|a13b5c5b10a327|a13b5c14b1a327|a17b6c9b7a321|a21b7c10b7a315|a21b10c9b11a309|a24b15c8b5a308|a27b12c12b12a297|a28b16c9b10a297|a32b19c8b11a290|a34b18c14b11a283|a34b23c9b12a282|a37b27c9b10a277|a37b27c14b6a276|a40b30c9b10a271|a41b32c12b4a271|a42b37c7b9a265|a45b38c7b9a261|a45b38c12b4a2b2a257|a46b42c7b8a257|a48b45c6b7a24b6a224|a48b45c10b3a24b6a224|a49b48c6b8a22b6a221|a50b51c7b8a20b6a218|a50b53c8b8a18b3c1b3a216|a50b56c7b7a17b7a216|a52b59c6b7a14b4c1b1a216|a53b58c11b6a10b6a216|a53b62c8b5a10b6a216|a53b65c9b6a4b8a215|a53b68c9b4a3b8a215|a54b71c5b17a213|a54b46c20b5c2b3c5b14a211|a54b33c50b9c2b2a210|a54b27c20b17c20b13a209|a54b16c30b20c17b11c2b1a209|a54b16c17b62c1b1a209|a53b10c12b61c4b11a209|a52b4c16b61c7b2c1b7a210|a52b1c12b68c5b3c2b1c2b4a210|a52b1c3b74c5b6c2b1c2b5a209|a50b3c2b71c9b6c2b1c3b4a209|a49b7a6b64c4b11c2b1c4b4a208|a48b4a17b53c8b10c3b3c3b3a208|a47b5a17b51c7b13c2b4c3b4a207|a46b3a24b46c5b15c3b5c2b5a206|a76b39c9b14c3b6c4b3a206|a76b38c7b17c3b6c4b3a206|a79b35c3b21c2b9c2b4a205|a82b28c7b20c3b9c4b2a205|a82b26c6b23c2b10c4b3a204|a83b24c6b23c3b11c3b4a203|a84b21c7b24c3b12c3b3a203|a85b17c7b27c2b14c2b3a203|a86b15c5b30c2b14c2b4a202|a86b14c5b29c4b14c3b3a202|a87b10c6b31c3b17c2b4a200|a88b8c6b31c3b18c3b3a200|a88b8c3b34c3b18c3b3a200|a88b5c3b37c2b20c2b5a198|a88b3c5b37c2b20c3b4a198|a88b2c4b39c2b20c4b3a198|a86b3c3b3a7b29c4b22c2b5a196|a86b8a8b29c4b22c3b5a195|a86b6a14b25c2b24c4b4a195|a86b3a20b20c4b25c3b4a195|a85b4a21b19c4b25c4b4a194|a85b2a24b18c3b26c4b5a193|a84b2a27b16c3b28c2b6a192|a83b2a29b14c3b29c4b4a192|a83b2a29b14c2b30c4b4a192|a116b12c2b32c2b6a190|a117b9c4b32c3b6a189|a118b9c3b32c3b7a188|a118b8c3b34c2b8a187|a119b7c3b34c4b7a65b4a117|a119b6c2b38c4b6a66b8a111|a121b4c2b38c6b5a66b13a105|a121b3c3b41c3b6a68b10a105|a121b2c3b6a8b29c5b5a69b11a101|a120b1a1b5a19b25c4b6a69b13a2b1a5b2a87|a122b5a19b26c6b3a54b6a11b15a4b3a86|a122b3a24b26c3b4a55b9a9b9c2b5a2b3a84|a121b3a28b23c5b4a56b13a3b1c4b20a7b3a69|a121b3a28b24c4b4a57b16c5b10c2b2c1b4a6b4a69|a121b3a31b24c4b4a58b15c2b16c1b14a67|a121b2a34b22c5b5a47b4a3b1a3b17c5b24a67|a121b1a35b23c4b6a47b5a1b8c1b8c3b2c3b25a67|a121b1a37b23c4b6a37b4a6b8c2b3c6b1c1b33a67|a161b21c1b1c4b6a4b1a32b10c3b4c1b1c6b7c5b7c5b3a3b2a1b3a68|a162b22c5b5a4b2a31b8c5b6c2b7c8b8c1b6a5b1a2b1a69|a163b23c4b8a1b3a3b3a16b7a2b1c3b21c4b5c2b1c3b4a1b1a81|a164b23c5b8c1b4a1b3a7b2a7b9c3b24c4b4c1b4a86|a165b24c4b6c2b2c1b1a1b4a7b7a2b1c4b2c1b21c2b6c2b6a1b1a87|a165b25c4b9c1b7a1b2a4b9c4b21c3b3a4b6a92|a166b25c4b10c1b2c2b5a4b1c7b21c3b5a5b6a93|a166b26c3b14c5b6c4b28a7b6a95|a168b25c4b16c5b26c4b1a9b4a98|a168b26c2b17c2b2c1b23c2b6a8b3a100|a168b72c1b4a11b2a102|a168b69c3b2a60b11a47|a168b66c3b4a55b2a1b14a47|a172b66a56b13a7b1a45|a165b3a4b59c1b2a56b14a56|a166b62c4b1a46b26a55|a166b62c3b2a46b26a55|a161b4a3b3c1b53c5b13a9b32c11b12a53|a154b4a4b9c1b52c5b43c20b3c3b6c1b4a51|a155b6a2b1c1b10c3b43c6b3c23b4c27b6c10b4c4b1a51|a157b7c1b8c5b43c3b4c25b4c12b20c6b2c4b1c4b1c1b4a48|a152b3a1b8c1b6c4b43c6b4c2b3c13b1c22b17c8b5c2b2c4b2c1b4a46|a144b3a5b5c2b11c4b44c4b33c1b30c4b9c2b4c2b1c4b3a45|a146b8c2b12c3b13c2b29c3b1c2b61c6b11c2b6c2b2c2b3a44|a146b3c3b2c1b12c4b13c2b26c5b63c7b12c2b6c3b2c3b2a43|a137b6a2b3c3b15c4b14c2b26c3b4a1b60c5b14c2b7c3b2c2b4a41|a139b27c2b14c2b26c4b3a20b40c5b17c2b8c3b4c2b4a38|a132b4a3b4c1b21c3b13c3b20c4b1c3b4a21b38c6b18c2b8c4b3c3b3a38|a133b32c2b14c2b20c5b5a31b30c5b20c2b9c3b4c4b3a36|a127b3a3b2c1b27c2b14c2b30a37b24c4b23c2b10c4b4c3b3a35|a128b35c2b13c3b14c4b2a1b8a39b21c6b23c2b11c3b4c5b2a34|a122b3a3b25c12b11c4b8c8b5a2b4a1b1a43b18c5b24c2b12c3b4c4b3a33|a124b37c3b21c1b2c6b3a5b5a46b16c3b27c2b13c3b5c1b5a32|a120b31a9b17a2b16a6b3a51b11c4b29c2b14c3b7c2b3a30|a121b3c1b25a10b16a3b16a6b1a53b9c6b29c2b14c4b6c3b2a30|a115b28a15b16a5b15a62b8c3b32c2b15c3b7c2b4a28|a111b5c3b17a15b2a4b15a6b14a65b5c5b32c2b15c3b8c4b3a26|a112b4c2b18a14b4a3b15a6b14a66b3c4b33c3b16c3b8c4b2a26|a105b25a19b20a5b17a67b2c1b36c4b18c2b9c3b4a23|a97b3a6b20a23b14c1b1a3b20a69b5a15b20c4b18c2b10c3b4a22|a96b29a24b16a3b20a69b5a15b20c4b18c3b10c2b4a22|a98b23a25b11a8b16c1b3a71b3a23b15c3b20c3b10c4b3a20|a89b4a3b23a26b9a10b21a70b3a27b12c3b20c4b10c4b3a19|a90b26a28b10a9b12a80b1a30b11c3b20c4b11c4b2a19|a65b3a11b8a3b20a33b8a11b9a117b9c2b23c2b12c4b3a17|a66b7a7b25a35b10a12b8a119b7c3b23c3b13c3b3a16|a66b39a35b9a12b9a120b6c2b24c3b13c4b2a16|a54b7a7b31a40b10a9b10a123b4c3b25c2b14c3b2a16|a55b43a40b11a9b10a123b3c4b25c3b14c3b2a15|a46b5a5b35a46b12a8b10a124b3c2b27c3b15c3b2a14|a48b30a58b3a1b7a8b2a2b8a126b31c2b16c3b2a13|a44b27a65b2a2b7a8b2a2b7a127b3a13b15c3b16c3b2a12|a45b25a66b1a3b7a8b1a3b7a126b4a19b9c3b17c2b3a11|a37b28a74b3a1b3a12b7a128b1a24b8c2b17c2b2a11|a39b23a76b3a2b2a12b7a128b2a24b8c2b18c2b2a10|a39b21a77b4a1b3a11b3a2b3a127b3a26b6c2b19c2b2a9|a36b21a79b3a2b2a14b5a129b2a29b4c2b19c2b3a8|a33b22a268b3c2b20c3b2a7|a33b22a269b7a5b13c2b2a7|a31b11a4b7a272b5a10b9c3b1a7|a29b8a8b5a277b2a14b7c2b3a5|a27b6a10b5a279b2a16b5c4b1a5|a27b6a10b5a279b3a16b5c3b1a5|a26b3a13b3a283b2a19b4c1b2a4|a25b1a15b1a286b2a20b3c2b2a3|a24b2a15b1a286b2a21b3c2b1a3|a353b4a3|a355b4a1|a355b4a1|a356b3a1|a357b2a1|a357b3|a358b2|a359b1|a359b1|a359b1";
+  var dragonMaskCache = null;
+  function dragonMask() {
+    if (dragonMaskCache) return dragonMaskCache;
+    var parts = DRAGON_MASK.split(":"), wh = parts[0].split("x"), w = +wh[0], h = +wh[1], d = new Uint8Array(w * h);
+    parts[1].split("|").forEach(function (row, y) {
+      var x = 0;
+      row.replace(/([abc])(\d+)/g, function (m, v, n) { var k = "abc".indexOf(v); for (var i = 0; i < +n; i++) d[y * w + x++] = k; return m; });
+    });
+    return (dragonMaskCache = { w: w, h: h, d: d });
+  }
+
   // 祭壇の外：壊れた人工天井の空を、灰色竜が渡っていく（PLAN §2-4：灰色の体、頭・首・胴・翼・尾、
   // 鱗と翼膜、輪郭が滲むような「灰に還りかけた総体」の質感）。体から灰がこぼれ落ちる。下に祭壇の岩場と廃墟
   PAINT.dragon = function (img) {
@@ -614,74 +627,30 @@ RPG.Scenes = (function () {
       return rp(ramp(["#0e0d10", "#141217", "#1a181d", "#221f25"]), 0.2 + (y - sky) / 80 + (nz("b", x * 2, y * 2) - 0.5) * 0.3, x, y);
     });
     img.all(function (x, y) { if (y > 170 && y < 215) img.add(x, y, [70, 64, 70], 0.3 * (1 - Math.abs(y - 196) / 26)); return null; });
-    // 竜の形を、先に型（マスク）として描く：1＝体、2＝翼膜。形は (260,100) を中心に描き、K倍して画面に置く
-    var M = new Uint8Array(W * H), K = 1.3, OX = 244, OY = 108;
-    var T = function (p) { return [OX + (p[0] - 260) * K, OY + (p[1] - 100) * K]; };
-    var mark = function (v) { return function (x, y) { if (x >= 0 && y >= 0 && x < W && y < H && M[y * W + x] !== 1) M[y * W + x] = v; return null; }; };
-    var poly = function (pts, v) { img.poly(pts.map(T), mark(v)); };
-    var ell = function (cx, cy, rx, ry, v) { var c = T([cx, cy]); img.ellipse(c[0], c[1], rx * K, ry * K, mark(v)); };
-    var chain = function (x0, y0, x1, y1, r0, r1, wave, n) {
-      for (var i = 0; i <= n; i++) {
-        var t = i / n, r = r0 + (r1 - r0) * t;
-        ell(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t + Math.sin(t * Math.PI * 1.5) * wave, r, r * 0.9, 1);
-      }
-    };
-    // 遠い側の翼（胴の後ろ）
-    poly([[268, 88], [316, 30], [392, 14], [404, 32], [388, 42], [376, 38], [362, 56], [346, 50], [332, 70], [300, 92]], 2);
-    // 手前の翼：肩→肘→手首、指の骨の先へ、縁は膜がたわんだ弧
-    poly([[250, 94], [206, 42], [160, 22], [84, 34], [96, 44], [98, 62], [116, 58], [128, 78], [148, 70], [166, 90], [194, 84], [228, 104]], 2);
-    // 胴（太め）・首・頭（あご付き）・角・背の棘・尾・脚
-    ell(258, 102, 52, 22, 1);
-    chain(222, 98, 150, 110, 16, 10, -7, 16);
-    poly([[156, 100], [130, 101], [110, 106], [98, 112], [112, 114], [104, 119], [124, 122], [142, 124], [158, 121]], 1);
-    poly([[148, 102], [154, 82], [158, 101]], 1); poly([[138, 102], [134, 86], [145, 102]], 1);
-    for (var sp = 0; sp < 9; sp++) { var sx = 176 + sp * 16, sy = sp < 3 ? 94 - sp * 1.5 : 82 + (sp - 3) * 1.2; poly([[sx - 5, sy + 6], [sx, sy - 5], [sx + 5, sy + 6]], 1); }
-    chain(302, 100, 452, 58, 15, 2, 10, 34);
-    ell(248, 122, 10, 7, 1); ell(284, 120, 9, 7, 1);
-    poly([[240, 126], [236, 136], [244, 130], [248, 138], [250, 127]], 1);
-    // 翼の骨（膜の上に、体の色で太めの線）
-    var bones = [[[250, 94], [206, 42]], [[206, 42], [160, 22]], [[160, 22], [84, 34]], [[160, 22], [98, 62]], [[160, 22], [128, 78]], [[160, 22], [166, 90]],
-      [[268, 88], [316, 30]], [[316, 30], [392, 14]], [[316, 30], [376, 38]], [[316, 30], [346, 50]]];
-    bones.forEach(function (bn) {
-      var a0 = T(bn[0]), a1 = T(bn[1]), n = Math.ceil(Math.hypot(a1[0] - a0[0], a1[1] - a0[1]));
-      for (var i = 0; i <= n; i++) {
-        var x = Math.round(a0[0] + (a1[0] - a0[0]) * i / n), y = Math.round(a0[1] + (a1[1] - a0[1]) * i / n), w = i < n * 0.3 ? 3 : 2;
-        for (var k = 0; k < w; k++) if (y + k < H && x >= 0 && x < W) M[(y + k) * W + x] = 1;
-      }
-    });
-    var at = function (x, y) { return x < 0 || y < 0 || x >= W || y >= H ? 0 : M[y * W + x]; };
+    // 竜の形：いただいた絵（art/dragon_silhouette.png）を横360ドットに縮めた型。1＝体、2＝体の中の線（翼の骨など）
+    var M = dragonMask(), OX = 60, OY = 8;
+    var at = function (x, y) { x -= OX; y -= OY; return x < 0 || y < 0 || x >= M.w || y >= M.h ? 0 : M.d[y * M.w + x]; };
     var GREY = ramp(["#141418", "#1e1e22", "#2a2a2e", "#38383c", "#4a4a4e", "#606064", "#78787a", "#8a8a8a", "#a8a8a4", "#c4c2bc"]);
     // 輪郭が滲む：体のまわりに、薄い灰色のにじみ（灰に還りかけた総体）
     for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
       if (at(x, y)) continue;
       var near = at(x - 2, y) || at(x + 2, y) || at(x, y - 2) || at(x, y + 2) || at(x - 3, y - 1) || at(x + 3, y + 1);
-      if (near && hash2(x, y, 73) < 0.5) img.add(x, y, [132, 130, 126], 0.28);
+      if (near && hash2(x, y, 73) < 0.5) img.add(x, y, [132, 130, 126], 0.26);
     }
-    // 体の上下の範囲（陰影に使う）
-    var colTop = new Int16Array(W).fill(-1), colBot = new Int16Array(W).fill(-1);
-    for (var cx2 = 0; cx2 < W; cx2++) for (var cy2 = 0; cy2 < H; cy2++) if (M[cy2 * W + cx2] === 1) { if (colTop[cx2] < 0) colTop[cx2] = cy2; colBot[cx2] = cy2; }
+    // 体：灰色（PLAN §2-4 の #8a8a8a 系）。上から壊れた空の光を受けて縁が明るみ、下ほど影に沈む。骨の線はやや明るく
     for (var yy = 0; yy < H; yy++) for (var xx = 0; xx < W; xx++) {
-      var v = M[yy * W + xx];
+      var v = at(xx, yy);
       if (!v) continue;
-      var edge = !at(xx - 1, yy) || !at(xx + 1, yy) || !at(xx, yy - 1) || !at(xx, yy + 1);
-      if (v === 2) {
-        // 翼膜：空が少しだけ透ける暗い灰色。付け根ほど濃く、縁ほど薄い
-        img.add(xx, yy, [40, 38, 44], 0.88);
-        if (edge) img.set(xx, yy, [22, 21, 25]);
-        continue;
-      }
-      // 体：上から壊れた空の光を受けて背が明るみ、腹は影に沈む。鱗は粗い段の模様
-      var h = colBot[xx] > colTop[xx] ? (yy - colTop[xx]) / (colBot[xx] - colTop[xx]) : 0.5;
-      var t = 0.72 - h * 0.55 + (nz("b", xx * 2, yy * 2) - 0.5) * 0.12 + ((((xx + (yy >> 1)) >> 1) + (yy >> 1)) % 3 === 0 ? -0.07 : 0);
-      if (!at(xx, yy - 1)) t = 0.95;
-      else if (!at(xx, yy - 2)) t += 0.18;
-      img.set(xx, yy, edge && at(xx, yy - 1) ? [16, 16, 19] : rp(GREY, t, xx, yy));
+      var up = at(xx, yy - 1), up2 = at(xx, yy - 2), dn = at(xx, yy + 1);
+      var t = 0.5 - (yy - OY) / M.h * 0.22 + (nz("b", xx * 2, yy * 2) - 0.5) * 0.1 + (((xx >> 1) + (yy >> 1)) % 3 === 0 ? -0.05 : 0);
+      if (v === 2) t += 0.16;
+      if (!up) t = 0.95; else if (!up2) t += 0.2;
+      if (!dn) t -= 0.2;
+      img.set(xx, yy, rp(GREY, t, xx, yy));
     }
-    // 目：鈍く光る
-    var eye = T([122, 110]); img.set(Math.round(eye[0]), Math.round(eye[1]), [214, 206, 170]); img.set(Math.round(eye[0]) + 1, Math.round(eye[1]), [170, 156, 120]);
     // 体からこぼれ落ちる灰
     for (var i = 0; i < 420; i++) {
-      var ax = 80 + hash2(i, 1, 74) * 360, ay0 = 110 + hash2(i, 2, 75) * 30, fall = hash2(i, 3, 76) * 90;
+      var ax = 70 + hash2(i, 1, 74) * 340, ay0 = 70 + hash2(i, 2, 75) * 90, fall = hash2(i, 3, 76) * 60;
       var ax2 = ax + Math.sin(i) * 6 + fall * 0.15, ay = ay0 + fall;
       if (ay > 200 || at(Math.round(ax2), Math.round(ay))) continue;
       img.add(Math.round(ax2), Math.round(ay), hash2(i, 4, 77) < 0.5 ? [150, 148, 144] : [110, 108, 106], 0.7 - fall / 200);
