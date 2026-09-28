@@ -73,9 +73,10 @@ RPG.Engine = (function () {
 
     // 受動（防御・回避・足止め）は攻め側と同じ属性として扱う（PLAN §4-3：竜の極大魔法vs回避に同属性の×0.75を掛けている）。
     // 異属性の補正は、受け手が属性つきの足止め技で受けたときだけ掛かる。
-    var defAttr = bonuses.defenderAttribute || skill.attribute;
-    var coefA = defAttr === skill.attribute ? affinityCoef(skill.category, skill.attribute, isCounter ? "none" : defStance) : { attackerMul: 1, defenderMul: 1 };
-    var coefB = crossAttributeCoef(skill.category, skill.attribute, isCounter ? "none" : defAttr, isCounter ? "none" : defStance);
+    // 攻撃技を足止めとして使ったとき（bonuses.noAffinity）は、相性の補正を掛けない（PLAN §7-2 大前提1c）
+    var defAttr = bonuses.defenderAttribute || skill.attribute, NONE = { attackerMul: 1, defenderMul: 1 };
+    var coefA = bonuses.noAffinity ? NONE : defAttr === skill.attribute ? affinityCoef(skill.category, skill.attribute, isCounter ? "none" : defStance) : NONE;
+    var coefB = bonuses.noAffinity ? NONE : crossAttributeCoef(skill.category, skill.attribute, isCounter ? "none" : defAttr, isCounter ? "none" : defStance);
 
     var attackerScore = atkBase * coefA.attackerMul * coefB.attackerMul + rng();
     var defenderScore = defBase * coefA.defenderMul * coefB.defenderMul + rng();

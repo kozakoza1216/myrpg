@@ -318,6 +318,11 @@ button {
 .combatant-box.fx-duel.ally { outline: 2px solid #c8a03c; }
 .combatant-box.fx-duel.foe { outline: 2px solid #d06040; }
 .fx-icon { width: 18px; height: 18px; image-rendering: pixelated; image-rendering: crisp-edges; flex: 0 0 auto; }
+/* 技で受けたとき：受けた側の技の名前と、光る印 */
+.cs-tech { font-size: 0.72rem; font-weight: bold; color: #bfe0ff; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; animation: fx-callout 0.3s 0.15s ease-out both; }
+.clash-side.foe .cs-tech { color: #ffc0b0; }
+.fx-icon.tech { filter: drop-shadow(0 0 3px rgba(190, 225, 255, 0.95)); }
+.box-stance.tech { border-color: #8ac0f0; box-shadow: 0 0 8px rgba(138, 192, 240, 0.6); }
 .box-stance { position: absolute; top: -9px; right: 6px; width: 24px; height: 24px; padding: 2px; background: #0e0c0a; border: 1px solid #5a4a36; border-radius: 4px; z-index: 4; animation: fx-callout 0.25s ease-out both; }
 /* 結果欄の判定の文：こちらに良い結果は金、悪い結果は赤 */
 .result-card .judge-line.good { color: #ffd878; }

@@ -275,7 +275,7 @@ RPG.Battle = (function () {
       var self = this;
       [fx.judge.ac, fx.judge.dc].forEach(function (c) { var r = self.fxBoxOf(c); if (r) r.box.classList.add("fx-duel", c.isEnemy ? "foe" : "ally"); });
       var dr = this.fxBoxOf(fx.judge.dc), ic = stanceIcon(fx.judge.stanceKey);
-      if (dr && ic) { ic.classList.add("box-stance"); dr.box.appendChild(ic); }
+      if (dr && ic) { ic.classList.add("box-stance"); if (fx.judge.techName) ic.classList.add("tech"); dr.box.appendChild(ic); }
     }
   };
 
@@ -309,19 +309,23 @@ RPG.Battle = (function () {
     var wrap = document.createElement("div");
     wrap.className = "clash" + (hostile ? " hostile" : "");
     // 左に仕掛けた側、右に受けた側。色は陣営（味方＝金・敵＝赤）。受けた側の名前の前に受け方の印
-    var side = function (cls, c, name, icon) {
+    // 技で受けたときは、受けた側の名前の下に技の名前（攻めの技名と同じく、技には名前を出す）
+    var side = function (cls, c, name, icon, tech) {
       var d = document.createElement("div"); d.className = "clash-side " + cls + " " + (c && c.isEnemy ? "foe" : "ally");
       var n = document.createElement("span"); n.className = "cs-name";
-      if (icon) n.appendChild(icon);
+      if (icon) { if (tech) icon.classList.add("tech"); n.appendChild(icon); }
       n.appendChild(document.createTextNode(name)); d.appendChild(n);
+      if (tech) { var t = document.createElement("span"); t.className = "cs-tech"; t.textContent = tech; d.appendChild(t); }
       var sc = document.createElement("span"); sc.className = "cs-score"; sc.textContent = "0"; d.appendChild(sc);
       wrap.appendChild(d);
       return { el: d, score: sc };
     };
     var A = side("atk", j.ac, j.a, null);
     var mid = document.createElement("div"); mid.className = "clash-mid"; wrap.appendChild(mid);
-    var D = side("def", j.dc, j.d, stanceIcon(j.stanceKey));
+    var D = side("def", j.dc, j.d, stanceIcon(j.stanceKey), j.techName);
     stage.appendChild(wrap);
+    // 技で受けた側は、ここでMPが減る
+    if (j.techName && !j.dc.isEnemy) setBar(this.fxBoxOf(j.dc), "mp", j.dc.mp, j.dc.maxMp);
     // スコアがせり上がる
     var count = function (el, to, ms) {
       if (inst || !window.requestAnimationFrame) { el.textContent = to; return; }
@@ -597,7 +601,24 @@ RPG.Battle = (function () {
     return side.some(function (c) { return !c.defeated && c.position === "back" && c !== defender; });
   };
 
+  // 足止めに使える技（PLAN §7-2 大前提1c：低下系の副次効果を持つ攻撃技は、受動の足止めとしても使える。
+  // 足止めとして使うと、ダメージも副次効果も出ず、判定の勝敗だけが足止めと同じに効く）。MPが足りる技だけ
+  function holdSkillsOf(c) {
+    if (c.isEnemy) return [];
+    return c.skills.filter(function (id) {
+      var s = Data.SKILLS[id];
+      return s && s.category === "attack" && s.spdDown && c.mp >= (s.mp || 0);
+    }).map(function (id) { return "holdSkill:" + id; });
+  }
+
   State.prototype.availableStances = function (defender, category, concealAttackType) {
+    var stances = this.availableStancesBase(defender, category, concealAttackType);
+    // 「足止め」の後ろに、足止めに使える技を並べる
+    var i = stances.indexOf("hold");
+    if (i >= 0) stances.splice.apply(stances, [i + 1, 0].concat(holdSkillsOf(defender)));
+    return stances;
+  };
+  State.prototype.availableStancesBase = function (defender, category, concealAttackType) {
     var stances = [];
     // 敵の攻撃／突破は選択時にプレイヤーへ知らせない。伏せられた応答では、
     // 両方を読む受動を提示する。足止めは常に選べる読みの選択肢である。
@@ -712,14 +733,23 @@ RPG.Battle = (function () {
 
   State.prototype.resolveOne = function (attacker, skill, defender, stance, forceCrit, lines, first) {
     var isBreakthrough = skill.category === "breakthrough";
-    var bonuses = {};
+    var bonuses = {}, techName = null;
     if (stance === "defenseStance") {
       stance = "defense";
       bonuses.defenderBonus = Data.SKILLS.defense_stance.techBonus;
       defender.mp = Math.max(0, defender.mp - Data.SKILLS.defense_stance.mp);
+      techName = Data.SKILLS.defense_stance.name;
+    } else if (String(stance).indexOf("holdSkill:") === 0) {
+      // 技で足止め：技ボーナスが乗り、MPを使う（PLAN §4-5 技版）。相性の補正は掛けない（大前提1c）
+      var hs = Data.SKILLS[stance.slice(10)];
+      stance = "hold";
+      bonuses.defenderBonus = hs.techBonus || 0;
+      bonuses.noAffinity = true;
+      defender.mp = Math.max(0, defender.mp - (hs.mp || 0));
+      techName = hs.name;
     }
     var stanceLabel = { defense: "防御", evade: "回避", hold: "足止め", counter: "カウンター", breakthroughCounter: "突破カウンター", riposte: "反撃" }[stance] || "応答なし";
-    if (bonuses.defenderBonus) stanceLabel = "防御姿勢";
+    if (techName) stanceLabel = techName + (stance === "hold" ? "（足止め）" : "");
     lines.push((first ? attacker.name + "の" + skill.name + "！ " : "") + defender.name + "は" + stanceLabel + "を選択。");
 
     var farMult = skill.range === "far" && attacker.position === "back" && defender.position === "back" ? FAR_BACK_TO_BACK : 1;
@@ -750,14 +780,14 @@ RPG.Battle = (function () {
 
     // 判定の競り合い（範囲技は最初の相手の分だけ見せる）
     if (first && !skill.guaranteedHit) this.fx.judge = { a: attacker.name, as: result.attackerScore, d: defender.name, ds: result.defenderScore, win: result.attackerWins, stance: stanceLabel,
-      text: judgeText(stance, result, !!bonuses.defenderBonus, isBreakthrough && result.attackerWins && backline, attacker.name, defender.name) };
+      text: judgeText(stance, result, techName, isBreakthrough && result.attackerWins && backline, attacker.name, defender.name) };
     if (first && this.fx.judge) {
       // 演出で、受けた本人の枠の上に受けの結果を見せるための控え
       var jj = this.fx.judge;
       // 結果の良し悪しは、いつもプレイヤーの側から見る（敵がかわした・止めた＝こちらには悪い知らせ）
       var favorsAttacker = result.counterMiss || (result.attackerWins && !(result.isCounter && !result.counterMiss));
       jj.tone = (!attacker.isEnemy) === !!favorsAttacker ? "good" : "bad";
-      jj.ac = attacker; jj.dc = defender; jj.stanceKey = stance;
+      jj.ac = attacker; jj.dc = defender; jj.stanceKey = stance; jj.techName = techName;
       jj.brokeThrough = isBreakthrough && result.attackerWins && backline;
       jj.counterHit = !!(result.isCounter && !result.counterMiss && !result.attackerWins);
       jj.counterMiss = !!result.counterMiss;
@@ -793,14 +823,14 @@ RPG.Battle = (function () {
 
   // 判定の結果を、数字を読まなくても分かる言葉にする（受け手の側から見た結果）
   // 判定の結果を、起きたことだけの文にする（どちらの側にも肩入れしない言い方。良し悪しは色で見せる）
-  function judgeText(stance, r, stanceSkill, brokeThrough, a, d) {
+  function judgeText(stance, r, techName, brokeThrough, a, d) {
     if (r.isCounter && !r.counterMiss) return r.attackerWins ? d + "のカウンターは届かず、攻撃が通った" : d + "のカウンターで、攻撃が跳ね返された";
     if (r.counterMiss) return d + "の読みが外れ、攻撃がそのまま通った";
     if (brokeThrough) return a + "が前衛を突き抜け、後衛へ追撃した";
-    var win = !r.attackerWins, g = stanceSkill ? "防御姿勢" : "防御";
+    var win = !r.attackerWins, g = techName || "防御", h = techName ? techName + "での足止め" : "足止め";
     if (stance === "defense") return win ? d + "が" + g + "で受け止め、ダメージを大きく減らした" : d + "の" + g + "は破られ、ダメージは半分ほど通った";
     if (stance === "evade") return win ? d + "にかわされ、攻撃は当たらなかった" : d + "はかわしきれず、ほぼそのまま受けた";
-    if (stance === "hold") return win ? d + "の足止めで、攻撃は止められた" : d + "の足止めは破られ、まともに受けた";
+    if (stance === "hold") return win ? d + "の" + h + "で、攻撃は止められた" : d + "の" + h + "は破られ、まともに受けた";
     return r.attackerWins ? "攻撃が通った" : "攻撃は防がれた";
   }
 
@@ -1161,7 +1191,9 @@ RPG.Battle = (function () {
       grid2.className = "btn-grid";
       var labels = { riposte: "反撃", defense: "防御", defenseStance: "防御姿勢(MP" + Data.SKILLS.defense_stance.mp + ")", evade: "回避", hold: "足止め", counter: "カウンター", breakthroughCounter: "突破カウンター" };
       this.availableStances(target, category, this.pending.concealAttackType).forEach(function (st) {
-        grid2.appendChild(button(labels[st], function () { self.playerChooseStance(st); }));
+        var hs = String(st).indexOf("holdSkill:") === 0 ? Data.SKILLS[st.slice(10)] : null;
+        var label = hs ? hs.name + "で足止め(MP" + hs.mp + ")" : labels[st];
+        grid2.appendChild(button(label, function () { self.playerChooseStance(st); }));
       });
       root.appendChild(grid2);
       return;
