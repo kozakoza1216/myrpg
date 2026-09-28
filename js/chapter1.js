@@ -285,7 +285,7 @@ RPG.Chapter1 = (function () {
   var wakeBeats = [
     { kind: "header", text: "第一章　灰縁（はいべり）の集落", bg: "village" },
     { kind: "header", text: "セオの住居", bg: "house" },
-    { kind: "choice", speaker: "ミラ", text: "セオ、起きて。今日は「くじ」の日でしょ。寝坊したら承知しないから。", options: ["「わかってる。今起きる」", "「……くじ、か」と呟く", "何も言わず起き上がる"] },
+    { kind: "choice", speaker: "ミラ", text: "セオ、起きて。今日は「くじ」の日でしょ。寝坊したら承知しないから。", options: ["わかってる", "……くじ、か", "……"] },
     { speaker: "ミラ", text: "竜に捧げる供物を、招竜派がくじで決める日。遅れたら、あいつらに何を言われるか。" },
     { speaker: "ミラ", text: "棚の干し肉と薬、持っていきなよ。くじまではまだ時間あるから。……遅れないでね。" },
   ];
@@ -336,12 +336,12 @@ RPG.Chapter1 = (function () {
     { speaker: "信徒", text: "来い。祭壇まで連れて行く。" },
     { speaker: "ミラ", text: "待って。……私が行く。" },
     { speaker: "カガリ", text: "ほう。供物は一人。誰が座ろうと、竜は構わぬ。" },
-    { kind: "choice", speaker: "ミラ", text: "いいでしょ、それで。", options: ["「座るのは俺のはずだ」", "「なんで代わったんだ」", "「……」"] },
+    { kind: "choice", speaker: "ミラ", text: "いいでしょ、それで。", options: ["自分が座るべきだった", "なんで代わったんだ", "……"] },
     { speaker: "ミラ", text: "私が座ると決めた。……だから、止めないで。" },
     { speaker: "カガリ", text: "殊勝な心がけだ。竜もきっと喜ぶだろう。連れて行け。" },
     { speaker: "ミラ", text: "……引っ張らないで。自分で歩ける。" },
     { kind: "header", text: "集落長の家", bg: "chief" },
-    { kind: "choice", speaker: "集落長トキ", text: "……ミラのことだな。", options: ["「ミラを取り戻しに行く」", "「見過ごせるわけがないだろう」"] },
+    { kind: "choice", speaker: "集落長トキ", text: "……ミラのことだな。", options: ["取り戻しに行く", "見過ごせない"] },
     { speaker: "集落長トキ", text: "くじは絶対だ。逆らえば、集落ごと竜に潰される。……行くなら、二度と帰ってくるな。" },
     { kind: "header", text: "セオの住居", bg: "house" },
     { kind: "narration", text: "戸口に〈携行食×3〉が置かれていた。" },
@@ -623,7 +623,7 @@ RPG.Chapter1 = (function () {
 
   var roadBeats = [
     { kind: "header", text: "祭壇へ続く隘路", bg: "narrow" },
-    { kind: "choice", speaker: "灰色の鳥人", text: "灰縁の人間か。この先は招竜派の祭壇だ。信徒の使いなら、ここで止める。", options: ["「鳥人……？　絶えたはずじゃ」", "「通してくれ。急いでる」", "黙って剣を抜く"] },
+    { kind: "choice", speaker: "灰色の鳥人", text: "灰縁の人間か。この先は招竜派の祭壇だ。信徒の使いなら、ここで止める。", options: ["鳥人……？", "通してくれ", "……"] },
     { speaker: "灰色の鳥人", text: "どうでもいい。退かないなら、退かすまでだ。" },
   ];
 
@@ -638,10 +638,10 @@ RPG.Chapter1 = (function () {
 
   var teamUpBeats = [
     { speaker: "灰色の鳥人", bg: "narrow", text: "……勝負にならないな。剣は収める。" },
-    { kind: "choice", speaker: "灰色の鳥人", text: "その腕で、なぜ祭壇へ急ぐ。信徒の加勢には見えないが。", options: ["「幼馴染が供物にされる。取り戻しに行く」", "「連れて行かれた人を、取り返す」"] },
+    { kind: "choice", speaker: "灰色の鳥人", text: "その腕で、なぜ祭壇へ急ぐ。信徒の加勢には見えないが。", options: ["幼馴染を取り戻す", "供物を取り返す"] },
     { speaker: "灰色の鳥人", text: "供物を奪い返す、か。……奴らの儀式は、生贄で竜を呼び寄せる。こっちはそれが邪魔だ。" },
     { speaker: "灰色の鳥人", text: "招竜派の祭壇に用があるのはこっちも同じだ。今は敵対する理由がないだけだ。" },
-    { kind: "choice", speaker: "灰色の鳥人", text: "来るなら勝手にしろ。足手まといなら置いていく。", options: ["「好都合だ」と手を貸す", "黙って頷く"] },
+    { kind: "choice", speaker: "灰色の鳥人", text: "来るなら勝手にしろ。足手まといなら置いていく。", options: ["好都合だ", "……"] },
   ];
 
   var shrineDungeon = null;
@@ -723,7 +723,7 @@ RPG.Chapter1 = (function () {
   var kagariPostBeats = [
     { speaker: "カガリ", bg: "shrine", text: "儀式が……竜が、お怒りに……。" },
     { speaker: "ミラ", text: "……なんで来たの、セオ。" },
-    { kind: "choice", speaker: "ミラ", text: "あんたを助けるために代わったのに、来たら無駄になる。帰って。あんたは生きて。", options: ["「ミラを置いて俺だけ生きろって？　できるわけないだろ」", "「……帰らない」"] },
+    { kind: "choice", speaker: "ミラ", text: "あんたを助けるために代わったのに、来たら無駄になる。帰って。あんたは生きて。", options: ["ミラを置いて俺だけ生きろって？　できるわけないだろ", "……帰らない"] },
     { speaker: "ミラ", text: "……ほんと、ばか。" },
     { speaker: "ミラ", text: "それで、その人は……鳥人、よね？　絶えたって聞いてたのに。" },
     { speaker: "灰色の鳥人", text: "絶えてはいない。数えるほどしか残っていないだけだ。" },
