@@ -220,5 +220,25 @@ RPG.BattleFx = (function () {
     return { stop: function () { stopped = true; if (cv.parentNode) cv.parentNode.removeChild(cv); } };
   }
 
-  return { play: play, types: Object.keys(DRAW) };
+  // 受け方の小さな印（12×12のドット）。盾＝防御、流れる線＝回避、交差した柵＝足止め、返し矢印＝カウンター・反撃
+  var ICON = {
+    shield: function (p) {
+      var c = "#8ac0f0", e = "#2a4a70";
+      for (var y = 1; y <= 10; y++) { var w = y < 7 ? 4 : 4 - (y - 6); for (var x = 6 - w; x < 6 + w; x++) p.dot(x, y, (x === 6 - w || x === 5 + w || y === 1) ? e : c); }
+      p.dot(5, 3, "#e8f4ff"); p.dot(5, 4, "#e8f4ff");
+    },
+    dash: function (p) { [[2, 3, 9], [0, 6, 8], [3, 9, 10]].forEach(function (l) { p.line(l[0], l[1], l[2], l[1], "#a8d0ff", 1); p.dot(l[2] + 1, l[1], "#e8f4ff"); }); },
+    bars: function (p) { p.line(1, 2, 10, 9, "#d0a050", 2); p.line(1, 9, 10, 2, "#d0a050", 2); },
+    counter: function (p) { p.ring(6, 6, 4, 4, "#ff9070", 1, Math.PI * 0.2, Math.PI * 1.6); p.line(8, 1, 10, 3, "#ff9070", 1); p.line(10, 3, 7, 3, "#ff9070", 1); },
+  };
+  function icon(type) {
+    if (!ICON[type] || !document.createElement) return null;
+    var cv = document.createElement("canvas");
+    if (!cv.getContext) return null;
+    cv.width = 12; cv.height = 12; cv.className = "fx-icon";
+    ICON[type](P(cv.getContext("2d")));
+    return cv;
+  }
+
+  return { play: play, icon: icon, types: Object.keys(DRAW) };
 })();

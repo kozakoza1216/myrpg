@@ -259,57 +259,46 @@ RPG.Battle = (function () {
     var fx = this.fx, stage = this._fxStage;
     if (!stage) return;
     var who = fx.attacker || this.fxActor, sk = fx.skillId && Data.SKILLS[fx.skillId];
-    var title = fx.title || (who && sk ? who.name + "の" + sk.name + (sk.area ? "（全体）" : "") : fx.lines[0] || "");
+    // 出すのは技の名前だけ。誰の行動かは、踏み込む枠と陣営の色で分かる
+    var title = fx.title || (sk ? sk.name : fx.lines[0] || "");
     var co = document.createElement("div");
     co.className = "fx-callout" + (who && who.isEnemy ? " hostile" : "");
     co.textContent = title;
     stage.appendChild(co);
-    if (fx.judge) {
-      var sub = document.createElement("div");
-      sub.className = "fx-callout-sub";
-      sub.textContent = "→ " + fx.judge.d + "は" + fx.judge.stance + "で受ける";
-      stage.appendChild(sub);
-    }
     var ref = who && this.fxBoxOf(who);
     if (ref) {
       ref.box.classList.add("fx-actor", who.isEnemy ? "fx-actor-down" : "fx-actor-up");
       setBar(ref, "mp", who.mp, who.maxMp);     // 技に使ったMPはここで減らす
     }
-    // 攻め手と受け手の枠に目印（判定の欄の「攻め」「受け」と同じ色）。誰と誰の競り合いかを枠で分かるようにする
+    // 競り合う二人の枠を陣営の色（味方＝金・敵＝赤）で縁取り、受け手の枠には受け方の印を付ける（判定の欄と同じ色・同じ印）
     if (fx.judge) {
-      var badge = function (r, role, extra, text) {
-        if (!r) return;
-        var b = document.createElement("span"); b.className = "role-badge " + role + (extra ? " " + extra : ""); b.textContent = text;
-        r.box.appendChild(b); r.box.classList.add("fx-role-" + role);
-      };
-      badge(this.fxBoxOf(fx.judge.ac), "atk", fx.judge.ac && fx.judge.ac.isEnemy ? "hostile" : "", "攻め");
-      badge(this.fxBoxOf(fx.judge.dc), "def", "", "受け");
+      var self = this;
+      [fx.judge.ac, fx.judge.dc].forEach(function (c) { var r = self.fxBoxOf(c); if (r) r.box.classList.add("fx-duel", c.isEnemy ? "foe" : "ally"); });
+      var dr = this.fxBoxOf(fx.judge.dc), ic = stanceIcon(fx.judge.stanceKey);
+      if (dr && ic) { ic.classList.add("box-stance"); dr.box.appendChild(ic); }
     }
   };
 
-  // 受けの結果は、受けた本人の枠の上で見せる（盾が弾く／破れる、身をかわす、足止めが効く／破られる）
+  // 受け方の印（盾＝防御／流れる線＝回避／交差した柵＝足止め／返し矢印＝カウンター・反撃）
+  var STANCE_ICON = { defense: "shield", defenseStance: "shield", evade: "dash", hold: "bars", counter: "counter", breakthroughCounter: "counter", riposte: "counter" };
+  function stanceIcon(key) { return RPG.BattleFx && RPG.BattleFx.icon && STANCE_ICON[key] ? RPG.BattleFx.icon(STANCE_ICON[key]) : null; }
+
+  // 受けの結果は、受けた本人の枠の上で見せる（盾が弾く／破れる、身をかわす、足止めが効く／破られる）。言葉は出さない
   var REACT = {
-    defense: { win: ["shield", "防いだ"], lose: ["shieldBreak", "破られた"] },
-    evade: { win: ["speed", "かわした"], lose: ["speed", "かわしきれない"] },
-    hold: { win: ["barricade", "止めた"], lose: ["barricadeBreak", "止めきれない"] },
-    riposte: { win: ["spark", "返した"], lose: ["spark", "返せない"] },
+    defense: { win: "shield", lose: "shieldBreak" },
+    evade: { win: "speed", lose: "speed" },
+    hold: { win: "barricade", lose: "barricadeBreak" },
   };
   State.prototype.fxReact = function (j) {
     var ref = this.fxBoxOf(j.dc);
     if (!ref) return;
-    var defWin = !j.win, key = j.stanceKey === "defenseStance" ? "defense" : j.stanceKey, r = REACT[key], fxType, word, cls = defWin ? "good" : "bad";
-    if (j.counterHit) { fxType = "spark"; word = "カウンター！"; cls = "counter"; }
-    else if (j.counterMiss) { fxType = null; word = "空振り"; cls = "bad"; }
-    else if (j.brokeThrough) { fxType = "shieldBreak"; word = "突破された"; cls = "bad"; }
-    else if (r) { fxType = r[defWin ? "win" : "lose"][0]; word = r[defWin ? "win" : "lose"][1]; }
-    else { fxType = null; word = defWin ? "受けた" : "受けきれない"; }
+    var defWin = !j.win, key = j.stanceKey === "defenseStance" ? "defense" : j.stanceKey, r = REACT[key], fxType = null;
+    if (j.counterHit) fxType = "spark";
+    else if (j.brokeThrough) fxType = "shieldBreak";
+    else if (r && !j.counterMiss) fxType = r[defWin ? "win" : "lose"];
     var from = j.dc.isEnemy ? "bottom" : "top";     // 攻撃が来る向き（敵は上、味方は下に並ぶ）
     if (fxType) this.fxAnim(fxType, ref.box, { from: from, big: j.counterHit, dur: 520, seed: 5 });
     if (key === "evade") { ref.box.classList.remove("fx-evade", "fx-evade-fail"); void ref.box.offsetWidth; ref.box.classList.add(defWin ? "fx-evade" : "fx-evade-fail"); }
-    var pop = document.createElement("div");
-    pop.className = "react-pop " + cls;
-    pop.textContent = word;
-    ref.box.appendChild(pop);
   };
 
   // ②判定の競り合い
@@ -319,19 +308,20 @@ RPG.Battle = (function () {
     var hostile = this.fx.attacker && this.fx.attacker.isEnemy;
     var wrap = document.createElement("div");
     wrap.className = "clash" + (hostile ? " hostile" : "");
-    var side = function (cls, label, name) {
-      var d = document.createElement("div"); d.className = "clash-side " + cls;
-      var l = document.createElement("span"); l.className = "cs-role"; l.textContent = label; d.appendChild(l);
-      var n = document.createElement("span"); n.className = "cs-name"; n.textContent = name; d.appendChild(n);
+    // 左に仕掛けた側、右に受けた側。色は陣営（味方＝金・敵＝赤）。受けた側の名前の前に受け方の印
+    var side = function (cls, c, name, icon) {
+      var d = document.createElement("div"); d.className = "clash-side " + cls + " " + (c && c.isEnemy ? "foe" : "ally");
+      var n = document.createElement("span"); n.className = "cs-name";
+      if (icon) n.appendChild(icon);
+      n.appendChild(document.createTextNode(name)); d.appendChild(n);
       var sc = document.createElement("span"); sc.className = "cs-score"; sc.textContent = "0"; d.appendChild(sc);
       wrap.appendChild(d);
       return { el: d, score: sc };
     };
-    var A = side("atk", "攻め", j.a);
-    var mid = document.createElement("div"); mid.className = "clash-mid"; mid.textContent = "判定"; wrap.appendChild(mid);
-    var D = side("def", "受け・" + j.stance, j.d);
+    var A = side("atk", j.ac, j.a, null);
+    var mid = document.createElement("div"); mid.className = "clash-mid"; wrap.appendChild(mid);
+    var D = side("def", j.dc, j.d, stanceIcon(j.stanceKey));
     stage.appendChild(wrap);
-    var note = document.createElement("div"); note.className = "clash-note"; stage.appendChild(note);
     // スコアがせり上がる
     var count = function (el, to, ms) {
       if (inst || !window.requestAnimationFrame) { el.textContent = to; return; }
@@ -355,7 +345,6 @@ RPG.Battle = (function () {
       if (!i2 && RPG.Sound) RPG.Sound.play("clash");
       self.fxReact(j);
     });
-    this.later(820, function () { if (j.text) { note.textContent = j.text; note.classList.add("show"); } });
   };
 
   // ③命中：エフェクト→揺れと数字→ゲージが減る
@@ -372,9 +361,10 @@ RPG.Battle = (function () {
       void box.offsetWidth;
       box.classList.add("fx-" + m.kind);
       var pop = document.createElement("div");
-      pop.className = "dmg-pop " + m.kind;
-      pop.textContent = (m.text ? m.text + (m.amount ? " " : "") : "") + (m.amount ? (m.kind === "heal" ? "+" : "") + m.amount : "");
-      box.appendChild(pop);
+      // 数字だけを出す（会心は大きく金色、回復は緑の＋、MPは青。当たらなかったときは数字を出さない）
+      pop.className = "dmg-pop " + m.kind + (m.kind === "heal" && m.text === "MP" ? " mp" : "");
+      pop.textContent = m.kind === "miss" ? String(m.text || "").replace(/^[^−-]*/, "") : m.amount ? (m.kind === "heal" ? "+" : "") + m.amount : "";
+      if (pop.textContent) box.appendChild(pop);
       if (!i2 && RPG.Sound) RPG.Sound.play(m.kind);
       // ゲージ：途中の当たりは積み上げで、その者の最後の当たりで今の値にそろえる
       ref.run = ref.run || { hp: ref.b.hp, mp: ref.b.mp };
@@ -406,7 +396,12 @@ RPG.Battle = (function () {
     root.innerHTML = "";
     var card = document.createElement("div");
     card.className = "result-card";
-    (this.fx ? this.fx.lines : []).forEach(function (l) { var pl = document.createElement("p"); pl.textContent = l; card.appendChild(pl); });
+    // 判定の結果の文は、受け方を選んだ行のすぐ後に。こちらに良い結果は金、悪い結果は赤
+    var j = this.fx && this.fx.judge;
+    (this.fx ? this.fx.lines : []).forEach(function (l, i) {
+      var pl = document.createElement("p"); pl.textContent = l; card.appendChild(pl);
+      if (i === 0 && j && j.text) { var pj = document.createElement("p"); pj.className = "judge-line " + (j.tone || ""); pj.textContent = j.text; card.appendChild(pj); }
+    });
     root.appendChild(card);
     root.appendChild(button("次へ ▶", function (e) { if (e) e.stopPropagation(); self.continueFx(); }));
   };
@@ -755,10 +750,13 @@ RPG.Battle = (function () {
 
     // 判定の競り合い（範囲技は最初の相手の分だけ見せる）
     if (first && !skill.guaranteedHit) this.fx.judge = { a: attacker.name, as: result.attackerScore, d: defender.name, ds: result.defenderScore, win: result.attackerWins, stance: stanceLabel,
-      text: judgeText(stance, result, !!bonuses.defenderBonus, isBreakthrough && result.attackerWins && backline) };
+      text: judgeText(stance, result, !!bonuses.defenderBonus, isBreakthrough && result.attackerWins && backline, attacker.name, defender.name) };
     if (first && this.fx.judge) {
       // 演出で、受けた本人の枠の上に受けの結果を見せるための控え
       var jj = this.fx.judge;
+      // 結果の良し悪しは、いつもプレイヤーの側から見る（敵がかわした・止めた＝こちらには悪い知らせ）
+      var favorsAttacker = result.counterMiss || (result.attackerWins && !(result.isCounter && !result.counterMiss));
+      jj.tone = (!attacker.isEnemy) === !!favorsAttacker ? "good" : "bad";
       jj.ac = attacker; jj.dc = defender; jj.stanceKey = stance;
       jj.brokeThrough = isBreakthrough && result.attackerWins && backline;
       jj.counterHit = !!(result.isCounter && !result.counterMiss && !result.attackerWins);
@@ -773,7 +771,7 @@ RPG.Battle = (function () {
     }
     if (result.negated) {
       this.fxMark(defender, "negate", 0, stance === "evade" ? "回避" : "無効");
-      lines.push(defender.name + "は" + skill.name + "を完全に凌いだ！");
+      lines.push(attacker.name + "の" + skill.name + "は、" + defender.name + "に当たらなかった。");
       return;
     }
     // 突破が判定に勝ち、後ろに後衛がいる：前衛は抜かれて「おまけ」だけ受け、後衛に追撃が入る（§4-8）
@@ -794,14 +792,15 @@ RPG.Battle = (function () {
   };
 
   // 判定の結果を、数字を読まなくても分かる言葉にする（受け手の側から見た結果）
-  function judgeText(stance, r, stanceSkill, brokeThrough) {
-    if (r.isCounter && !r.counterMiss) return r.attackerWins ? "カウンターは不発。攻撃が通った" : "カウンター成立！ 攻撃をそのまま跳ね返した";
-    if (r.counterMiss) return "読みが外れた（カウンターの空振り）。攻撃がそのまま通った";
-    if (brokeThrough) return "突破された！ 前衛を抜けて後衛へ追撃";
-    var win = !r.attackerWins, d = stanceSkill ? "防御姿勢" : "防御";
-    if (stance === "defense") return win ? d + "成功：ダメージを大きく減らした" : d + "は破られた：ダメージは半分ほどに";
-    if (stance === "evade") return win ? "回避成功：無傷" : "かわしきれず、ほぼそのまま受けた";
-    if (stance === "hold") return win ? "足止め成功：攻撃を止めた" : "足止め失敗：まともに受けた";
+  // 判定の結果を、起きたことだけの文にする（どちらの側にも肩入れしない言い方。良し悪しは色で見せる）
+  function judgeText(stance, r, stanceSkill, brokeThrough, a, d) {
+    if (r.isCounter && !r.counterMiss) return r.attackerWins ? d + "のカウンターは届かず、攻撃が通った" : d + "のカウンターで、攻撃が跳ね返された";
+    if (r.counterMiss) return d + "の読みが外れ、攻撃がそのまま通った";
+    if (brokeThrough) return a + "が前衛を突き抜け、後衛へ追撃した";
+    var win = !r.attackerWins, g = stanceSkill ? "防御姿勢" : "防御";
+    if (stance === "defense") return win ? d + "が" + g + "で受け止め、ダメージを大きく減らした" : d + "の" + g + "は破られ、ダメージは半分ほど通った";
+    if (stance === "evade") return win ? d + "にかわされ、攻撃は当たらなかった" : d + "はかわしきれず、ほぼそのまま受けた";
+    if (stance === "hold") return win ? d + "の足止めで、攻撃は止められた" : d + "の足止めは破られ、まともに受けた";
     return r.attackerWins ? "攻撃が通った" : "攻撃は防がれた";
   }
 
@@ -897,7 +896,7 @@ RPG.Battle = (function () {
     var actor = this.pending.actor;
     var it = Data.ITEMS[itemId];
     this.fxReset();
-    this.fx.title = actor.name + "は" + it.name + "を使った";
+    this.fx.title = it.name;
     var got = Data.useHealItem(itemId, target);
     this.items[itemId] -= 1;
     if (this.items[itemId] <= 0) delete this.items[itemId];
@@ -1045,7 +1044,8 @@ RPG.Battle = (function () {
       this._fxControls = root;
       var hint = document.createElement("p");
       hint.className = "fx-hint";
-      hint.textContent = "（画面を押すと早送り）";
+      hint.textContent = "▶▶";
+      hint.title = "画面を押すと早送り";
       root.appendChild(hint);
       // 行動を選んだタップや、うっかりの二度押しで読み飛ばさないよう、出てすぐのタップは受けない
       this.el.onclick = function () {

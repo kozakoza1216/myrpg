@@ -282,57 +282,52 @@ button {
 .battle-field .combatant-box { background: rgba(30, 23, 17, 0.74); }
 .battle-field .battle-log { background: rgba(12, 9, 6, 0.62); }
 /* ログと舞台は同じ高さ（判定の競り合いまで入る高さ）にして、演出の前後で画面が上下に跳ねないようにする */
-.battle-field .battle-log { min-height: 12.2rem; }
+.battle-field .battle-log { min-height: 8rem; }
 .battle-screen.fx-phase .battle-controls { min-height: 9.5rem; }
 .battle-field .lane-label { color: #c8b898; text-shadow: 0 1px 2px #000; }
 .battle-screen.fx-phase .bar-fill { transition: width 0.55s ease-out; }
 .battle-screen.fx-phase { cursor: pointer; }
 /* 舞台（演出中のログの場所）：高さを固定して、中身が入れ替わっても画面が跳ねないように */
-.fx-stage { min-height: 12.2rem; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.2rem; text-align: center; overflow: hidden; }
+.fx-stage { min-height: 8rem; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.2rem; text-align: center; overflow: hidden; }
 .fx-callout { font-size: 1rem; font-weight: bold; color: #ffe0a0; letter-spacing: 0.05em; animation: fx-callout 0.3s ease-out both; text-shadow: 0 1px 0 #000; }
 .fx-callout.hostile { color: #ffb0a0; }
-.fx-callout-sub { font-size: 0.78rem; color: #c8b898; animation: fx-callout 0.3s 0.12s ease-out both; }
 @keyframes fx-callout { 0% { opacity: 0; transform: translateY(6px); } 100% { opacity: 1; transform: none; } }
-.fx-hint { font-size: 0.72rem; color: #7a6a50; margin: 0.4rem 0; }
+.fx-hint { font-size: 0.8rem; color: #6a5a42; margin: 0.4rem 0; letter-spacing: -0.1em; animation: hint-blink 1.2s steps(2, end) infinite; }
+@keyframes hint-blink { 0% { opacity: 0.9; } 100% { opacity: 0.35; } }
 /* 判定の競り合い：両側から滑り込み、スコアがせり上がって、中央でぶつかる */
 .clash { display: flex; align-items: stretch; justify-content: center; gap: 0.35rem; width: 100%; margin-top: 0.25rem; }
 .clash-side { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 0.2rem 0.3rem; border-radius: 5px; background: #2a2018; border: 1px solid #4a3a28; transition: transform 0.18s ease-out, filter 0.25s, box-shadow 0.25s, background 0.25s; }
 .clash-side.atk { animation: clash-in-l 0.32s ease-out both; }
 .clash-side.def { animation: clash-in-r 0.32s ease-out both; }
-.cs-role { font-size: 0.62rem; color: #9a8a70; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.cs-name { font-size: 0.78rem; color: #e8dcc8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.cs-name { display: flex; align-items: center; gap: 0.25rem; font-size: 0.78rem; color: #e8dcc8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .cs-score { font-size: 1.7rem; font-weight: bold; line-height: 1.1; color: #f0e4cc; font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 #000; }
 .clash-mid { position: relative; flex: 0 0 2.2rem; display: flex; align-items: center; justify-content: center; font-size: 0.66rem; color: #8a7a60; }
 .clash-mid .fx-sprite { width: 88px; height: 88px; }
 .clash.hit .clash-side.atk { animation: clash-bump-l 0.3s ease-out; }
 .clash.hit .clash-side.def { animation: clash-bump-r 0.3s ease-out; }
-.clash-side.win { background: #6a4a1c; border-color: #c8a03c; box-shadow: 0 0 12px rgba(255, 200, 100, 0.55); }
-.clash-side.win .cs-score { color: #ffe08a; transform: scale(1.12); }
-.clash.hostile .clash-side.atk.win { background: #6a2418; border-color: #d06040; box-shadow: 0 0 12px rgba(255, 110, 80, 0.5); }
+/* 色は陣営で決める（味方＝金・敵＝赤）。勝った側がその色で光るので、こちらに良い結果か悪い結果かが色で分かる */
+.clash-side.ally { border-color: #5a4628; }
+.clash-side.foe { border-color: #5a3028; }
+.clash-side.ally.win { background: #6a4a1c; border-color: #c8a03c; box-shadow: 0 0 12px rgba(255, 200, 100, 0.55); }
+.clash-side.foe.win { background: #6a2418; border-color: #d06040; box-shadow: 0 0 12px rgba(255, 110, 80, 0.5); }
+.clash-side.win .cs-score { transform: scale(1.12); }
+.clash-side.ally.win .cs-score { color: #ffe08a; }
+.clash-side.foe.win .cs-score { color: #ffc8b8; }
 .clash-side.lose { filter: brightness(0.6) saturate(0.6); }
-/* 受け側は青。判定の欄の「受け」と、受け手の枠の目印を同じ色にして結びつける */
-.clash-side.def { border-color: #3a5070; }
-.clash-side.def .cs-role { color: #8ab0d8; }
-.clash-side.def.win { background: #1c3a5c; border-color: #6aa0e0; box-shadow: 0 0 12px rgba(120, 180, 255, 0.5); }
-.clash-side.def.win .cs-score { color: #d0e8ff; }
-.clash.hostile .clash-side.atk .cs-role { color: #e0907a; }
-/* 枠の目印：攻め手（味方は金・敵は赤）と受け手（青） */
-.role-badge { position: absolute; top: -0.6rem; left: 0.35rem; font-size: 0.62rem; font-weight: bold; line-height: 1; padding: 0.18rem 0.35rem; border-radius: 3px; z-index: 4; color: #1a120a; background: #c8a03c; animation: fx-callout 0.25s ease-out both; }
-.role-badge.hostile { background: #d06040; color: #fff0e8; }
-.role-badge.def { background: #6aa0e0; color: #0a1420; }
-.combatant-box.fx-role-def { outline: 2px solid #6aa0e0; }
-/* 受けの結果：受けた本人の枠の上端に出して、そのまま残す */
-.react-pop { position: absolute; top: -0.75rem; right: 0.3rem; white-space: nowrap; font-size: 0.85rem; font-weight: bold; padding: 0.1rem 0.5rem; border-radius: 10px; z-index: 5; background: #0e141c; border: 1px solid #6aa0e0; color: #cfe6ff; animation: react-in 0.35s ease-out both; }
-.react-pop.bad { border-color: #8a5a48; color: #f0b8a0; background: #1c1210; }
-.react-pop.counter { border-color: #ff7a5a; color: #ffd0c0; background: #3a1410; font-size: 0.95rem; }
-@keyframes react-in { 0% { opacity: 0; transform: translateY(6px) scale(1.5); } 60% { opacity: 1; transform: scale(0.95); } 100% { opacity: 1; transform: none; } }
+/* 競り合う二人の枠：陣営の色で縁取る。受け手の枠の右上に、受け方の印 */
+.combatant-box.fx-duel.ally { outline: 2px solid #c8a03c; }
+.combatant-box.fx-duel.foe { outline: 2px solid #d06040; }
+.fx-icon { width: 18px; height: 18px; image-rendering: pixelated; image-rendering: crisp-edges; flex: 0 0 auto; }
+.box-stance { position: absolute; top: -9px; right: 6px; width: 24px; height: 24px; padding: 2px; background: #0e0c0a; border: 1px solid #5a4a36; border-radius: 4px; z-index: 4; animation: fx-callout 0.25s ease-out both; }
+/* 結果欄の判定の文：こちらに良い結果は金、悪い結果は赤 */
+.result-card .judge-line.good { color: #ffd878; }
+.result-card .judge-line.bad { color: #ff8a70; }
+.dmg-pop.mp { color: #8ab8ff; }
 /* かわす：横へ身を流して戻る（かわしきれないときは途中で止まる） */
 .combatant-box.fx-evade { animation: fx-evade 0.5s ease-out; }
 .combatant-box.fx-evade-fail { animation: fx-evade-fail 0.4s ease-out; }
 @keyframes fx-evade { 0% { transform: none; box-shadow: none; } 35% { transform: translateX(22px); box-shadow: -16px 0 0 -3px rgba(168, 208, 255, 0.28); } 100% { transform: none; box-shadow: none; } }
 @keyframes fx-evade-fail { 0% { transform: none; } 40% { transform: translateX(8px); } 100% { transform: none; } }
-.clash-note { font-size: 0.78rem; color: #ffe0a0; opacity: 0; min-height: 1rem; }
-.clash-note.show { animation: fx-callout 0.3s ease-out both; }
 @keyframes clash-in-l { 0% { opacity: 0; transform: translateX(-30px); } 100% { opacity: 1; transform: none; } }
 @keyframes clash-in-r { 0% { opacity: 0; transform: translateX(30px); } 100% { opacity: 1; transform: none; } }
 @keyframes clash-bump-l { 0% { transform: none; } 35% { transform: translateX(10px); } 100% { transform: none; } }
@@ -350,4 +345,4 @@ button {
 .dmg-pop { animation-fill-mode: both; }
 /* 早送り：残りの動きを止めて、最後の形だけ見せる */
 .battle-screen.fx-instant *, .battle-screen.fx-instant { animation-duration: 0.01s !important; animation-delay: 0s !important; transition-duration: 0.01s !important; }
-@media (prefers-reduced-motion: reduce) { .clash-side, .clash-verdict, .fx-callout, .combatant-box.fx-fall { animation-duration: 0.01s !important; } }
+@media (prefers-reduced-motion: reduce) { .clash-side, .fx-callout, .fx-hint, .combatant-box.fx-fall { animation-duration: 0.01s !important; } }
