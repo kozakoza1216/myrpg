@@ -338,7 +338,7 @@ RPG.Chapter1 = (function () {
     { kind: "choice", speaker: "ミラ", text: "……大丈夫。こんなにたくさん札があるんだもの。当たるわけない。", options: ["そうだな", "……"] },
     { speaker: "カガリ", text: "――引く。" },
     { speaker: "カガリ", text: "此度の供物は……" },
-    { speaker: "カガリ", text: "セオ。お前だ。" },
+    { speaker: "カガリ", text: "セオ。お前だ。", fx: "impact" },
     { speaker: "集落の者", text: "……セオか。……うちじゃ、なかった。" },
     { speaker: "信徒", text: "来い。祭壇まで連れて行く。" },
     { speaker: "ミラ", text: "待って。……私が行く。" },
@@ -734,7 +734,7 @@ RPG.Chapter1 = (function () {
     { speaker: "ミラ", text: "……ほんと、ばか。" },
     { speaker: "ミラ", text: "それで、その人は……鳥人、よね？　絶えたって聞いてたのに。" },
     { speaker: "灰色の鳥人", text: "絶えてはいない。数えるほどしか残っていないだけだ。" },
-    { speaker: "ミラ", text: "……っ、揺れてる？　地の底から、何か……唸ってる。", fx: "quake" },
+    { speaker: "ミラ", text: "……っ、揺れてる？　地の底から、何か……唸ってる。", fx: "shake" },
     { speaker: "灰色の鳥人", text: "……外だ。ここを出るぞ。" },
   ];
 
@@ -748,7 +748,7 @@ RPG.Chapter1 = (function () {
   }
 
   var dragonBeats = [
-    { kind: "header", text: "祭壇の外", bg: "dragon", fx: "quake" },
+    { kind: "header", text: "祭壇の外", bg: "dragon", fx: "shake" },
     { speaker: "ミラ", text: "……な、に……あれ……。" },
     { speaker: "灰色の鳥人", text: "灰色竜だ。儀式の騒ぎに寄ってきたか。……動くな。気づかれなければ、通り過ぎる。" },
     { speaker: "ミラ", text: "灰が、降ってる……。あれが、竜……。" },
@@ -761,7 +761,7 @@ RPG.Chapter1 = (function () {
 
   var endBeats = [
     { kind: "header", text: "灰縁の集落・門", bg: "gateClosed" },
-    { speaker: "ミラ", text: "開けて！　ミラよ、帰ってきたの！" },
+    { speaker: "ミラ", text: "開けて！　ミラよ、帰ってきたの！", fx: "knock" },
     { speaker: "集落長トキ", text: "帰ってくるなと言ったはずだ。" },
     { speaker: "ミラ", text: "……言った？　セオに？　……私を追ってきたから、セオを追い出したのね。" },
     { speaker: "ミラ", text: "上等じゃない。こっちから願い下げよ。" },

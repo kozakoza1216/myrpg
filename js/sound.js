@@ -72,6 +72,14 @@ RPG.Sound = (function () {
     caught: function (t) { tone("square", 1200, t, 0.08, 0.3); tone("square", 1600, t + 0.09, 0.14, 0.3); },
     encounter: function (t) { [76, 75, 74, 73].forEach(function (n, i) { tone("sawtooth", NOTE(n), t + i * 0.05, 0.1, 0.18); }); },
     quake: function (t) { noise(t, 1.4, 1.0, 90, 0.7); tone("sine", 45, t, 1.4, 0.9, null, 30); },
+    // 地鳴り：低く長い唸り（赤い閃光のない揺れ）
+    shake: function (t) { noise(t, 1.8, 0.8, 70, 0.6); tone("sine", 38, t, 1.8, 0.8, null, 28); noise(t + 0.4, 1.2, 0.35, 140, 0.8); },
+    // 衝撃：短く重い一打
+    impact: function (t) { noise(t, 0.35, 1.0, 160, 0.8); tone("sine", 70, t, 0.5, 1.0, null, 32); tone("triangle", 110, t, 0.18, 0.4, null, 55); },
+    // 木の扉を三度叩く
+    knock: function (t) {
+      [0, 0.3, 0.6].forEach(function (d) { noise(t + d, 0.09, 1.0, 260, 1.2); tone("sine", 95, t + d, 0.14, 0.9, null, 60); noise(t + d, 0.03, 0.5, 1400, 2); });
+    },
     victory: function (t) { [72, 76, 79].forEach(function (n, i) { tone("square", NOTE(n), t + i * 0.12, 0.16, 0.2); }); tone("square", NOTE(84), t + 0.38, 0.5, 0.22); tone("triangle", NOTE(60), t + 0.38, 0.5, 0.3); },
     defeat: function (t) { [67, 63, 60, 55].forEach(function (n, i) { tone("triangle", NOTE(n), t + i * 0.22, 0.4, 0.3); }); },
   };
