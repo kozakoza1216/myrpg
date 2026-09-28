@@ -286,7 +286,7 @@ RPG.Chapter1 = (function () {
     { kind: "header", text: "第一章　灰縁（はいべり）の集落", bg: "village" },
     { kind: "header", text: "セオの住居", bg: "house" },
     { kind: "choice", speaker: "ミラ", text: "セオ、起きて。今日は「くじ」の日でしょ。寝坊したら承知しないから。", options: ["わかってる", "……くじ、か", "……"] },
-    { speaker: "ミラ", text: "竜に捧げる供物を、招竜派がくじで決める日。遅れたら、あいつらに何を言われるか。" },
+    { speaker: "ミラ", text: "竜への供物を決める日だってのに、よく寝られるわね。遅れたら、招竜派の連中に何を言われるか。" },
     { speaker: "ミラ", text: "棚の干し肉と薬、持っていきなよ。くじまではまだ時間あるから。……遅れないでね。" },
   ];
 
@@ -549,7 +549,7 @@ RPG.Chapter1 = (function () {
   ];
   function bonusRoom(back) {
     var beats = bonusBeats.concat([
-      say("bloodroom", { mira: "ここ……私たちの家、なのに。床も壁も、全部……血？", tzelf: "血の匂いだ。……奥に何かいる。", alone: "見慣れた部屋が、血に濡れていた。" }),
+      say("bloodroom", { mira: "ここ……セオの家、なのに。床も壁も、全部……血？", tzelf: "血の匂いだ。……奥に何かいる。", alone: "見慣れた部屋が、血に濡れていた。" }),
       { kind: "choice", speaker: "影", text: "時間切れになるまで歩き続けられたのなら、さぞ腕を磨いてきたのだろう。――その成果を、見せてみろ。", options: ["挑む", "引き返す"] },
     ]);
     Story.play(app, beats, function (choice) {
@@ -727,8 +727,9 @@ RPG.Chapter1 = (function () {
     { speaker: "ミラ", text: "……ほんと、ばか。" },
     { speaker: "ミラ", text: "それで、その人は……鳥人、よね？　絶えたって聞いてたのに。" },
     { speaker: "灰色の鳥人", text: "絶えてはいない。数えるほどしか残っていないだけだ。" },
-    { speaker: "ミラ", text: "ねえ、あれ……空の向こう。何か、大きいのが動いてる。" },
+    { speaker: "ミラ", text: "……っ、揺れてる？　地の底から、何か……唸ってる。", fx: "quake" },
     { speaker: "灰色の鳥人", text: "灰色竜だ。儀式の騒ぎに寄ってきたか。" },
+    { speaker: "ミラ", text: "竜……。あれさえいなくなれば、生贄なんて――" },
     { speaker: "灰色の鳥人", text: "竜は殺せない。挑んだ奴は皆、灰になった。" },
     { speaker: "ミラ", text: "……じゃあ、どうすればいいのよ。" },
     { speaker: "灰色の鳥人", text: "さあな。……ここを出るぞ。" },
@@ -747,8 +748,11 @@ RPG.Chapter1 = (function () {
     { kind: "header", text: "灰縁の集落・門", bg: "gateClosed" },
     { speaker: "ミラ", text: "開けて！　ミラよ、帰ってきたの！" },
     { speaker: "集落長トキ", text: "帰ってくるなと言ったはずだ。" },
+    { speaker: "ミラ", text: "……言った？　セオに？　……私を追ってきたから、セオを追い出したのね。" },
     { speaker: "ミラ", text: "上等じゃない。こっちから願い下げよ。" },
-    { speaker: "ミラ", text: "……帰る場所がないのは、三人とも同じってわけね。で、あなた。名前、まだ聞いてないんだけど。" },
+    { speaker: "ミラ", text: "……あなたは？　帰る場所、あるの？" },
+    { speaker: "灰色の鳥人", text: "ない。はじめからな。" },
+    { speaker: "ミラ", text: "……そう。じゃあ、三人とも同じね。で、あなた。名前、まだ聞いてないんだけど。" },
     { speaker: "灰色の鳥人", text: "名はない。呼ばれる必要もなかった。" },
     { speaker: "灰色の鳥人", text: "…………借りられる名も、なかったな。" },
     { speaker: "灰色の鳥人", text: "ツェルフ。……そう呼べ。" },
