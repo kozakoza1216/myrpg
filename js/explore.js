@@ -2579,10 +2579,9 @@ RPG.Explore = (function () {
     if (!box) { this.sceneNext(); return; }
     box.innerHTML = "";
     box.className = "map-talk story-box " + (st.choice ? "choice" : st.say ? "dialogue" : "narration");
-    // 話している人物の小さな立ち絵を、欄の左に添える（会話場面と同じ青い影）
-    var fid = st.say && RPG.Scenes && RPG.Scenes.figIdForSpeaker ? RPG.Scenes.figIdForSpeaker(st.say) : null;
-    var purl = fid && RPG.Scenes.portraitFor ? RPG.Scenes.portraitFor(fid) : null;
-    if (purl) { var im = document.createElement("img"); im.className = "map-portrait"; im.src = purl; im.alt = ""; box.appendChild(im); box.classList.add("has-portrait"); }
+    // 話している人物の立ち絵を、台詞の欄の左の別の窓に出す（会話場面と同じ青い影）
+    this.setTalkPortrait(st.say && RPG.Scenes && RPG.Scenes.figIdForSpeaker ? RPG.Scenes.figIdForSpeaker(st.say) : null);
+    if (this._talkRow) this._talkRow.classList.add("on");
     if (st.say) { var sp = document.createElement("div"); sp.className = "speaker"; sp.textContent = st.say; box.appendChild(sp); }
     var p = document.createElement("p");
     p.className = st.choice ? "choice-prompt" : "";
@@ -2592,6 +2591,7 @@ RPG.Explore = (function () {
       if (self.scene !== sc) return;
       if (choiceIndex !== undefined) sc.lastChoice = choiceIndex;
       box.onclick = null; box.innerHTML = ""; box.className = "map-talk";
+      if (self._talkRow) self._talkRow.classList.remove("on");
       if (self._frameEl) self._frameEl.onclick = null;
       sc.talker = null;
       self.sceneNext();
@@ -2658,6 +2658,17 @@ RPG.Explore = (function () {
     };
     requestAnimationFrame(frame);
   };
+  // 寸劇の立ち絵の窓：話している人物の立ち絵に差し替える。立ち絵のない者（地の文など）のときは空の窓にする
+  FreeArea.prototype.setTalkPortrait = function (fid) {
+    var win = this._portraitEl;
+    if (!win) return;
+    var purl = fid && RPG.Scenes && RPG.Scenes.portraitFor ? RPG.Scenes.portraitFor(fid) : null;
+    if (win._fid === (purl ? fid : null)) return;
+    win._fid = purl ? fid : null;
+    win.innerHTML = "";
+    win.classList.toggle("empty", !purl);
+    if (purl) { var im = document.createElement("img"); im.src = purl; im.alt = ""; win.appendChild(im); }
+  };
   FreeArea.prototype.endScene = function () {
     var sc = this.scene;
     if (!sc) return;
@@ -2667,6 +2678,8 @@ RPG.Explore = (function () {
     this._walkDist = 0;
     if (this._wrapEl) this._wrapEl.classList.remove("scene-mode");
     if (this._talkEl) { this._talkEl.innerHTML = ""; this._talkEl.className = "map-talk"; this._talkEl.onclick = null; }
+    if (this._talkRow) this._talkRow.classList.remove("on");
+    this.setTalkPortrait(null);
     if (this._frameEl) this._frameEl.onclick = null;
     this._symStopped = false;
     // 目印の上で寸劇が終わっても、踏んだことにはしない（一度離れてから踏み直したときだけ発動）
@@ -2815,10 +2828,18 @@ RPG.Explore = (function () {
     wrap.appendChild(frameEl);
     this.attachPointer(cv);
     this._wrapEl = wrap;
-    // 寸劇の台詞を出す欄（寸劇のない間は空で、場所を取らない）
+    // 寸劇の台詞を出す欄と、その左の立ち絵の窓（寸劇で誰かが話している間だけ出し、ほかは場所を取らない）
+    var talkRow = document.createElement("div");
+    talkRow.className = "map-talk-row";
+    var pwin = document.createElement("div");
+    pwin.className = "map-portrait-win empty";
+    talkRow.appendChild(pwin);
     var talk = document.createElement("div");
     talk.className = "map-talk";
-    wrap.appendChild(talk);
+    talkRow.appendChild(talk);
+    wrap.appendChild(talkRow);
+    this._talkRow = talkRow;
+    this._portraitEl = pwin;
     this._talkEl = talk;
 
     var msg = document.createElement("div");

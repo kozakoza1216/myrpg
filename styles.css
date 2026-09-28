@@ -371,11 +371,12 @@ button {
 .battle-screen .battle-title { margin-top: 0.7rem; }
 
 /* 寸劇：マップの下に台詞の欄。寸劇の間は、メニューのボタンと操作の案内を隠す */
-.map-talk:empty { display: none; }
-.map-talk { margin-top: 0.6rem; cursor: pointer; width: 100%; box-sizing: border-box; min-height: 7.5rem; }
+.map-talk-row { display: flex; gap: 0.4rem; align-items: stretch; margin-top: 0.6rem; }
+.map-talk-row:not(.on) { display: none; }
+.map-talk { cursor: pointer; flex: 1; min-width: 0; box-sizing: border-box; min-height: 7.5rem; padding: 1rem 1.1rem; }
 .dungeon-wrap.scene-mode .menu-open, .dungeon-wrap.scene-mode .footnote, .dungeon-wrap.scene-mode .dungeon-msg { display: none; }
 .dungeon-wrap.scene-mode .freearea-frame { cursor: pointer; }
-/* 寸劇の台詞欄の小さな立ち絵（左に置き、文はその右に回り込ませる） */
-.map-talk.has-portrait { padding-left: 5.6rem; position: relative; }
-.map-portrait { position: absolute; left: 0.6rem; bottom: 0.4rem; width: 4.6rem; height: 6.6rem; object-fit: contain; object-position: bottom; image-rendering: pixelated; image-rendering: crisp-edges; opacity: 0.95; animation: fig-portrait 0.25s ease-out; }
+/* 寸劇の立ち絵の窓（台詞の欄とは別の枠。話している人物の青い影を、足元をそろえて出す） */
+.map-portrait-win { flex: 0 0 5.4rem; position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: linear-gradient(#0c0e14, #05060a); }
+.map-portrait-win img { position: absolute; left: 0.25rem; right: 0.25rem; bottom: 0.3rem; width: calc(100% - 0.5rem); height: calc(100% - 0.6rem); object-fit: contain; object-position: bottom; image-rendering: pixelated; image-rendering: crisp-edges; opacity: 0.95; animation: fig-portrait 0.25s ease-out; }
 @keyframes fig-portrait { from { opacity: 0; transform: translateY(4px); } to { opacity: 0.95; transform: none; } }
