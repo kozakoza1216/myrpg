@@ -545,7 +545,7 @@ RPG.Chapter1 = (function () {
           return;
         }
         var b = BOSS_RUSH[i++];
-        runBattle([b.id], b.title + "（おまけ部屋）", false, nextBoss);
+        runBattle([b.id], b.title + "（おまけ部屋）", false, nextBoss, null, "bloodroom");
       })();
     });
   }
@@ -614,7 +614,7 @@ RPG.Chapter1 = (function () {
 
   function afterRoad() {
     // セオでは勝てない設計。灰色の鳥人の攻撃を3回しのぐか、HPを半分まで削れば打ち切り（攻略チャート第一章⑥。回数と割合は資料に数値がないため仮）
-    runBattle(["tzelf_ambush"], "灰色の鳥人との死闘", true, afterTzelfFight, { enemyActions: 3, enemyHpRatio: 0.5 });
+    runBattle(["tzelf_ambush"], "灰色の鳥人との死闘", true, afterTzelfFight, { enemyActions: 3, enemyHpRatio: 0.5 }, "narrow");
   }
 
   function afterTzelfFight() {
@@ -734,7 +734,9 @@ RPG.Chapter1 = (function () {
   ];
 
   // forceProceed：負けても話が進む戦い（チュートリアル・イベント戦）。eventEnd：イベント戦の打ち切り条件
-  function runBattle(enemyIds, title, forceProceed, next, eventEnd) {
+  // 戦闘の背景：いま居る場所の絵（会話場面の絵を使い回す）
+  var BATTLE_BG = { village: "village", villageRuin: "awakening", outskirts: "gate", hairegion: "ruins", shrine: "shrine" };
+  function runBattle(enemyIds, title, forceProceed, next, eventEnd, bg) {
     app.innerHTML = "";
     var box = document.createElement("div");
     box.className = "battle-screen";
@@ -753,7 +755,7 @@ RPG.Chapter1 = (function () {
       if (!lines.length) { next(); return; }
       // レベルアップと技の習得は、枠を光らせて目立たせる
       Story.play(app, lines.map(function (t) { return { kind: "narration", text: t, emph: /レベル\d+になった|を覚えた/.test(t) }; }), next);
-    }, { items: game.items, crit: game.crit, eventEnd: eventEnd, strength: RPG.Data.strengthRate(game.steps, game.stepLimit) });
+    }, { items: game.items, crit: game.crit, eventEnd: eventEnd, strength: RPG.Data.strengthRate(game.steps, game.stepLimit), bg: bg || (place && BATTLE_BG[place.kind]) || null });
   }
 
   // 全滅：記録から再開するか、タイトルへ戻る。やり直すときはシードを引き直す（§4-11）

@@ -274,3 +274,65 @@ button {
 .scene-sky { position: absolute; inset: 0; pointer-events: none; -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 30%, transparent 72%); mask-image: linear-gradient(180deg, #000 0%, #000 30%, transparent 72%); animation: sky-flicker 7.3s steps(1, end) infinite; }
 @keyframes sky-flicker { 0%, 88% { background: transparent; } 89% { background: rgba(4, 4, 8, 0.3); } 90% { background: rgba(160, 190, 200, 0.05); } 91% { background: rgba(4, 4, 8, 0.18); } 92%, 100% { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .scene-sky { animation: none; } .scene-sky .cl-scan { display: none; } }
+
+/* ── 戦闘の演出（順番に見せる） ── */
+/* 戦場：場所の絵を暗く敷いた上に、敵・舞台・味方を並べる */
+.battle-field { border-radius: 6px; margin: 0 -0.4rem 0.6rem; padding: 0.5rem 0.4rem 0.1rem; }
+.battle-field.has-bg { background-size: cover; background-position: center 35%; image-rendering: pixelated; box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.6); }
+.battle-field .combatant-box { background: rgba(30, 23, 17, 0.74); }
+.battle-field .battle-log { background: rgba(12, 9, 6, 0.62); }
+/* ログと舞台は同じ高さ（判定の競り合いまで入る高さ）にして、演出の前後で画面が上下に跳ねないようにする */
+.battle-field .battle-log { min-height: 12.2rem; }
+.battle-screen.fx-phase .battle-controls { min-height: 9.5rem; }
+.battle-field .lane-label { color: #c8b898; text-shadow: 0 1px 2px #000; }
+.battle-screen.fx-phase .bar-fill { transition: width 0.55s ease-out; }
+.battle-screen.fx-phase { cursor: pointer; }
+/* 舞台（演出中のログの場所）：高さを固定して、中身が入れ替わっても画面が跳ねないように */
+.fx-stage { min-height: 12.2rem; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.2rem; text-align: center; overflow: hidden; }
+.fx-callout { font-size: 1rem; font-weight: bold; color: #ffe0a0; letter-spacing: 0.05em; animation: fx-callout 0.3s ease-out both; text-shadow: 0 1px 0 #000; }
+.fx-callout.hostile { color: #ffb0a0; }
+.fx-callout-sub { font-size: 0.78rem; color: #c8b898; animation: fx-callout 0.3s 0.12s ease-out both; }
+@keyframes fx-callout { 0% { opacity: 0; transform: translateY(6px); } 100% { opacity: 1; transform: none; } }
+.fx-hint { font-size: 0.72rem; color: #7a6a50; margin: 0.4rem 0; }
+/* 判定の競り合い：両側から滑り込み、スコアがせり上がって、中央でぶつかる */
+.clash { display: flex; align-items: stretch; justify-content: center; gap: 0.35rem; width: 100%; margin-top: 0.25rem; }
+.clash-side { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 0.2rem 0.3rem; border-radius: 5px; background: #2a2018; border: 1px solid #4a3a28; transition: transform 0.18s ease-out, filter 0.25s, box-shadow 0.25s, background 0.25s; }
+.clash-side.atk { animation: clash-in-l 0.32s ease-out both; }
+.clash-side.def { animation: clash-in-r 0.32s ease-out both; }
+.cs-role { font-size: 0.62rem; color: #9a8a70; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.cs-name { font-size: 0.78rem; color: #e8dcc8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.cs-score { font-size: 1.7rem; font-weight: bold; line-height: 1.1; color: #f0e4cc; font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 #000; }
+.clash-mid { position: relative; flex: 0 0 2.2rem; display: flex; align-items: center; justify-content: center; font-size: 0.66rem; color: #8a7a60; }
+.clash-mid .fx-sprite { width: 88px; height: 88px; }
+.clash.hit .clash-side.atk { animation: clash-bump-l 0.3s ease-out; }
+.clash.hit .clash-side.def { animation: clash-bump-r 0.3s ease-out; }
+.clash-side.win { background: #6a4a1c; border-color: #c8a03c; box-shadow: 0 0 12px rgba(255, 200, 100, 0.55); }
+.clash-side.win .cs-score { color: #ffe08a; transform: scale(1.12); }
+.clash.hostile .clash-side.atk.win { background: #6a2418; border-color: #d06040; box-shadow: 0 0 12px rgba(255, 110, 80, 0.5); }
+.clash-side.lose { filter: brightness(0.6) saturate(0.6); }
+.clash-verdict { min-height: 1.3rem; font-size: 1.15rem; font-weight: bold; letter-spacing: 0.12em; opacity: 0; }
+.clash-verdict.show { animation: verdict-in 0.35s ease-out both; }
+.clash-verdict.atk { color: #ffd060; } .clash-verdict.def { color: #a8d0ff; }
+.clash.hostile + .clash-verdict.atk { color: #ff8a6a; }   /* 敵の攻撃が通った＝こちらには悪い知らせなので赤 */
+.clash-verdict.counter { color: #ff7a5a; font-size: 1.35rem; } .clash-verdict.miss { color: #c8b8ff; }
+.clash-note { font-size: 0.78rem; color: #ffe0a0; opacity: 0; min-height: 1rem; }
+.clash-note.show { animation: fx-callout 0.3s ease-out both; }
+@keyframes clash-in-l { 0% { opacity: 0; transform: translateX(-30px); } 100% { opacity: 1; transform: none; } }
+@keyframes clash-in-r { 0% { opacity: 0; transform: translateX(30px); } 100% { opacity: 1; transform: none; } }
+@keyframes clash-bump-l { 0% { transform: none; } 35% { transform: translateX(10px); } 100% { transform: none; } }
+@keyframes clash-bump-r { 0% { transform: none; } 35% { transform: translateX(-10px); } 100% { transform: none; } }
+@keyframes verdict-in { 0% { opacity: 0; transform: scale(1.8); } 60% { opacity: 1; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
+/* 攻撃エフェクト（48×48のドットを拡大） */
+.fx-sprite { position: absolute; left: 50%; top: 50%; width: 132px; height: 132px; transform: translate(-50%, -50%); image-rendering: pixelated; image-rendering: crisp-edges; pointer-events: none; z-index: 3; }
+.fx-sprite.whiff { opacity: 0.55; transform: translate(-30%, -50%); }
+.combatant-box.fx-actor-up { animation: fx-lunge-up 0.35s ease-out; outline: 2px solid #c8a03c; }
+.combatant-box.fx-actor-down { animation: fx-lunge-down 0.35s ease-out; outline: 2px solid #d06040; }
+@keyframes fx-lunge-up { 0% { transform: none; } 40% { transform: translateY(-9px) scale(1.04); } 100% { transform: none; } }
+@keyframes fx-lunge-down { 0% { transform: none; } 40% { transform: translateY(9px) scale(1.04); } 100% { transform: none; } }
+/* 倒れた：色が抜けて沈む（灰が散るエフェクトと一緒に） */
+.combatant-box.fx-fall { animation: fx-fall 0.8s ease-out both; }
+@keyframes fx-fall { 0% { filter: none; opacity: 1; } 40% { filter: grayscale(1) brightness(1.4); } 100% { filter: grayscale(1) brightness(0.8); opacity: 0.35; } }
+.dmg-pop { animation-fill-mode: both; }
+/* 早送り：残りの動きを止めて、最後の形だけ見せる */
+.battle-screen.fx-instant *, .battle-screen.fx-instant { animation-duration: 0.01s !important; animation-delay: 0s !important; transition-duration: 0.01s !important; }
+@media (prefers-reduced-motion: reduce) { .clash-side, .clash-verdict, .fx-callout, .combatant-box.fx-fall { animation-duration: 0.01s !important; } }

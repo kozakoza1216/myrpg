@@ -126,6 +126,8 @@ RPG.Battle = (function () {
     this.items = opts.items || null;
     this.crit = opts.crit || { period: 15 + Math.floor(Math.random() * 26), count: 0 };
     this.eventEnd = opts.eventEnd || null;
+    // opts.bg：背景にする場所の絵（会話場面の絵の名前。RPG.Scenes）
+    this.bg = opts.bg || null;
     this.enemyActionCount = 0;
     // opts.strength：残り歩数による敵の強さの倍率（ボス以外。HPと各能力値に掛ける）
     var strength = opts.strength || 1;
@@ -146,7 +148,16 @@ RPG.Battle = (function () {
 
   // ── 演出：行動のあと、その結果（誰が何をして、どう受け、判定がどうなり、何が起きたか）を見せ、
   // 「次へ」を押すまで止める。人が読んで分かる速さで進める（勝手に次の手番へ流さない）
-  State.prototype.fxReset = function () { this.fx = { judge: null, marks: [], lines: [] }; };
+  // before：行動の前のHP・MP・倒れているか（演出では、この値から今の値へゲージを減らして見せる）
+  State.prototype.fxReset = function () {
+    this.fx = { judge: null, marks: [], lines: [], skillId: null, attacker: null, title: null,
+      before: this.allCombatants().map(function (c) { return { c: c, hp: c.hp, mp: c.mp, defeated: c.defeated }; }) };
+  };
+  State.prototype.fxBefore = function (c) {
+    if (this.phase !== "fx" || !this.fx || !this.fx.before) return null;
+    for (var i = 0; i < this.fx.before.length; i++) if (this.fx.before[i].c === c) return this.fx.before[i];
+    return null;
+  };
   // kind：hit／crit／negate／reflect／heal／miss（数字の横の文字は text）
   State.prototype.fxMark = function (c, kind, amount, text) { if (!this.fx) this.fxReset(); this.fx.marks.push({ c: c, kind: kind, amount: amount, text: text }); };
   State.prototype.afterAction = function (actor) {
@@ -155,14 +166,216 @@ RPG.Battle = (function () {
     this.phase = "fx";
     this.fxActor = actor;
     this.fxShownAt = Date.now();
+    this.fxDone = false;
     this.render();
-    if (RPG.Sound) RPG.Sound.battleFx(this.fx);
+    this.runFx();
   };
   State.prototype.continueFx = function () {
     if (this.phase !== "fx") return;
+    this.clearFxTimers();
     var actor = this.fxActor;
     this.fx = null; this.fxActor = null;
+    if (this.el.classList && this.el.classList.remove) this.el.classList.remove("fx-instant", "fx-phase");
     this.endTurn(actor);
+  };
+
+  // ── 演出の流れ（人が目で追える順番に、一つずつ見せる）──
+  // ①呼び上げ：誰が何をしたか（行動した者が踏み込む）
+  // ②判定：攻める側と受ける側のスコアがせり上がってぶつかり、勝った側が弾き返す（判定のある行動だけ）
+  // ③命中：技ごとのエフェクト→揺れ・閃光・数字→HPのゲージが減っていく（当たった順に少しずつずらす）
+  // ④結果：この行動で起きたことを文で並べ、「次へ」を出す
+  // 途中で画面を押すと、残りを飛ばして結果まで進む（もう一度押すと次の手番へ）
+  var FX_T = { callout: 480, clash: 1300, perMark: 320, tail: 600 };
+  State.prototype.later = function (ms, fn) {
+    if (this._fxInstant) { fn(true); return; }
+    var self = this, job = { fn: fn, done: false, due: Date.now() + ms };
+    job.timer = setTimeout(function () { job.done = true; fn(false); }, ms);
+    (this._fxJobs = this._fxJobs || []).push(job);
+  };
+  State.prototype.clearFxTimers = function () {
+    (this._fxJobs || []).forEach(function (j) { clearTimeout(j.timer); });
+    this._fxJobs = [];
+    (this._fxAnims || []).forEach(function (a) { if (a && a.stop) a.stop(); });
+    this._fxAnims = [];
+    this._fxInstant = false;
+  };
+  State.prototype.skipFx = function () {
+    if (this.phase !== "fx" || this.fxDone) return;
+    if (this.el.classList) this.el.classList.add("fx-instant");
+    (this._fxAnims || []).forEach(function (a) { if (a && a.stop) a.stop(); });
+    this._fxInstant = true;
+    // 残っている段を、予定の順にすぐ済ませる（済ませた段が足す段も、その場で済む）
+    while (true) {
+      var rest = (this._fxJobs || []).filter(function (j) { return !j.done; });
+      if (!rest.length) break;
+      rest.sort(function (a, b) { return a.due - b.due; });
+      var j = rest[0]; j.done = true; clearTimeout(j.timer); j.fn(true);
+    }
+    this._fxInstant = false;
+  };
+  State.prototype.fxAnim = function (type, host, opts) {
+    if (this._fxInstant || !RPG.BattleFx) return;
+    (this._fxAnims = this._fxAnims || []).push(RPG.BattleFx.play(type, host, opts));
+  };
+  State.prototype.runFx = function () {
+    var self = this, fx = this.fx, t = 0;
+    this._fxJobs = []; this._fxAnims = []; this._fxInstant = false;
+    this.later(0, function (inst) { self.fxCallout(inst); });
+    t += FX_T.callout;
+    if (fx.judge) { this.later(t, function (inst) { self.fxClash(inst); }); t += FX_T.clash; }
+    fx.marks.forEach(function (m, i) { self.later(t + i * FX_T.perMark, function (inst) { self.fxImpact(m, i, inst); }); });
+    t += Math.max(0, fx.marks.length - 1) * FX_T.perMark + (fx.marks.length ? FX_T.tail : 0);
+    this.later(t, function () { self.fxFinish(); });
+  };
+
+  // 技ごとの見せ方（戦い方の見た目。データには武器の種類がないため、PLAN の装備表と技名から決めた）
+  // セオ・ツェルフは剣（PLAN 装備可能武器）、カガリは杖、獣と竜の眷属は爪。はぐれ賊・灰色の鳥人は刃物、招竜派の信徒は打撃（資料になく、仮に決めた）
+  var WEAPON_FX = { seo: "slash", tzelf: "slash", tzelf_ambush: "slash", straggler_bandit: "slash", shrine_guard: "strike", kagari: "strike" };
+  var SKILL_FX = {
+    normal_breakthrough: "thrust", step_in: "thrust", enemy_step_in: "thrust", enemy_full_charge: "strike",
+    double_slash: "twin", twin_slash: "twin", power_strike: "strike", kin_power_strike: "strike", kagari_staff: "strike",
+    vital_strike: "slash", naginata_sweep: "sweep", kin_sweep: "sweep", sonic_wave: "wave",
+    fire_bolt: "fire", der_regen: "rain", kagari_chant: "curse", kagari_bind: "sigil", normal_ranged: "arrow",
+  };
+  function fxTypeFor(skillId, attacker) {
+    if (SKILL_FX[skillId]) return SKILL_FX[skillId];
+    if (!attacker) return "strike";
+    if (WEAPON_FX[attacker.defId]) return WEAPON_FX[attacker.defId];
+    return attacker.picto && attacker.picto.isAnimal ? "claw" : "slash";
+  }
+
+  State.prototype.fxBoxOf = function (c) {
+    for (var i = 0; i < (this._fxBoxes || []).length; i++) if (this._fxBoxes[i].c === c) return this._fxBoxes[i];
+    return null;
+  };
+  function setBar(ref, which, val, max) {
+    if (!ref || !ref[which]) return;
+    ref[which].fill.style.width = Math.max(0, Math.min(100, (val / max) * 100)) + "%";
+    ref[which].label.textContent = (which === "hp" ? "HP " : "MP ") + val + "/" + max;
+  }
+
+  // ①呼び上げ
+  State.prototype.fxCallout = function (inst) {
+    var fx = this.fx, stage = this._fxStage;
+    if (!stage) return;
+    var who = fx.attacker || this.fxActor, sk = fx.skillId && Data.SKILLS[fx.skillId];
+    var title = fx.title || (who && sk ? who.name + "の" + sk.name + (sk.area ? "（全体）" : "") : fx.lines[0] || "");
+    var co = document.createElement("div");
+    co.className = "fx-callout" + (who && who.isEnemy ? " hostile" : "");
+    co.textContent = title;
+    stage.appendChild(co);
+    if (fx.judge) {
+      var sub = document.createElement("div");
+      sub.className = "fx-callout-sub";
+      sub.textContent = "→ " + fx.judge.d + "は" + fx.judge.stance + "で受ける";
+      stage.appendChild(sub);
+    }
+    var ref = who && this.fxBoxOf(who);
+    if (ref) {
+      ref.box.classList.add("fx-actor", who.isEnemy ? "fx-actor-down" : "fx-actor-up");
+      setBar(ref, "mp", who.mp, who.maxMp);     // 技に使ったMPはここで減らす
+    }
+  };
+
+  // ②判定の競り合い
+  State.prototype.fxClash = function (inst) {
+    var self = this, j = this.fx.judge, stage = this._fxStage;
+    if (!stage || !j) return;
+    var hostile = this.fx.attacker && this.fx.attacker.isEnemy;
+    var wrap = document.createElement("div");
+    wrap.className = "clash" + (hostile ? " hostile" : "");
+    var side = function (cls, label, name) {
+      var d = document.createElement("div"); d.className = "clash-side " + cls;
+      var l = document.createElement("span"); l.className = "cs-role"; l.textContent = label; d.appendChild(l);
+      var n = document.createElement("span"); n.className = "cs-name"; n.textContent = name; d.appendChild(n);
+      var sc = document.createElement("span"); sc.className = "cs-score"; sc.textContent = "0"; d.appendChild(sc);
+      wrap.appendChild(d);
+      return { el: d, score: sc };
+    };
+    var A = side("atk", "攻め", j.a);
+    var mid = document.createElement("div"); mid.className = "clash-mid"; mid.textContent = "判定"; wrap.appendChild(mid);
+    var D = side("def", "受け・" + j.stance, j.d);
+    stage.appendChild(wrap);
+    var verdict = document.createElement("div"); verdict.className = "clash-verdict"; stage.appendChild(verdict);
+    var note = document.createElement("div"); note.className = "clash-note"; stage.appendChild(note);
+    // スコアがせり上がる
+    var count = function (el, to, ms) {
+      if (inst || !window.requestAnimationFrame) { el.textContent = to; return; }
+      var t0 = null;
+      var step = function (now) {
+        if (t0 === null) t0 = now;
+        var k = Math.min(1, (now - t0) / ms);
+        el.textContent = Math.round(to * (1 - Math.pow(1 - k, 2)));
+        if (k < 1 && self.phase === "fx" && !self._fxInstant) requestAnimationFrame(step); else el.textContent = to;
+      };
+      requestAnimationFrame(step);
+    };
+    count(A.score, j.as, 520); count(D.score, j.ds, 520);
+    // ぶつかる：勝った側が光って押し出し、負けた側が揺れて沈む
+    this.later(620, function (i2) {
+      A.score.textContent = j.as; D.score.textContent = j.ds;
+      wrap.classList.add("hit");
+      (j.win ? A : D).el.classList.add("win");
+      (j.win ? D : A).el.classList.add("lose");
+      self.fxAnim("spark", mid, { hostile: hostile, dur: 350 });
+      if (!i2 && RPG.Sound) RPG.Sound.play("clash");
+      verdict.textContent = j.tag || (j.win ? "通った！" : j.stanceWord || "受けきった！");
+      verdict.className = "clash-verdict show " + (j.tagCls || (j.win ? "atk" : "def"));
+    });
+    this.later(820, function () { if (j.text) { note.textContent = j.text; note.classList.add("show"); } });
+  };
+
+  // ③命中：エフェクト→揺れと数字→ゲージが減る
+  State.prototype.fxImpact = function (m, i, inst) {
+    var self = this, fx = this.fx, ref = this.fxBoxOf(m.c);
+    if (!ref) return;
+    var atk = fx.attacker || this.fxActor, hostile = !!(atk && atk.isEnemy);
+    var type = m.kind === "heal" ? "heal" : m.kind === "reflect" ? "spark" : fxTypeFor(fx.skillId, atk);
+    this.fxAnim(type, ref.box, { hostile: m.kind === "reflect" ? !hostile : hostile, dir: m.c.isEnemy ? -1 : 1, big: m.kind === "crit" || fx.skillId === "enemy_full_charge", seed: i + 1, cls: m.kind === "negate" ? "whiff" : "", dur: type === "rain" || type === "fire" || type === "curse" ? 560 : 440 });
+    var lastForC = fx.marks.filter(function (x) { return x.c === m.c; }).pop() === m;
+    this.later(inst ? 0 : 140, function (i2) {
+      var box = ref.box;
+      box.classList.remove("fx-hit", "fx-crit", "fx-negate", "fx-heal", "fx-miss", "fx-reflect");
+      void box.offsetWidth;
+      box.classList.add("fx-" + m.kind);
+      var pop = document.createElement("div");
+      pop.className = "dmg-pop " + m.kind;
+      pop.textContent = (m.text ? m.text + (m.amount ? " " : "") : "") + (m.amount ? (m.kind === "heal" ? "+" : "") + m.amount : "");
+      box.appendChild(pop);
+      if (!i2 && RPG.Sound) RPG.Sound.play(m.kind);
+      // ゲージ：途中の当たりは積み上げで、その者の最後の当たりで今の値にそろえる
+      ref.run = ref.run || { hp: ref.b.hp, mp: ref.b.mp };
+      if (m.kind === "heal") { if (m.text === "MP") ref.run.mp += m.amount; else ref.run.hp += m.amount; }
+      else if (m.amount) ref.run.hp -= m.amount;
+      if (lastForC) { ref.run.hp = m.c.hp; ref.run.mp = m.c.mp; }
+      setBar(ref, "hp", Math.max(0, Math.min(m.c.maxHp, ref.run.hp)), m.c.maxHp);
+      if (!m.c.isEnemy) setBar(ref, "mp", Math.max(0, Math.min(m.c.maxMp, ref.run.mp)), m.c.maxMp);
+      // 倒れた：色が抜けて、灰になって散る
+      if (lastForC && m.c.defeated && !ref.b.defeated) self.later(i2 ? 0 : 380, function (i3) {
+        box.classList.add("defeated", "fx-fall");
+        self.fxAnim("ash", box, { dur: 700, seed: 3 });
+      });
+    });
+  };
+
+  // ④結果：ゲージを最終の値にそろえ、起きたことを並べて「次へ」
+  State.prototype.fxFinish = function () {
+    var self = this;
+    (this._fxBoxes || []).forEach(function (ref) {
+      setBar(ref, "hp", ref.c.hp, ref.c.maxHp);
+      if (!ref.c.isEnemy) setBar(ref, "mp", ref.c.mp, ref.c.maxMp);
+      if (ref.c.defeated) ref.box.classList.add("defeated");
+    });
+    this.fxDone = true;
+    this.fxDoneAt = Date.now();
+    var root = this._fxControls;
+    if (!root) return;
+    root.innerHTML = "";
+    var card = document.createElement("div");
+    card.className = "result-card";
+    (this.fx ? this.fx.lines : []).forEach(function (l) { var pl = document.createElement("p"); pl.textContent = l; card.appendChild(pl); });
+    root.appendChild(card);
+    root.appendChild(button("次へ ▶", function (e) { if (e) e.stopPropagation(); self.continueFx(); }));
   };
 
   State.prototype.allCombatants = function () {
@@ -331,6 +544,7 @@ RPG.Battle = (function () {
   State.prototype.resolveSpecialOrHold = function (actor, skillId, allyList) {
     var skill = Data.SKILLS[skillId];
     this.fxReset();
+    this.fx.skillId = skillId; this.fx.attacker = actor;
     this.markUsed(actor, skillId);
     var lines = [];
     if (skill.selfHealPercent) {
@@ -445,6 +659,7 @@ RPG.Battle = (function () {
     this.markUsed(attacker, skillId);
     var lines = [];
     this.fxReset();
+    this.fx.skillId = skillId; this.fx.attacker = attacker;
 
     // クリティカル周期：パーティ全体の累計攻撃回数（攻撃・突破を行った数）で数える（PLAN §8-5b）
     var forceCrit = false;
@@ -508,6 +723,14 @@ RPG.Battle = (function () {
     // 判定の競り合い（範囲技は最初の相手の分だけ見せる）
     if (first && !skill.guaranteedHit) this.fx.judge = { a: attacker.name, as: result.attackerScore, d: defender.name, ds: result.defenderScore, win: result.attackerWins, stance: stanceLabel,
       text: judgeText(stance, result, !!bonuses.defenderBonus, isBreakthrough && result.attackerWins && backline) };
+    if (first && this.fx.judge) {
+      // 判定の大きな一言（カウンター成立・空振り・突破は専用の言い方）
+      var jj = this.fx.judge;
+      if (result.isCounter && !result.counterMiss && !result.attackerWins) { jj.tag = "カウンター！"; jj.tagCls = "counter"; }
+      else if (result.counterMiss) { jj.tag = "空振り！"; jj.tagCls = "miss"; }
+      else if (isBreakthrough && result.attackerWins && backline) { jj.tag = "突破！"; jj.tagCls = "atk"; }
+      jj.stanceWord = { defense: "防いだ！", evade: "かわした！", hold: "止めた！", riposte: "返した！" }[stance];
+    }
     if (result.reflected) {
       attacker.hp = Math.max(0, attacker.hp - result.damage);
       this.fxMark(attacker, "reflect", result.damage, "反射");
@@ -640,10 +863,11 @@ RPG.Battle = (function () {
   State.prototype.playerUseItem = function (itemId, target) {
     var actor = this.pending.actor;
     var it = Data.ITEMS[itemId];
+    this.fxReset();
+    this.fx.title = actor.name + "は" + it.name + "を使った";
     var got = Data.useHealItem(itemId, target);
     this.items[itemId] -= 1;
     if (this.items[itemId] <= 0) delete this.items[itemId];
-    this.fxReset();
     this.pushLog([actor.name + "は" + it.name + "を使った。" + (actor === target ? "" : target.name + "の") +
       (got.hp ? "HPが" + got.hp + "回復" : "") + (got.hp && got.mp ? "、" : "") + (got.mp ? "MPが" + got.mp + "回復" : "") + "。"]);
     this.fxMark(target, "heal", got.hp || got.mp, got.hp ? "" : "MP");
@@ -658,28 +882,41 @@ RPG.Battle = (function () {
     // 戦闘開始の切り替わり（最初の1回だけ）
     if (this.phase === "intro" && !this._entered) { this._entered = true; if (el.classList && el.classList.remove) { el.classList.remove("battle-enter"); void el.offsetWidth; el.classList.add("battle-enter"); } }
 
+    var inFx = this.phase === "fx" && !!this.fx;
+    if (el.classList) { if (inFx) el.classList.add("fx-phase"); else if (el.classList.remove) el.classList.remove("fx-phase"); }
+    this._fxBoxes = [];
+    this._fxStage = null;
+
     var title = document.createElement("h2");
     title.className = "battle-title";
     title.textContent = this.enemies.map(function (e) { return e.name; }).join(" / ");
     el.appendChild(title);
 
-    // 縦並び：上から 敵の後衛 → 敵の前衛 → ログ → 味方の前衛 → 味方の後衛 → 行動
-    el.appendChild(this.renderSide(this.enemies, "enemy"));
+    // 戦場：場所の絵を暗く落として敷き、その上に 敵の後衛 → 敵の前衛 → ログ → 味方の前衛 → 味方の後衛 と縦に並べる
+    var field = document.createElement("div");
+    field.className = "battle-field";
+    var bgUrl = bgImage(this.bg);
+    if (bgUrl) { field.classList.add("has-bg"); field.style.backgroundImage = "linear-gradient(rgba(12, 10, 8, 0.28), rgba(12, 10, 8, 0.5)), url(" + bgUrl + ")"; }
+    el.appendChild(field);
+    field.appendChild(this.renderSide(this.enemies, "enemy"));
 
     var log = document.createElement("div");
     log.className = "battle-log";
-    // 演出中は、この行動の分は下の結果欄に出すので、ログにはそれより前の行だけ残す
-    var past = this.log;
-    if (this.phase === "fx" && this.fx) past = this.log.slice(0, Math.max(0, this.log.length - this.fx.lines.length)).slice(-3);
-    // スマホの縦画面に収まるよう、直近の5行だけ見せる
-    past.slice(-5).forEach(function (l) {
-      var p = document.createElement("p");
-      p.textContent = l;
-      log.appendChild(p);
-    });
-    el.appendChild(log);
+    if (inFx) {
+      // 演出中は、ログの場所が舞台になる（呼び上げ・判定の競り合い）
+      log.classList.add("fx-stage");
+      this._fxStage = log;
+    } else {
+      // スマホの縦画面に収まるよう、直近の5行だけ見せる
+      this.log.slice(-5).forEach(function (l) {
+        var p = document.createElement("p");
+        p.textContent = l;
+        log.appendChild(p);
+      });
+    }
+    field.appendChild(log);
 
-    el.appendChild(this.renderSide(this.party, "ally"));
+    field.appendChild(this.renderSide(this.party, "ally"));
 
     var controls = document.createElement("div");
     controls.className = "battle-controls";
@@ -696,8 +933,9 @@ RPG.Battle = (function () {
     var lanes = faction === "enemy" ? ["back", "front"] : ["front", "back"];
     lanes.forEach(function (pos) {
       // 倒れた者は列の後ろへ回す（生きている者から並べる）
-      var members = list.filter(function (c) { return c.position === pos && !c.defeated; })
-        .concat(list.filter(function (c) { return c.position === pos && c.defeated; }));
+      var down = function (c) { var b = self.fxBefore(c); return b ? b.defeated : c.defeated; };
+      var members = list.filter(function (c) { return c.position === pos && !down(c); })
+        .concat(list.filter(function (c) { return c.position === pos && down(c); }));
       if (!members.length && pos === "back") return;
       var lane = document.createElement("div");
       lane.className = "battle-lane " + pos;
@@ -720,14 +958,18 @@ RPG.Battle = (function () {
       var box = document.createElement("div");
       // 戦闘画面には人物のピクトグラムを出さず、名前とゲージだけで示す。
       // 狙いを付けている相手は、絵の代わりに枠の強調で分かるようにする。
-      box.className = "combatant-box" + (c.defeated ? " defeated" : "") + (self.pending && self.pending.target === c ? " selected" : "");
+      // 演出中は行動の前の値で描き、演出の中で今の値へ減らしていく
+      var b = self.fxBefore(c), hp = b ? b.hp : c.hp, mp = b ? b.mp : c.mp, down = b ? b.defeated : c.defeated;
+      box.className = "combatant-box" + (down ? " defeated" : "") + (self.phase !== "fx" && self.pending && self.pending.target === c ? " selected" : "");
       var name = document.createElement("div");
       name.className = "combatant-name";
       name.textContent = c.name;
       box.appendChild(name);
-      box.appendChild(bar(c.hp, c.maxHp, "hp", "HP " + c.hp + "/" + c.maxHp));
-      if (!c.isEnemy) box.appendChild(bar(c.mp, c.maxMp, "mp", "MP " + c.mp + "/" + c.maxMp));
+      var hpBar = bar(hp, c.maxHp, "hp", "HP " + hp + "/" + c.maxHp), mpBar = null;
+      box.appendChild(hpBar);
+      if (!c.isEnemy) { mpBar = bar(mp, c.maxMp, "mp", "MP " + mp + "/" + c.maxMp); box.appendChild(mpBar); }
       box.appendChild(bar(Math.min(c.atb, ATB_MAX), ATB_MAX, "atb", "ATB"));
+      if (b) self._fxBoxes.push({ c: c, box: box, b: b, hp: { fill: hpBar.firstChild, label: hpBar.lastChild }, mp: mpBar ? { fill: mpBar.firstChild, label: mpBar.lastChild } : null });
       if (self.phase === "target" && faction === "enemy" && !c.defeated) {
         if (reach.indexOf(c) >= 0) {
           box.classList.add("clickable");
@@ -735,22 +977,19 @@ RPG.Battle = (function () {
         } else box.classList.add("unreachable");                       // 前衛の陰で狙えない
       }
       if (self.pending && self.pending.actor === c && self.phase !== "response" && self.phase !== "fx") box.classList.add("acting");
-      // 演出：当たった側の揺れ・閃光と、飛び出す数字
-      if (self.phase === "fx" && self.fx) {
-        self.fx.marks.filter(function (m) { return m.c === c; }).forEach(function (m, mi) {
-          box.classList.add("fx-" + m.kind);
-          var pop = document.createElement("div");
-          pop.className = "dmg-pop " + m.kind;
-          pop.style.animationDelay = (mi * 0.15) + "s";
-          pop.textContent = (m.text ? m.text + (m.amount ? " " : "") : "") + (m.amount ? (m.kind === "heal" ? "+" : "") + m.amount : "");
-          box.appendChild(pop);
-        });
-        if (self.pending && self.pending.actor === c) box.classList.add("fx-actor");
-      }
       col.appendChild(box);
     });
     return col;
   };
+
+  // 背景の絵（会話場面の絵を画像にして使い回す）
+  var bgCache = {};
+  function bgImage(id) {
+    if (!id || !RPG.Scenes || !RPG.Scenes.canvasFor) return null;
+    if (bgCache[id]) return bgCache[id];
+    var cv = RPG.Scenes.canvasFor(id);
+    return cv && cv.toDataURL ? (bgCache[id] = cv.toDataURL()) : null;
+  }
 
   function bar(val, max, cls, label) {
     var track = document.createElement("div");
@@ -769,25 +1008,18 @@ RPG.Battle = (function () {
   State.prototype.renderControls = function (root) {
     var self = this;
     if (this.phase === "fx") {
-      // この行動の結果を読んでから「次へ」（画面のどこを押しても進む）
-      var card = document.createElement("div");
-      card.className = "result-card";
-      // 判定の競り合い（攻める側のスコアと受ける側のスコア。勝った側が光る）と、その意味
-      if (this.fx && this.fx.judge) {
-        var j = this.fx.judge, strip = document.createElement("div");
-        strip.className = "judge-strip";
-        var mk = function (cls, t) { var d = document.createElement("span"); d.className = cls; d.textContent = t; return d; };
-        strip.appendChild(mk("judge-side" + (j.win ? " win" : ""), j.a + "　" + j.as));
-        strip.appendChild(mk("judge-vs", "判定"));
-        strip.appendChild(mk("judge-side" + (j.win ? "" : " win"), j.ds + "　" + j.d + "・" + j.stance));
-        card.appendChild(strip);
-        if (j.text) card.appendChild(mk("judge-text", j.text));
-      }
-      (this.fx ? this.fx.lines : []).forEach(function (l) { var pl = document.createElement("p"); pl.textContent = l; card.appendChild(pl); });
-      root.appendChild(card);
-      root.appendChild(button("次へ ▶", function (e) { if (e) e.stopPropagation(); self.continueFx(); }));
+      // 演出の途中は「押すと早送り」、終わったら結果欄と「次へ」（fxFinish が出す）
+      this._fxControls = root;
+      var hint = document.createElement("p");
+      hint.className = "fx-hint";
+      hint.textContent = "（画面を押すと早送り）";
+      root.appendChild(hint);
       // 行動を選んだタップや、うっかりの二度押しで読み飛ばさないよう、出てすぐのタップは受けない
-      this.el.onclick = function () { if (Date.now() - self.fxShownAt > 350) self.continueFx(); };
+      this.el.onclick = function () {
+        if (Date.now() - self.fxShownAt < 350) return;
+        if (!self.fxDone) self.skipFx();
+        else if (Date.now() - self.fxDoneAt > 250) self.continueFx();
+      };
       return;
     }
     this.el.onclick = null;

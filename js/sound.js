@@ -65,6 +65,8 @@ RPG.Sound = (function () {
     negate: function (t) { noise(t, 0.25, 0.5, 600, 2, null, 4000); },
     reflect: function (t) { tone("triangle", 1320, t, 0.2, 0.4); tone("triangle", 1980, t + 0.03, 0.25, 0.3); noise(t, 0.1, 0.5, 2000, 1); },
     heal: function (t) { [72, 76, 79, 84].forEach(function (n, i) { tone("sine", NOTE(n), t + i * 0.07, 0.25, 0.3); }); },
+    // 判定の競り合い：金属がぶつかる音
+    clash: function (t) { tone("square", 1480, t, 0.09, 0.28); tone("square", 2220, t + 0.005, 0.14, 0.18); tone("triangle", 740, t, 0.22, 0.25); noise(t, 0.08, 0.7, 5200, 1.2); },
     miss: function (t) { tone("sawtooth", 300, t, 0.3, 0.2, null, 150); },
     levelup: function (t) { [67, 72, 76, 79, 84].forEach(function (n, i) { tone("square", NOTE(n), t + i * 0.09, 0.22, 0.18); }); tone("triangle", NOTE(88), t + 0.45, 0.5, 0.25); },
     caught: function (t) { tone("square", 1200, t, 0.08, 0.3); tone("square", 1600, t + 0.09, 0.14, 0.3); },
@@ -77,14 +79,6 @@ RPG.Sound = (function () {
     if (!enabled || !SE[name] || !ensure() || ctx.state !== "running") return;
     SE[name](ctx.currentTime + 0.01);
   }
-  // 戦闘の演出に合わせた音（いちばん目立つものを1つ）
-  function battleFx(fx) {
-    if (!fx) return;
-    var kinds = fx.marks.map(function (m) { return m.kind; });
-    var pick = ["crit", "reflect", "hit", "negate", "heal", "miss"].filter(function (k) { return kinds.indexOf(k) >= 0; })[0];
-    if (pick) play(pick);
-  }
-
   // ── BGM：その場で音を並べて鳴らし続ける（先読みして予約する） ──
   // field＝探索（低い持続音と、まばらな鐘の音）／battle＝戦闘（短調の刻み）／boss＝ボス戦（速く暗い）
   // ruin＝時間切れの後（不協和な持続音だけ）／title＝タイトル
@@ -165,5 +159,5 @@ RPG.Sound = (function () {
     return b;
   }
 
-  return { play: play, battleFx: battleFx, bgm: bgm, setEnabled: setEnabled, isEnabled: isEnabled, toggleButton: toggleButton };
+  return { play: play, bgm: bgm, setEnabled: setEnabled, isEnabled: isEnabled, toggleButton: toggleButton };
 })();
