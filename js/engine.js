@@ -78,8 +78,10 @@ RPG.Engine = (function () {
     var coefA = bonuses.noAffinity ? NONE : defAttr === skill.attribute ? affinityCoef(skill.category, skill.attribute, isCounter ? "none" : defStance) : NONE;
     var coefB = bonuses.noAffinity ? NONE : crossAttributeCoef(skill.category, skill.attribute, isCounter ? "none" : defAttr, isCounter ? "none" : defStance);
 
-    var attackerScore = atkBase * coefA.attackerMul * coefB.attackerMul + rng();
-    var defenderScore = defBase * coefA.defenderMul * coefB.defenderMul + rng();
+    // スコアの最低値は1（式どおりだと、判定力＋技ボーナスが10未満の者は乱数でマイナスになりうる。0以下にはしない）
+    var SCORE_MIN = 1;
+    var attackerScore = Math.max(SCORE_MIN, atkBase * coefA.attackerMul * coefB.attackerMul + rng());
+    var defenderScore = Math.max(SCORE_MIN, defBase * coefA.defenderMul * coefB.defenderMul + rng());
 
     var attackerWins;
     if (counterMiss || skill.guaranteedHit) {
