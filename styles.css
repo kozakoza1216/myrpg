@@ -375,3 +375,7 @@ button {
 .map-talk { margin-top: 0.6rem; cursor: pointer; width: 100%; box-sizing: border-box; min-height: 7.5rem; }
 .dungeon-wrap.scene-mode .menu-open, .dungeon-wrap.scene-mode .footnote, .dungeon-wrap.scene-mode .dungeon-msg { display: none; }
 .dungeon-wrap.scene-mode .freearea-frame { cursor: pointer; }
+/* 寸劇の台詞欄の小さな立ち絵（左に置き、文はその右に回り込ませる） */
+.map-talk.has-portrait { padding-left: 5.6rem; position: relative; }
+.map-portrait { position: absolute; left: 0.6rem; bottom: 0.4rem; width: 4.6rem; height: 6.6rem; object-fit: contain; object-position: bottom; image-rendering: pixelated; image-rendering: crisp-edges; opacity: 0.95; animation: fig-portrait 0.25s ease-out; }
+@keyframes fig-portrait { from { opacity: 0; transform: translateY(4px); } to { opacity: 0.95; transform: none; } }

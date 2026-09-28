@@ -814,6 +814,23 @@ RPG.Scenes = (function () {
     return (figCache[id] = cv);
   }
   function figureForSpeaker(name) { return SPEAKER_FIG[name] ? figureFor(SPEAKER_FIG[name]) : null; }
+  // 小さな立ち絵（マップの寸劇の台詞欄に添える）：立ち絵の、人物が描かれている範囲だけを切り出した画像。
+  // 同じ人物は一度だけ作って、画像のアドレス（data URL）で使い回す
+  var portraitCache = {};
+  function portraitFor(id) {
+    if (portraitCache[id] !== undefined) return portraitCache[id];
+    var cv = figureFor(id);
+    if (!cv) return (portraitCache[id] = null);
+    var d = cv.getContext("2d").getImageData(0, 0, W, H).data, x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) return (portraitCache[id] = null);
+    // 人物の全身を、少し余白を付けて切り出す（青い影は中に模様がないので、小さく出すときは輪郭の全体で誰か分かるようにする）
+    var pad = 4, cw = x1 - x0 + 1 + pad * 2, ch = y1 - y0 + 1 + pad;
+    var out = document.createElement("canvas");
+    out.width = cw; out.height = ch;
+    out.getContext("2d").drawImage(cv, x0, y0, x1 - x0 + 1, y1 - y0 + 1, pad, pad, x1 - x0 + 1, y1 - y0 + 1);
+    return (portraitCache[id] = out.toDataURL());
+  }
   function figIdForSpeaker(name) { return SPEAKER_FIG[name] || null; }
 
   var cache = {};
@@ -841,5 +858,5 @@ RPG.Scenes = (function () {
   var NO_FIGURE_SCENES = { dragon: 1 };
   function noFigures(id) { return !!NO_FIGURE_SCENES[id]; }
 
-  return { canvasFor: canvasFor, hasSky: hasSky, noFigures: noFigures, figureFor: figureFor, figureForSpeaker: figureForSpeaker, figIdForSpeaker: figIdForSpeaker, ids: Object.keys(PAINT), figIds: Object.keys(FIG) };
+  return { canvasFor: canvasFor, hasSky: hasSky, noFigures: noFigures, portraitFor: portraitFor, figureFor: figureFor, figureForSpeaker: figureForSpeaker, figIdForSpeaker: figIdForSpeaker, ids: Object.keys(PAINT), figIds: Object.keys(FIG) };
 })();

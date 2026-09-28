@@ -2579,6 +2579,10 @@ RPG.Explore = (function () {
     if (!box) { this.sceneNext(); return; }
     box.innerHTML = "";
     box.className = "map-talk story-box " + (st.choice ? "choice" : st.say ? "dialogue" : "narration");
+    // 話している人物の小さな立ち絵を、欄の左に添える（会話場面と同じ青い影）
+    var fid = st.say && RPG.Scenes && RPG.Scenes.figIdForSpeaker ? RPG.Scenes.figIdForSpeaker(st.say) : null;
+    var purl = fid && RPG.Scenes.portraitFor ? RPG.Scenes.portraitFor(fid) : null;
+    if (purl) { var im = document.createElement("img"); im.className = "map-portrait"; im.src = purl; im.alt = ""; box.appendChild(im); box.classList.add("has-portrait"); }
     if (st.say) { var sp = document.createElement("div"); sp.className = "speaker"; sp.textContent = st.say; box.appendChild(sp); }
     var p = document.createElement("p");
     p.className = st.choice ? "choice-prompt" : "";
