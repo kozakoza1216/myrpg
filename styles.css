@@ -82,6 +82,9 @@ button {
 .story-hint { text-align: right; color: #6a5638; font-size: 0.85rem; margin-top: 0.6rem; }
 .story-box.choice { cursor: default; }
 .choice-prompt { color: var(--accent); margin: 0 0 0.8rem; }
+/* 相手の台詞に答える選択肢：台詞は会話と同じ見た目（名前は金、台詞は地の色） */
+.story-box.choice .speaker { color: var(--accent); font-weight: bold; margin-bottom: 0.4rem; }
+.story-box.choice .speaker + .choice-prompt { color: inherit; }
 .choice-options { display: flex; flex-direction: column; gap: 0.5rem; }
 .choice-options button {
   background: #2e2418; color: var(--text); border: 1px solid var(--border); border-radius: 6px;

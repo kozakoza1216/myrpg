@@ -258,13 +258,23 @@ RPG.Chapter1 = (function () {
   // セオの家が「おまけ部屋」になる（二周目スイッチがまだないので、血まみれの部屋＝ボスとの連戦）
   var timeUpBeats = [
     { kind: "header", text: "竜の活性化", bg: "awakening", fx: "quake" },
-    { kind: "narration", text: "地の底から、低い咆哮が響いた。割れた月が赤く染まり、壊れた天井の空が、端から黒く崩れていく。", fx: "quake" },
-    { kind: "narration", text: "竜の活性化は誰も止めることはできない。あなたはこの世界で飢えを待つ放浪者となる。" },
+    { kind: "narration", text: "竜の活性化は誰も止めることはできない。あなたはこの世界で飢えを待つ放浪者となる。", fx: "quake" },
   ];
   function onTimeUp(cont) { Story.play(app, timeUpBeats, cont); }
   function timeUp() { return !!(game.flags && game.flags.timeUp); }
   // 時間切れの後は、どこで出会う敵も竜の眷属に置き換わる
   function foes(ids) { return timeUp() ? ["dragon_kin"] : ids; }
+  // 情景は地の文で説明せず、その場にいる仲間の台詞で見せる（ミラ→ツェルフの順に、居る者が言う）。
+  // セオは台詞を持たない（PLAN §5-2）ので、ひとりのときだけ短い地の文にする
+  function hasMira() { return (game.companions || []).indexOf("mira") >= 0; }
+  function hasTzelf() { return game.party.some(function (c) { return c.defId === "tzelf"; }); }
+  function tzelfName() { return game.flags && game.flags.named ? "ツェルフ" : "灰色の鳥人"; }
+  function say(bg, lines) {
+    // lines：{ mira, tzelf, alone }。居る者の台詞を選ぶ
+    if (lines.mira && hasMira()) return { speaker: "ミラ", text: lines.mira, bg: bg };
+    if (lines.tzelf && hasTzelf()) return { speaker: tzelfName(), text: lines.tzelf, bg: bg };
+    return { kind: "narration", text: lines.alone, bg: bg };
+  }
 
   function run(appEl, gameState, endCallback) {
     app = appEl; game = gameState; onChapterEnd = endCallback;
@@ -274,11 +284,9 @@ RPG.Chapter1 = (function () {
 
   var wakeBeats = [
     { kind: "header", text: "第一章　灰縁（はいべり）の集落", bg: "village" },
-    { kind: "narration", text: "人工天井の裂け目から薄暮が差し込む。二つに割れた月が、いつまでも同じ高さで止まっている。竜の脅威圏の縁に築かれた小さな集落――灰縁。" },
     { kind: "header", text: "セオの住居", bg: "house" },
-    { speaker: "ミラ", text: "セオ、起きて。今日は「くじ」の日でしょ。寝坊したら承知しないから。" },
-    { kind: "choice", prompt: "（ミラに何と返す？　――何を選んでも、話の筋は変わらない）", options: ["「わかってる。今起きる」", "「……くじ、か」と呟く", "何も言わず起き上がる"] },
-    { kind: "choice", prompt: "ミラは肩をすくめて、先に外へ出ていった。棚には〈干し肉〉と〈古びた回復薬〉が置かれている。戸口を出ると、くじの刻限まではまだ間があった。", options: ["外へ出る"] },
+    { kind: "choice", speaker: "ミラ", text: "セオ、起きて。今日は「くじ」の日でしょ。寝坊したら承知しないから。", options: ["「わかってる。今起きる」", "「……くじ、か」と呟く", "何も言わず起き上がる"] },
+    { speaker: "ミラ", text: "棚の干し肉と薬、持っていきなよ。くじまではまだ時間あるから。……遅れないでね。" },
   ];
 
   function addItem(id, n) {
@@ -302,14 +310,14 @@ RPG.Chapter1 = (function () {
         if (zoneId === "house_shelf") {
           addItem("dried_meat"); addItem("old_potion");
           Story.play(app, [
-            { kind: "narration", text: "棚の〈干し肉〉と〈古びた回復薬〉を荷に入れた。" },
+            { kind: "narration", text: "〈干し肉〉と〈古びた回復薬〉を手に入れた。" },
             { kind: "narration", text: "（持ち物は「メニュー」の「持ち物」から使える）" },
           ], next);
           return;
         }
         addItem("crystal_double_slash");
         Story.play(app, [
-          { kind: "narration", text: "木箱の奥に、古い記憶結晶が仕舞われていた。〈二連撃の記憶結晶〉を手に入れた。" },
+          { kind: "narration", text: "〈二連撃の記憶結晶〉を手に入れた。" },
           { kind: "narration", text: "（記憶結晶は、持ち物から使うと、選んだ仲間がその技を覚える）" },
         ], next);
       },
@@ -321,19 +329,19 @@ RPG.Chapter1 = (function () {
 
   var kujiBeats = [
     { kind: "header", text: "集落中央広場・くじ", bg: "plaza" },
-    { kind: "narration", text: "招竜派の祭司カガリが、儀式めいた仕草で木札の箱を掲げる。集落中が息を呑んで見守る。" },
+    { speaker: "カガリ", text: "竜の御前に、今日も一人を捧げる。……では、引こう。" },
     { speaker: "カガリ", text: "此度の供物は……セオ、お前だ。" },
-    { kind: "narration", text: "どよめきが走る。連行しようとする信徒たちの手が伸びる――その時だった。" },
+    { speaker: "信徒", text: "来い。竜がお待ちだ。" },
     { speaker: "ミラ", text: "待って。……私が行く。" },
-    { kind: "narration", text: "ミラが割って入り、信徒の手を自ら取った。止める間もなく、彼女は祭壇へ向けて連れ去られていく。" },
+    { speaker: "ミラ", text: "その手、離して。自分で歩ける。" },
     { speaker: "カガリ", text: "殊勝な心がけだ。竜もきっと喜ぶだろう。" },
     { kind: "header", text: "集落長の家", bg: "chief" },
-    { kind: "choice", prompt: "集落長トキに詰め寄る。", options: ["「ミラを取り戻しに行く」", "「見過ごせるわけがないだろう」"] },
-    { kind: "narration", text: "トキは長く沈黙した後、絞り出すように言った。" },
+    { kind: "choice", speaker: "集落長トキ", text: "……来ると思っていた。", options: ["「ミラを取り戻しに行く」", "「見過ごせるわけがないだろう」"] },
     { speaker: "集落長トキ", text: "くじは絶対だ。逆らえば、集落ごと竜に潰される。……行くなら、二度と帰ってくるな。" },
-    { kind: "narration", text: "追放。それが答えだった。家に戻ると、誰の仕業か〈携行食×3〉が黙って置かれていた。" },
+    { kind: "header", text: "セオの住居", bg: "house" },
+    { kind: "narration", text: "戸口に〈携行食×3〉が置かれていた。" },
     { kind: "header", text: "集落の門", bg: "gate" },
-    { kind: "narration", text: "門を出ると、荒れ果てた広域の景色が広がった。目的地は招竜の祭壇。もう振り返る場所はない。" },
+    { speaker: "門番", text: "……祭壇は、東の廃区画を抜けた先だ。行くなら、振り返るな。" },
   ];
 
   var worldMap = null;
@@ -445,7 +453,7 @@ RPG.Chapter1 = (function () {
   function walkRoad(text, steps, rate, then) {
     game.steps += steps;
     var go = function () {
-      Story.play(app, [{ kind: "narration", bg: "narrow", text: text }], function () {
+      Story.play(app, [text.speaker || text.kind ? text : { kind: "narration", bg: "narrow", text: text }], function () {
         if (Math.random() < rate) { runBattle(foes(["straggler_bandit"]), timeUp() ? "竜の眷属" : "はぐれ賊", false, then); return; }
         then();
       });
@@ -463,7 +471,6 @@ RPG.Chapter1 = (function () {
       if (!hairegionCleared) {
         Story.play(app, [
           { kind: "header", text: "廃区画", bg: "ruins" },
-          { kind: "narration", text: "崩れた区画の入り口に着いた。瓦礫に埋もれた道の先に何があるのかは、まだ分からない。" },
         ], enter);
       } else {
         enter();
@@ -475,22 +482,22 @@ RPG.Chapter1 = (function () {
     if (id === "yaketa") {
       var back = function () { worldMap.current = "hairegion"; enterHairegion("yaketa"); };
       if (firstVisit) {
-        Story.play(app, [{ kind: "narration", bg: "ruins", text: "集落跡の中央に、黒く焼け焦げた石碑が残っていた。文字は読み取れない。ただ、ここで何かが起き、住人が忽然といなくなったことだけは伝わってくる。" }], back);
+        Story.play(app, [say("ruins", { mira: "焼けた石碑……文字、読めないね。ここの人たち、どこへ行っちゃったんだろ。", tzelf: "文字は焼け潰れている。何があったにせよ、ここの住人はもういない。", alone: "黒く焼けた石碑。文字は読めない。" })], back);
       } else {
-        Story.play(app, [{ kind: "narration", bg: "ruins", text: "焼け焦げた石碑は、前に見た時のまま黙っていた。" }], back);
+        Story.play(app, [say("ruins", { mira: "……やっぱり、誰もいない。", tzelf: "前と変わらん。行くぞ。", alone: "石碑は黙ったままだ。" })], back);
       }
       return;
     }
     // 時間切れの後は、祭壇へ向かう本筋が閉ざされる
     if ((id === "michi" || id === "saidan") && timeUp()) {
-      Story.play(app, [{ kind: "narration", bg: "narrow", text: "祭壇へ続く隘路は、竜の瘴気に呑まれていた。これ以上は、どうやっても進めない。" }], function () {
+      Story.play(app, [say("narrow", { mira: "息が……苦しい。この先、もう無理よ。", tzelf: "竜の瘴気だ。この先へは行けない。", alone: "隘路は竜の瘴気に呑まれていた。先へは進めない。" })], function () {
         worldMap.current = "hairegion"; enterHairegion("michi");
       });
       return;
     }
     if (id === "michi") {
       if (firstVisit) { Story.play(app, roadBeats, afterRoad); return; }
-      walkRoad("瓦礫の隘路を抜け、招竜の祭壇へ向かう。", 15, 0.2, function () { goTo("saidan", "michi"); });
+      walkRoad(say("narrow", { tzelf: "祭壇はこの先だ。遅れるなよ。", alone: "隘路を抜け、祭壇へ向かう。" }), 15, 0.2, function () { goTo("saidan", "michi"); });
       return;
     }
     // 祭壇は、出た時にいたフロア（記憶した探索状況込み）へ入り直す
@@ -519,7 +526,7 @@ RPG.Chapter1 = (function () {
     };
     if (!game.flags.ruinSeen) {
       game.flags.ruinSeen = true;
-      Story.play(app, [{ kind: "narration", bg: "village", text: "集落は、もぬけの殻だった。井戸端にも広場にも人の気配はなく、灰だけが積もっている。" }], start);
+      Story.play(app, [say("village", { mira: "……誰もいない。みんな、どこへ行ったの……？", tzelf: "人の気配がない。灰だけだ。", alone: "集落には、灰だけが積もっていた。" })], start);
       return;
     }
     start();
@@ -530,18 +537,18 @@ RPG.Chapter1 = (function () {
   var BOSS_RUSH = [{ id: "kagari", title: "祭司カガリ" }];
   var bonusBeats = [
     { kind: "header", text: "おまけ部屋", bg: "bloodroom" },
-    { kind: "narration", text: "セオの家の戸口は、赤黒く濡れていた。見慣れた部屋のはずなのに、床も壁も、乾ききらない血に覆われている。" },
-    { kind: "narration", text: "部屋の奥に、見覚えのある影が並んで立っていた。" },
-    { kind: "narration", text: "時間切れになるまで歩き続けられたのなら、さぞ腕を磨いてきたのだろう。――その成果を、見せてみろ。" },
-    { kind: "choice", prompt: "影たちが、こちらへ向き直った。", options: ["挑む", "引き返す"] },
   ];
   function bonusRoom(back) {
-    Story.play(app, bonusBeats, function (choice) {
+    var beats = bonusBeats.concat([
+      say("bloodroom", { mira: "ここ……私たちの家、なのに。床も壁も、全部……血？", tzelf: "血の匂いだ。……奥に何かいる。", alone: "見慣れた部屋が、血に濡れていた。" }),
+      { kind: "choice", speaker: "影", text: "時間切れになるまで歩き続けられたのなら、さぞ腕を磨いてきたのだろう。――その成果を、見せてみろ。", options: ["挑む", "引き返す"] },
+    ]);
+    Story.play(app, beats, function (choice) {
       if (choice === 1) { back(); return; }
       var i = 0;
       (function nextBoss() {
         if (i >= BOSS_RUSH.length) {
-          Story.play(app, [{ kind: "narration", bg: "bloodroom", text: "最後の影が崩れ落ちた。だが、部屋に残るのは血の匂いだけだった。竜の活性化は、誰にも止められない。" }], back);
+          Story.play(app, [{ speaker: "影", bg: "bloodroom", text: "……それで、何が変わる。竜は、誰にも止められない。" }], back);
           return;
         }
         var b = BOSS_RUSH[i++];
@@ -561,12 +568,11 @@ RPG.Chapter1 = (function () {
       onExit: function (to) { goTo(to, "haiberi"); },
       onTalk: function (zone, next) {
         if (timeUp()) {
-          Story.play(app, [{ kind: "narration", bg: "gate", text: "門は開け放たれたまま、風に軋んでいた。門番の姿は、どこにもない。" }], function () { enterVillageRuin(); });
+          Story.play(app, [say("gate", { mira: "門が開いてる……。見張りも、いない。", tzelf: "門番がいない。……開いたままだ。", alone: "門は開いたままだ。門番はいない。" })], function () { enterVillageRuin(); });
           return;
         }
         Story.play(app, [
-          { kind: "narration", bg: "gateClosed", text: "門番が槍の柄で道を塞いだ。" },
-          { speaker: "門番", text: "集落長の命だ。追放された者を通すわけにはいかない。" },
+          { speaker: "門番", bg: "gateClosed", text: "止まれ。集落長の命だ。追放された者を通すわけにはいかない。" },
         ], function () {
           if (zone.pushBack) outskirtsArea.pos = { x: zone.pushBack.tx * 16, y: zone.pushBack.ty * 16 };
           next();
@@ -590,11 +596,11 @@ RPG.Chapter1 = (function () {
       onChest: function (zoneId, next) {
         if (zoneId === "chest1") {
           addItem("crystal_naginata");
-          Story.play(app, [{ kind: "narration", text: "崩れた住居跡の奥に、記憶結晶が埋もれていた。〈薙刀払いの記憶結晶〉を手に入れた。" }], next);
+          Story.play(app, [{ kind: "narration", text: "〈薙刀払いの記憶結晶〉を手に入れた。" }], next);
           return;
         }
         addItem("potion");
-        Story.play(app, [{ kind: "narration", text: zoneId === "chest2" ? "荷箱の底に〈回復薬〉が一つ残っていた。" : "見張り塔に置き去りにされた荷から、〈回復薬〉を見つけた。" }], next);
+        Story.play(app, [{ kind: "narration", text: "〈回復薬〉を手に入れた。" }], next);
       },
       // シンボルに触れた：はぐれ賊と戦う。勝てばそのシンボルは消える（全滅はゲームオーバー）
       onSymbol: function (symbolId, done) {
@@ -608,7 +614,7 @@ RPG.Chapter1 = (function () {
 
   var roadBeats = [
     { kind: "header", text: "祭壇へ続く隘路", bg: "narrow" },
-    { kind: "narration", text: "灰色の羽を持つ鳥人が、前触れもなく道を塞いだ。絶滅したはずの種族が、目の前に立っている。素足のまま瓦礫を踏みしめ、鋭い目でセオを見据える。" },
+    { speaker: "灰色の鳥人", text: "……鳥人を見るのは初めてか。とうに絶えた、と聞かされているんだろう。" },
     { speaker: "灰色の鳥人", text: "そこを通してもらう。お前に用はないが、邪魔なら退かす。" },
   ];
 
@@ -622,10 +628,9 @@ RPG.Chapter1 = (function () {
   }
 
   var teamUpBeats = [
-    { kind: "narration", bg: "narrow", text: "セオは膝をつく。勝てる相手ではなかった。だが鳥人はとどめを刺さず、剣を収めた。" },
+    { speaker: "灰色の鳥人", bg: "narrow", text: "……勝負にならないな。剣は収める。" },
     { speaker: "灰色の鳥人", text: "……招竜派の祭壇に用があるのはこっちも同じだ。今は敵対する理由がないだけだ。" },
-    { kind: "choice", prompt: "利害が一致した、ということらしい。", options: ["「好都合だ」と手を貸す", "黙って頷く"] },
-    { kind: "narration", text: "こうして二人は、目的の違う共闘を始めた。祭壇の入口はすぐそこだった。" },
+    { kind: "choice", speaker: "灰色の鳥人", text: "来るなら勝手にしろ。足手まといなら置いていく。", options: ["「好都合だ」と手を貸す", "黙って頷く"] },
   ];
 
   var shrineDungeon = null;
@@ -649,7 +654,7 @@ RPG.Chapter1 = (function () {
       openMenu: openMenu,
       // 祭壇を出たら、隘路を引き返して廃区画の東の出口の前へ戻る
       onExit: function () {
-        walkRoad("祭壇を後にし、瓦礫の隘路を引き返す。", 15, 0.2, function () {
+        walkRoad(say("narrow", { mira: "……ここ、帰りも通るのね。足元、気をつけて。", tzelf: "引き返すのか。……道草はほどほどにしろ。", alone: "隘路を引き返す。" }), 15, 0.2, function () {
           game.steps += 10;
           worldMap.visited.michi = true;
           goTo("hairegion", "michi");
@@ -671,14 +676,14 @@ RPG.Chapter1 = (function () {
   function onDungeonChest() {
     var id = shrineFloorId === "ground" ? "crystal_defense_stance" : "crystal_vital_strike";
     addItem(id);
-    Story.play(app, [{ kind: "narration", text: "宝箱を開けた。〈" + RPG.Data.ITEMS[id].name + "〉を手に入れた。" }], function () {
+    Story.play(app, [{ kind: "narration", text: "〈" + RPG.Data.ITEMS[id].name + "〉を手に入れた。" }], function () {
       shrineDungeon.render();
     });
   }
 
   function onDungeonEvent(id) {
     if (id === "kagari" && timeUp()) {
-      Story.play(app, [{ kind: "narration", bg: "shrine", text: "儀式の間は崩れ落ち、奥へ続く道は瓦礫に埋もれていた。もう、誰の声も届かない。" }], function () { shrineDungeon.render(); });
+      Story.play(app, [say("shrine", { tzelf: "儀式の間は崩れて埋まっている。……もう誰もいない。", alone: "儀式の間は、瓦礫に埋もれていた。" })], function () { shrineDungeon.render(); });
       return;
     }
     if (id === "kagari") {
@@ -690,7 +695,8 @@ RPG.Chapter1 = (function () {
 
   var kagariPreBeats = [
     { kind: "header", text: "招竜の祭壇", bg: "shrine" },
-    { kind: "narration", text: "祭壇の奥、儀式の間近くで信徒たちが最後の詠唱を始めていた。カガリがミラを見下ろしている。" },
+    { speaker: "ミラ", text: "セオ……！？" },
+    { speaker: "カガリ", text: "追ってきたか。構わん、詠唱はじきに終わる。" },
     { speaker: "カガリ", text: "此度の供物は、思いのほか良い声で鳴きそうだ。" },
   ];
 
@@ -702,35 +708,35 @@ RPG.Chapter1 = (function () {
   }
 
   var kagariPostBeats = [
-    { kind: "narration", bg: "shrine", text: "カガリは崩れ落ちた。儀式は止まり、ミラの拘束が解かれる。" },
-    { speaker: "ミラ", text: "……なんで来たの、セオ。" },
-    { kind: "choice", prompt: "ミラの問いに答える。", options: ["「置いて生きろって？　できるわけないだろ」", "「決まってるだろ」とだけ言う"] },
-    { kind: "narration", text: "ミラは何か言いかけて、結局は小さく笑っただけだった。" },
-    { kind: "narration", text: "奪還は成ったが、儀式の余波か、遠くの空に巨大な影がよぎった。灰色の竜だ。誰も、あれには手を出せない。" },
+    { speaker: "カガリ", bg: "shrine", text: "儀式が……竜が、お怒りに……。" },
+    { kind: "choice", speaker: "ミラ", text: "……なんで来たの、セオ。", options: ["「置いて生きろって？　できるわけないだろ」", "「決まってるだろ」とだけ言う"] },
+    { speaker: "ミラ", text: "……ばか。……ありがと。" },
+    { speaker: "ミラ", text: "ねえ、あれ……空の向こう。何か、大きいのが動いてる。" },
+    { speaker: "灰色の鳥人", text: "灰色竜だ。儀式の騒ぎに寄ってきたか。" },
     { speaker: "灰色の鳥人", text: "竜は殺せない。挑んだ奴は皆、灰になった。" },
-    { kind: "narration", text: "世界が、静かに詰んでいるという事実だけが突きつけられた。祭壇を出よう。" },
+    { speaker: "ミラ", text: "……じゃあ、どうすればいいのよ。" },
+    { speaker: "灰色の鳥人", text: "さあな。……ここを出るぞ。" },
   ];
 
   function afterDungeonExit() {
     if (timeUp()) {
-      Story.play(app, [{ kind: "narration", bg: "narrow", text: "祭壇を出た先の道も、竜の瘴気に閉ざされていた。帰る先は、もうどこにもない。" }], function () { shrineDungeon.render(); });
+      Story.play(app, [say("narrow", { mira: "外も……瘴気で真っ暗。これじゃ、どこへも帰れない。", tzelf: "外の道も瘴気に呑まれた。……戻る場所はない。", alone: "外の道も、竜の瘴気に閉ざされていた。" })], function () { shrineDungeon.render(); });
       return;
     }
     game.companions.push("mira");
-    Story.play(app, endBeats, function () { onChapterEnd(); });
+    Story.play(app, endBeats, function () { game.flags.named = true; onChapterEnd(); });
   }
 
   var endBeats = [
     { kind: "header", text: "灰縁の集落・門", bg: "gateClosed" },
-    { kind: "narration", text: "帰り着いた門は、開かなかった。" },
+    { speaker: "ミラ", text: "開けて！　ミラよ、帰ってきたの！" },
     { speaker: "集落長トキ", text: "帰ってくるなと言ったはずだ。" },
     { speaker: "ミラ", text: "上等じゃない。こっちから願い下げよ。" },
-    { kind: "narration", text: "奪還は成功したのに、帰る場所を失った。帰れない三人が、旅を続ける理由だけがここに残った。" },
-    { kind: "narration", text: "灰色の鳥人が、ふと口を開いた。" },
-    { speaker: "灰色の鳥人", text: "……名か。持ったことがない。招竜派に、要らぬものだとずっと言われてきた。" },
-    { kind: "narration", text: "ミラは少し考えて、口にした。" },
-    { speaker: "ミラ", text: "……ツェルフ、なんてどう？　特に意味はないけど。" },
-    { kind: "narration", text: "鳥人は小さく頷いた。理由なんて要らなかった。帰れない者同士になった瞬間、彼は名を得た。" },
+    { speaker: "ミラ", text: "……帰る場所がないのは、三人とも同じってわけね。で、あなた。名前、まだ聞いてないんだけど。" },
+    { speaker: "灰色の鳥人", text: "名はない。呼ばれる必要もなかった。" },
+    { speaker: "灰色の鳥人", text: "…………借りられる名も、なかったな。" },
+    { speaker: "灰色の鳥人", text: "ツェルフ。……そう呼べ。" },
+    { speaker: "ミラ", text: "ツェルフ。……変わった名前。でも、覚えた。" },
   ];
 
   // forceProceed：負けても話が進む戦い（チュートリアル・イベント戦）。eventEnd：イベント戦の打ち切り条件

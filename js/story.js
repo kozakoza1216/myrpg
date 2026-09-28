@@ -95,10 +95,17 @@ RPG.Story = (function () {
         box.onclick = advance;
       } else if (beat.kind === "choice") {
         box.className = "story-box choice";
-        if (beat.prompt) {
+        // 相手の台詞にそのまま答える選択肢：話し手の名前と台詞を、選択肢の上に出す
+        if (beat.speaker) {
+          var csp = document.createElement("div");
+          csp.className = "speaker";
+          csp.textContent = beat.speaker;
+          box.appendChild(csp);
+        }
+        if (beat.prompt || beat.text) {
           var pr = document.createElement("p");
           pr.className = "choice-prompt";
-          pr.textContent = beat.prompt;
+          pr.textContent = beat.text || beat.prompt;
           box.appendChild(pr);
         }
         var opts = document.createElement("div");
