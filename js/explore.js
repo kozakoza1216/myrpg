@@ -2521,8 +2521,14 @@ RPG.Explore = (function () {
     this.scene = { i: -1, steps: steps, done: done, talker: null, follow: null, camTo: null };
     if (this._wrapEl) this._wrapEl.classList.add("scene-mode");
     this._camAt = { x: this.pos.x, y: this.pos.y };
+    this.sceneSkipTap();
     this.sceneLoop();
     this.sceneNext();
+  };
+  // 台詞の出ていない間（歩いている間）にマップを押すと、次の台詞まで早送りする
+  FreeArea.prototype.sceneSkipTap = function () {
+    var self = this, sc = this.scene;
+    if (this._frameEl) this._frameEl.onclick = function () { if (self.scene === sc) sc.fast = true; };
   };
   FreeArea.prototype.actorById = function (id) {
     for (var i = 0; i < this.actors.length; i++) if (this.actors[i].id === id) return this.actors[i];
@@ -2560,7 +2566,7 @@ RPG.Explore = (function () {
       else { sc.follow = null; sc.camTo = P(st.camera); }
       return go();
     }
-    if (st.wait) { setTimeout(go, st.wait); return; }
+    if (st.wait) { setTimeout(go, sc.fast ? Math.min(st.wait, 80) : st.wait); return; }
     if (st.fx && !st.say) { this.sceneFx(st.fx); return go(); }
     if (st.say !== undefined || st.choice) { this.sceneTalk(st); return; }
     go();
@@ -2575,6 +2581,7 @@ RPG.Explore = (function () {
   FreeArea.prototype.sceneTalk = function (st) {
     var sc = this.scene, self = this, box = this._talkEl;
     sc.talker = st.actor || null;
+    sc.fast = false;
     if (st.fx) this.sceneFx(st.fx);
     if (!box) { this.sceneNext(); return; }
     box.innerHTML = "";
@@ -2592,7 +2599,7 @@ RPG.Explore = (function () {
       if (choiceIndex !== undefined) sc.lastChoice = choiceIndex;
       box.onclick = null; box.innerHTML = ""; box.className = "map-talk";
       if (self._talkRow) self._talkRow.classList.remove("on");
-      if (self._frameEl) self._frameEl.onclick = null;
+      self.sceneSkipTap();
       sc.talker = null;
       self.sceneNext();
     };
@@ -2624,7 +2631,7 @@ RPG.Explore = (function () {
       var moving = false;
       var stepAlong = function (obj, path, setFacing, addDist, speed) {
         if (!path || !path.length) return false;
-        var tgt = path[0], dx = tgt.x - obj.x, dy = tgt.y - obj.y, d = Math.hypot(dx, dy), stp = (speed || SCENE_WALK) * dt;
+        var tgt = path[0], dx = tgt.x - obj.x, dy = tgt.y - obj.y, d = Math.hypot(dx, dy), stp = (speed || SCENE_WALK) * dt * (sc.fast ? 5 : 1);
         if (Math.abs(dx) > Math.abs(dy)) setFacing(dx > 0 ? "right" : "left"); else if (d > 0.5) setFacing(dy > 0 ? "down" : "up");
         if (d <= stp) { obj.x = tgt.x; obj.y = tgt.y; path.shift(); addDist(d); }
         else { obj.x += dx / d * stp; obj.y += dy / d * stp; addDist(stp); }
@@ -2642,7 +2649,7 @@ RPG.Explore = (function () {
       var goal = sc.camTo;
       if (sc.follow) { var fa = sc.follow === "hero" ? self.pos : self.actorById(sc.follow); if (fa) goal = { x: fa.x, y: fa.y }; }
       if (!goal) goal = self.pos;
-      var k = Math.min(1, dt * 4);
+      var k = Math.min(1, dt * (sc.fast ? 20 : 4));
       self._camAt = { x: self._camAt.x + (goal.x - self._camAt.x) * k, y: self._camAt.y + (goal.y - self._camAt.y) * k };
       // 歩き待ちの解除
       if (sc.waitFor) {

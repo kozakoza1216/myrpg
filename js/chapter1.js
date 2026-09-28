@@ -269,6 +269,10 @@ RPG.Chapter1 = (function () {
   function hasMira() { return (game.companions || []).indexOf("mira") >= 0; }
   function hasTzelf() { return game.party.some(function (c) { return c.defId === "tzelf"; }); }
   function tzelfName() { return game.flags && game.flags.named ? "ツェルフ" : "灰色の鳥人"; }
+  // 戦闘やメニューに出る名前も、名乗るまでは「灰色の鳥人」（PLAN §7.5-7 で初めて名が付く）
+  function syncTzelfName() {
+    game.party.forEach(function (c) { if (c.defId === "tzelf") c.name = tzelfName(); });
+  }
   function say(bg, lines) {
     // lines：{ mira, tzelf, alone }。居る者の台詞を選ぶ
     if (lines.mira && hasMira()) return { speaker: "ミラ", text: lines.mira, bg: bg };
@@ -442,6 +446,7 @@ RPG.Chapter1 = (function () {
   function resume(appEl, gameState, snap, endCallback) {
     app = appEl; game = gameState; onChapterEnd = endCallback;
     game.onTimeUp = onTimeUp;
+    syncTzelfName();
     villageTaken = snap.villageTaken || {};
     hairegionTaken = snap.hairegionTaken || {};
     hairegionCleared = !!snap.hairegionCleared;
@@ -669,6 +674,7 @@ RPG.Chapter1 = (function () {
 
   function afterTeamUp() {
     game.party.push(Battle.createCombatant("tzelf", false));
+    syncTzelfName();
     worldMap.current = "saidan";
     worldMap.visited.saidan = true;
     Story.play(app, [
@@ -758,7 +764,7 @@ RPG.Chapter1 = (function () {
     Story.play(app, dragonBeats, function () {
       enterOutskirts({ tx: 40, ty: 20 });
       outskirtsArea.taken.gate_guard = true;      // この場面では門番を出さない（柵の向こうからトキが答える）
-      outskirtsArea.playScene(gateScene, function () { game.flags.named = true; onChapterEnd(); });
+      outskirtsArea.playScene(gateScene, function () { game.flags.named = true; syncTzelfName(); onChapterEnd(); });
     });
   }
 
