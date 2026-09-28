@@ -369,3 +369,9 @@ button {
 /* デバッグ：戦いを勝ったことにする（右上の小さなボタン） */
 .debug-win { position: absolute; top: 0.25rem; right: 0.4rem; font-size: 0.68rem; padding: 0.2rem 0.5rem; border: 1px dashed #7a5a3a; background: #1a120c; color: #b89868; border-radius: 4px; opacity: 0.8; z-index: 6; }
 .battle-screen .battle-title { margin-top: 0.7rem; }
+
+/* 寸劇：マップの下に台詞の欄。寸劇の間は、メニューのボタンと操作の案内を隠す */
+.map-talk:empty { display: none; }
+.map-talk { margin-top: 0.6rem; cursor: pointer; width: 100%; box-sizing: border-box; min-height: 7.5rem; }
+.dungeon-wrap.scene-mode .menu-open, .dungeon-wrap.scene-mode .footnote, .dungeon-wrap.scene-mode .dungeon-msg { display: none; }
+.dungeon-wrap.scene-mode .freearea-frame { cursor: pointer; }

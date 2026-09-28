@@ -279,7 +279,7 @@ RPG.Chapter1 = (function () {
   function run(appEl, gameState, endCallback) {
     app = appEl; game = gameState; onChapterEnd = endCallback;
     game.onTimeUp = onTimeUp;
-    Story.play(app, wakeBeats, function () { enterVillage(); });
+    Story.play(app, wakeBeats, function () { enterVillage(); villageArea.playScene(openingScene); });
   }
 
   var wakeBeats = [
@@ -287,7 +287,18 @@ RPG.Chapter1 = (function () {
     { kind: "header", text: "セオの住居", bg: "house" },
     { kind: "choice", speaker: "ミラ", text: "セオ、起きて。今日は「くじ」の日でしょ。寝坊したら承知しないから。", options: ["わかってる", "……くじ、か", "……"] },
     { speaker: "ミラ", text: "竜への供物を決める日だってのに、よく寝られるわね。遅れたら、招竜派の連中に何を言われるか。" },
-    { speaker: "ミラ", text: "棚の干し肉と薬、持っていきなよ。くじまではまだ時間あるから。……遅れないでね。" },
+  ];
+  // 家の前：ミラは先に広場へ向かう。歩いていく先を画面が追うので、広場の方角が分かる
+  var openingScene = [
+    { spawn: "mira", at: { tx: 21, ty: 25.5 }, face: "left" },
+    { face: "hero", dir: "right" },
+    { say: "ミラ", actor: "mira", text: "棚の干し肉と薬、持っていきなよ。くじまではまだ時間あるから。" },
+    { say: "ミラ", actor: "mira", text: "私、先に広場へ行ってる。……遅れないでね。" },
+    { camera: "mira" },
+    { walk: "mira", speed: 96, to: [{ tx: 28, ty: 25.5 }, { tx: 28, ty: 16.5 }, { tx: 46.5, ty: 16.5 }] },
+    { remove: "mira" },
+    { camera: "hero" },
+    { wait: 600 },
   ];
 
   function addItem(id, n) {
@@ -744,7 +755,11 @@ RPG.Chapter1 = (function () {
       return;
     }
     game.companions.push("mira");
-    Story.play(app, dragonBeats.concat(endBeats), function () { game.flags.named = true; onChapterEnd(); });
+    Story.play(app, dragonBeats, function () {
+      enterOutskirts({ tx: 40, ty: 20 });
+      outskirtsArea.taken.gate_guard = true;      // この場面では門番を出さない（柵の向こうからトキが答える）
+      outskirtsArea.playScene(gateScene, function () { game.flags.named = true; onChapterEnd(); });
+    });
   }
 
   var dragonBeats = [
@@ -759,20 +774,40 @@ RPG.Chapter1 = (function () {
     { speaker: "灰色の鳥人", text: "さあな。……行ったか。灰縁までは同じ道だ。行くぞ。" },
   ];
 
-  var endBeats = [
-    { kind: "header", text: "灰縁の集落・門", bg: "gateClosed" },
-    { speaker: "ミラ", text: "開けて！　ミラよ、帰ってきたの！", fx: "knock" },
-    { speaker: "集落長トキ", text: "帰ってくるなと言ったはずだ。" },
-    { speaker: "ミラ", text: "……言った？　セオに？　……私を追ってきたから、セオを追い出したのね。" },
-    { speaker: "ミラ", text: "上等じゃない。こっちから願い下げよ。" },
-    { speaker: "ミラ", text: "……あなたは？　帰る場所、あるの？" },
-    { speaker: "灰色の鳥人", text: "ない。はじめからな。" },
-    { speaker: "ミラ", text: "……そう。じゃあ、三人とも同じね。で、あなた。名前、まだ聞いてないんだけど。" },
-    { speaker: "灰色の鳥人", text: "名はない。呼ばれる必要もなかった。" },
-    { speaker: "灰色の鳥人", text: "…………借りられる名も、なかったな。" },
-    { speaker: "灰色の鳥人", text: "ツェルフ。……そう呼べ。" },
-    { speaker: "ミラ", text: "ツェルフ。……変わった名前。でも、覚えた。" },
+  var gateScene = [
+    { spawn: "mira", at: { tx: 41.5, ty: 20.8 }, face: "left" },
+    { spawn: "tzelf", at: { tx: 42.5, ty: 19.3 }, face: "left" },
+    { walk: "hero", to: [{ tx: 29, ty: 20 }, { tx: 29, ty: 12 }], wait: false },
+    { walk: "mira", to: [{ tx: 27, ty: 20.8 }, { tx: 27, ty: 12.8 }], wait: false },
+    { walk: "tzelf", to: [{ tx: 30.5, ty: 19.3 }, { tx: 30.5, ty: 12.5 }], wait: false },
+    { join: true },
+    { camera: { tx: 27.5, ty: 9 } },
+    { walk: "mira", to: [{ tx: 27.5, ty: 7.6 }] },
+    { face: "mira", dir: "up" },
+    { say: "ミラ", actor: "mira", text: "開けて！　ミラよ、帰ってきたの！", fx: "knock" },
+    { spawn: "toki", at: { tx: 27.5, ty: 4.1 }, face: "down" },
+    { say: "集落長トキ", actor: "toki", text: "帰ってくるなと言ったはずだ。" },
+    { face: "mira", dir: "down" },
+    { say: "ミラ", actor: "mira", text: "……言った？　セオに？　……私を追ってきたから、セオを追い出したのね。" },
+    { face: "mira", dir: "up" },
+    { say: "ミラ", actor: "mira", text: "上等じゃない。こっちから願い下げよ。" },
+    { walk: "toki", to: [{ tx: 27.5, ty: 1.5 }] },
+    { remove: "toki" },
+    { camera: "hero" },
+    { walk: "mira", to: [{ tx: 27, ty: 12.8 }] },
+    { face: "mira", dir: "right" },
+    { say: "ミラ", actor: "mira", text: "……あなたは？　帰る場所、あるの？" },
+    { face: "tzelf", dir: "left" },
+    { say: "灰色の鳥人", actor: "tzelf", text: "ない。はじめからな。" },
+    { say: "ミラ", actor: "mira", text: "……そう。じゃあ、三人とも同じね。で、あなた。名前、まだ聞いてないんだけど。" },
+    { say: "灰色の鳥人", actor: "tzelf", text: "名はない。呼ばれる必要もなかった。" },
+    { face: "tzelf", dir: "up" },
+    { say: "灰色の鳥人", actor: "tzelf", text: "…………借りられる名も、なかったな。" },
+    { face: "tzelf", dir: "left" },
+    { say: "灰色の鳥人", actor: "tzelf", text: "ツェルフ。……そう呼べ。" },
+    { say: "ミラ", actor: "mira", text: "ツェルフ。……変わった名前。でも、覚えた。" },
   ];
+
 
   // forceProceed：負けても話が進む戦い（チュートリアル・イベント戦）。eventEnd：イベント戦の打ち切り条件
   // 戦闘の背景：いま居る場所の絵（会話場面の絵を使い回す）

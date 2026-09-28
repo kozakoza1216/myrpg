@@ -1919,6 +1919,33 @@ RPG.Explore = (function () {
     return heroSprites;
   }
 
+  // 寸劇に出る人物の仮の姿（主人公の歩き絵を色替えしたもの。本番の絵ができるまでの置き換え用）。
+  // 鳥人は靴を履かない（足は肌の色）。灰色の鳥人には嘴を足す
+  var CAST_PAL = {
+    mira: { k: "#1a1410", h: "#6a2a1e", s: "#e8c098", e: "#1a1410", b: "#9a5a3a", B: "#7a4028", w: "#d8c8a0", p: "#5a3a2a", f: "#3a2418" },
+    tzelf: { k: "#141414", h: "#8a8a88", s: "#a8a8a4", e: "#e0c060", b: "#4a4a50", B: "#34343a", w: "#6a6a70", p: "#3a3a40", f: "#8a8784", y: "#e0b040" },
+    toki: { k: "#1a1410", h: "#c8c0b0", s: "#d8b088", e: "#1a1410", b: "#5a4a38", B: "#3e3226", w: "#8a7050", p: "#3a3024", f: "#2a2018" },
+  };
+  var BIRD_HEAD = {
+    down: ["....kkkk....", "...khhhhk...", "..khhhhhhk..", "..khsssshk..", "..ksessesk..", "..kssyyssk..", "...kssssk..."],
+    up: HERO_HEAD.up,
+    side: ["....kkkk....", "...khhhhk...", "..khhhhhhk..", "..khhhhssk..", "..khhhsesk..", "..khhssssyy.", "...kssssk..."],
+  };
+  var castSprites = {};
+  function getCastSprites(id) {
+    if (castSprites[id]) return castSprites[id];
+    var pal = CAST_PAL[id] || CAST_PAL.toki, heads = id === "tzelf" ? BIRD_HEAD : HERO_HEAD, set = {};
+    ["down", "up", "left", "right"].forEach(function (dir) {
+      set[dir] = {};
+      ["idle", "a", "b"].forEach(function (fr) {
+        var side = dir === "left" || dir === "right";
+        var rows = (side ? heads.side : heads[dir]).concat(side ? SIDE_BODY : HERO_BODY).concat(side ? SIDE_LEGS[fr] : HERO_LEGS[fr]);
+        set[dir][fr] = spriteCanvas(rows, pal, dir === "left");
+      });
+    });
+    return (castSprites[id] = set);
+  }
+
   var ELDER_PAL = { k: "#1a1410", w: "#b8b0a0", s: "#d8b088", e: "#1a1410", o: "#6a5236", O: "#4a3824", t: "#8a6a40" };
   var ELDER = [
     "....kkkk....", "...kwwwwk...", "..kwwwwwwk..", "..kwsssswkt.", "..ksesseskt.", "..kswwwwskt.",
@@ -2045,6 +2072,9 @@ RPG.Explore = (function () {
     this.facing = "down";
     this._walkDist = 0;
     this._dangerOverlays = {};
+    // 寸劇（マップの上で人物が動いて話す場面）の役者と、いま流れている寸劇
+    this.actors = [];
+    this.scene = null;
     // 階段で層を移ると、到着地点が移動先の階段ゾーンの内側になる。
     // ここを空で始めると一歩動いた瞬間に「階段に入った」と判定され、
     // 元の層へ送り返され続ける。開始地点のゾーンには既に入っている扱いにし、
@@ -2072,8 +2102,9 @@ RPG.Explore = (function () {
   FreeArea.prototype.cameraViewBox = function () {
     var vw = Math.min(VIEW_W, this.mapW);
     var vh = Math.min(VIEW_H, this.mapH);
-    var x = Math.round(Math.max(0, Math.min(this.mapW - vw, this.pos.x - vw / 2)));
-    var y = Math.round(Math.max(0, Math.min(this.mapH - vh, this.pos.y - vh / 2)));
+    var fc = this._camAt || this.pos;
+    var x = Math.round(Math.max(0, Math.min(this.mapW - vw, fc.x - vw / 2)));
+    var y = Math.round(Math.max(0, Math.min(this.mapH - vh, fc.y - vh / 2)));
     return { x: x, y: y, vw: vw, vh: vh };
   };
 
@@ -2320,6 +2351,7 @@ RPG.Explore = (function () {
   // 毎フレーム連続座標で移動する。縦横を別々に判定するので、
   // 斜めに壁へ当たっても壁沿いに滑って進める。
   FreeArea.prototype.tick = function (dt) {
+    if (this.scene) return;
     var dir = this.currentMoveDir();
     if (!dir) return;
     var step = WALK_SPEED * dt;
@@ -2411,15 +2443,26 @@ RPG.Explore = (function () {
         px(ctx, "#e03020", sx - 2, sy - 33, 4, 9); px(ctx, "#e03020", sx - 2, sy - 20, 4, 3);
       } else if (s.chasing) { px(ctx, "#e05030", sx - 1, sy - 24, 2, 5); px(ctx, "#e05030", sx - 1, sy - 18, 2, 2); }
     });
-    var hero = getHeroSprites()[this.facing];
-    var frame = "idle";
-    if (this._walkDist > 0) {
-      var ph = Math.floor(this._walkDist / 7) % 4;
-      frame = ph === 0 ? "a" : (ph === 2 ? "b" : "idle");
-    }
-    var hx = Math.round(this.pos.x - cam.x), hy = Math.round(this.pos.y - cam.y);
-    px(ctx, "rgba(0,0,0,0.4)", hx - 5, hy, 10, 2);
-    ctx.drawImage(hero[frame], hx - 6, hy - 15);
+    var walkFrame = function (dist) {
+      if (!(dist > 0)) return "idle";
+      var ph = Math.floor(dist / 7) % 4;
+      return ph === 0 ? "a" : (ph === 2 ? "b" : "idle");
+    };
+    var figs = this.actors.filter(function (a) { return a.visible !== false; }).map(function (a) {
+      return { x: a.x, y: a.y, img: getCastSprites(a.sprite)[a.facing][walkFrame(a.walkDist)], talking: self.scene && self.scene.talker === a.id };
+    });
+    if (!this.hideHero) figs.push({ x: this.pos.x, y: this.pos.y, img: getHeroSprites()[this.facing][walkFrame(this._walkDist)], talking: false });
+    figs.sort(function (a, b) { return a.y - b.y; });
+    var bob = Math.floor(performance.now() / 260) % 2;
+    figs.forEach(function (f) {
+      var fx = Math.round(f.x - cam.x), fy = Math.round(f.y - cam.y);
+      px(ctx, "rgba(0,0,0,0.4)", fx - 5, fy, 10, 2);
+      ctx.drawImage(f.img, fx - 6, fy - 15);
+      if (f.talking) {
+        // 話している者の頭の上に、小さな白い三角
+        for (var i = 0; i < 3; i++) px(ctx, "#f0e8d8", fx - 2 + i, fy - 21 + i + bob, 5 - i * 2, 1);
+      }
+    });
     this.placeLabels(cam);
   };
 
@@ -2457,6 +2500,181 @@ RPG.Explore = (function () {
       item.el.style.left = left + "px";
       item.el.style.top = (ly / cam.vh * 100) + "%";
     });
+  };
+
+  // ── 寸劇：マップの上で人物が歩き、向きを変え、話す ──
+  // steps の一つ一つ（上から順に進む）：
+  //   { spawn: id, sprite, at: {tx,ty}, face }        人物を置く（sprite：CAST_PAL の名前）
+  //   { walk: id, to: [{tx,ty},...], wait: false }     歩かせる（id="hero" は主人公）。wait:false なら歩かせたまま次へ
+  //   { join: true }                                   歩いている全員が着くのを待つ
+  //   { face: id, dir }                                向きを変える
+  //   { say: 話し手, actor: id, text, fx }             台詞（下の欄に出し、押すと次へ）。fx：shake／impact／knock
+  //   { choice: true, say, actor, text, options }      台詞に答える選択肢
+  //   { camera: id | {tx,ty} | "hero" }                画面の中心をそこへ寄せる（id の人物なら、その人に付いていく）
+  //   { wait: ミリ秒 } ／ { remove: id } ／ { fx }
+  // 寸劇の間は、操作で歩けず、目印も踏まず、徘徊する敵も止まる
+  var SCENE_WALK = 64;   // 寸劇で人物が歩く速さ（ドット／秒。操作で歩くときの約半分＝目で追える速さ）
+  FreeArea.prototype.playScene = function (steps, done) {
+    var self = this;
+    this.detachKeyboard();
+    this._symStopped = true;
+    this.scene = { i: -1, steps: steps, done: done, talker: null, follow: null, camTo: null };
+    if (this._wrapEl) this._wrapEl.classList.add("scene-mode");
+    this._camAt = { x: this.pos.x, y: this.pos.y };
+    this.sceneLoop();
+    this.sceneNext();
+  };
+  FreeArea.prototype.actorById = function (id) {
+    for (var i = 0; i < this.actors.length; i++) if (this.actors[i].id === id) return this.actors[i];
+    return null;
+  };
+  FreeArea.prototype.sceneNext = function () {
+    var sc = this.scene, self = this;
+    if (!sc) return;
+    sc.i++;
+    var st = sc.steps[sc.i];
+    if (!st) { this.endScene(); return; }
+    var T = TILE, P = function (p) { return { x: p.tx * T, y: p.ty * T }; };
+    var go = function () { self.sceneNext(); };
+    if (st.spawn) {
+      var a0 = P(st.at);
+      this.actors = this.actors.filter(function (a) { return a.id !== st.spawn; });
+      this.actors.push({ id: st.spawn, sprite: st.sprite || st.spawn, x: a0.x, y: a0.y, facing: st.face || "down", walkDist: 0, path: [] });
+      return go();
+    }
+    if (st.remove) { this.actors = this.actors.filter(function (a) { return a.id !== st.remove; }); return go(); }
+    if (st.face) {
+      if (st.face === "hero") this.facing = st.dir; else { var fa = this.actorById(st.face); if (fa) fa.facing = st.dir; }
+      return go();
+    }
+    if (st.walk) {
+      var path = st.to.map(P);
+      if (st.walk === "hero") { this._heroPath = path; this._heroSpeed = st.speed; } else { var wa = this.actorById(st.walk); if (wa) { wa.path = path; wa.speed = st.speed; } }
+      if (st.wait === false) return go();
+      sc.waitFor = st.walk;
+      return;
+    }
+    if (st.join) { sc.waitAll = true; return; }
+    if (st.camera) {
+      if (typeof st.camera === "string") { sc.follow = st.camera; sc.camTo = null; }
+      else { sc.follow = null; sc.camTo = P(st.camera); }
+      return go();
+    }
+    if (st.wait) { setTimeout(go, st.wait); return; }
+    if (st.fx && !st.say) { this.sceneFx(st.fx); return go(); }
+    if (st.say !== undefined || st.choice) { this.sceneTalk(st); return; }
+    go();
+  };
+  // 画面の揺れと効果音（会話場面の揺れと同じ種類）
+  FreeArea.prototype.sceneFx = function (fx) {
+    var fr = this._frameEl;
+    if (fr) { fr.classList.remove("fx-" + fx); void fr.offsetWidth; fr.classList.add("fx-" + fx); }
+    if (RPG.Sound) RPG.Sound.play(fx);
+  };
+  // 台詞：マップの下の欄に出す。話している者の頭の上に印。押すと次へ（選択肢なら選んで次へ）
+  FreeArea.prototype.sceneTalk = function (st) {
+    var sc = this.scene, self = this, box = this._talkEl;
+    sc.talker = st.actor || null;
+    if (st.fx) this.sceneFx(st.fx);
+    if (!box) { this.sceneNext(); return; }
+    box.innerHTML = "";
+    box.className = "map-talk story-box " + (st.choice ? "choice" : st.say ? "dialogue" : "narration");
+    if (st.say) { var sp = document.createElement("div"); sp.className = "speaker"; sp.textContent = st.say; box.appendChild(sp); }
+    var p = document.createElement("p");
+    p.className = st.choice ? "choice-prompt" : "";
+    p.textContent = st.text;
+    box.appendChild(p);
+    var finish = function (choiceIndex) {
+      if (self.scene !== sc) return;
+      if (choiceIndex !== undefined) sc.lastChoice = choiceIndex;
+      box.onclick = null; box.innerHTML = ""; box.className = "map-talk";
+      if (self._frameEl) self._frameEl.onclick = null;
+      sc.talker = null;
+      self.sceneNext();
+    };
+    if (st.choice) {
+      var opts = document.createElement("div");
+      opts.className = "choice-options";
+      st.options.forEach(function (o, oi) {
+        var b = document.createElement("button");
+        b.textContent = o;
+        b.onclick = function (e) { e.stopPropagation(); finish(oi); };
+        opts.appendChild(b);
+      });
+      box.appendChild(opts);
+      return;
+    }
+    var hint = document.createElement("div"); hint.className = "story-hint"; hint.textContent = "▼"; box.appendChild(hint);
+    var shownAt = Date.now();
+    box.onclick = function () { if (Date.now() - shownAt > 250) finish(); };
+    if (this._frameEl) this._frameEl.onclick = box.onclick;
+  };
+  // 寸劇の間、毎フレーム：歩いている者を進め、カメラを寄せ、描き直す
+  FreeArea.prototype.sceneLoop = function () {
+    var self = this, last = null;
+    var frame = function (t) {
+      var sc = self.scene;
+      if (!sc || !self._canvasEl || !document.body.contains(self._canvasEl)) return;
+      if (last === null) last = t;
+      var dt = Math.min(0.05, (t - last) / 1000); last = t;
+      var moving = false;
+      var stepAlong = function (obj, path, setFacing, addDist, speed) {
+        if (!path || !path.length) return false;
+        var tgt = path[0], dx = tgt.x - obj.x, dy = tgt.y - obj.y, d = Math.hypot(dx, dy), stp = (speed || SCENE_WALK) * dt;
+        if (Math.abs(dx) > Math.abs(dy)) setFacing(dx > 0 ? "right" : "left"); else if (d > 0.5) setFacing(dy > 0 ? "down" : "up");
+        if (d <= stp) { obj.x = tgt.x; obj.y = tgt.y; path.shift(); addDist(d); }
+        else { obj.x += dx / d * stp; obj.y += dy / d * stp; addDist(stp); }
+        return true;
+      };
+      self.actors.forEach(function (a) {
+        if (stepAlong(a, a.path, function (f) { a.facing = f; }, function (d) { a.walkDist += d; }, a.speed)) moving = true;
+        else a.walkDist = 0;
+      });
+      if (self._heroPath && self._heroPath.length) {
+        stepAlong(self.pos, self._heroPath, function (f) { self.facing = f; }, function (d) { self._walkDist += d; }, self._heroSpeed);
+        moving = true;
+      } else self._walkDist = 0;
+      // カメラ：付いていく人物か、指定の地点へ、なめらかに寄せる
+      var goal = sc.camTo;
+      if (sc.follow) { var fa = sc.follow === "hero" ? self.pos : self.actorById(sc.follow); if (fa) goal = { x: fa.x, y: fa.y }; }
+      if (!goal) goal = self.pos;
+      var k = Math.min(1, dt * 4);
+      self._camAt = { x: self._camAt.x + (goal.x - self._camAt.x) * k, y: self._camAt.y + (goal.y - self._camAt.y) * k };
+      // 歩き待ちの解除
+      if (sc.waitFor) {
+        var busy = sc.waitFor === "hero" ? self._heroPath && self._heroPath.length : (self.actorById(sc.waitFor) || {}).path && self.actorById(sc.waitFor).path.length;
+        if (!busy) { sc.waitFor = null; setTimeout(function () { self.sceneNext(); }, 0); }
+      }
+      if (sc.waitAll) {
+        var any = (self._heroPath && self._heroPath.length) || self.actors.some(function (a) { return a.path && a.path.length; });
+        if (!any) { sc.waitAll = false; setTimeout(function () { self.sceneNext(); }, 0); }
+      }
+      self.draw();
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  };
+  FreeArea.prototype.endScene = function () {
+    var sc = this.scene;
+    if (!sc) return;
+    this.scene = null;
+    this._camAt = null;
+    this._heroPath = null;
+    this._walkDist = 0;
+    if (this._wrapEl) this._wrapEl.classList.remove("scene-mode");
+    if (this._talkEl) { this._talkEl.innerHTML = ""; this._talkEl.className = "map-talk"; this._talkEl.onclick = null; }
+    if (this._frameEl) this._frameEl.onclick = null;
+    this._symStopped = false;
+    // 目印の上で寸劇が終わっても、踏んだことにはしない（一度離れてから踏み直したときだけ発動）
+    var z = this.zoneAt(this.pos.x, this.pos.y);
+    this.insideZoneId = z ? z.id : null;
+    this.draw();
+    var done = sc.done;
+    if (done) done(sc.lastChoice);
+    if (!this.scene && document.body.contains(this._canvasEl || document.body)) {
+      this.attachKeyboard();
+      this.startSymbolLoop();
+    }
   };
 
   FreeArea.prototype.enterZone = function (zone) {
@@ -2592,6 +2810,12 @@ RPG.Explore = (function () {
 
     wrap.appendChild(frameEl);
     this.attachPointer(cv);
+    this._wrapEl = wrap;
+    // 寸劇の台詞を出す欄（寸劇のない間は空で、場所を取らない）
+    var talk = document.createElement("div");
+    talk.className = "map-talk";
+    wrap.appendChild(talk);
+    this._talkEl = talk;
 
     var msg = document.createElement("div");
     msg.className = "dungeon-msg";
