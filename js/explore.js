@@ -2579,7 +2579,7 @@ RPG.Explore = (function () {
     if (!box) { this.sceneNext(); return; }
     box.innerHTML = "";
     box.className = "map-talk story-box " + (st.choice ? "choice" : st.say ? "dialogue" : "narration");
-    // 話している人物の立ち絵を、台詞の欄の左の別の窓に出す（会話場面と同じ青い影）
+    // 話している人物の立ち絵を、台詞の欄の左上に重ねた別の窓に出す（会話場面と同じ青い影）
     this.setTalkPortrait(st.say && RPG.Scenes && RPG.Scenes.figIdForSpeaker ? RPG.Scenes.figIdForSpeaker(st.say) : null);
     if (this._talkRow) this._talkRow.classList.add("on");
     if (st.say) { var sp = document.createElement("div"); sp.className = "speaker"; sp.textContent = st.say; box.appendChild(sp); }
@@ -2658,7 +2658,7 @@ RPG.Explore = (function () {
     };
     requestAnimationFrame(frame);
   };
-  // 寸劇の立ち絵の窓：話している人物の立ち絵に差し替える。立ち絵のない者（地の文など）のときは空の窓にする
+  // 寸劇の立ち絵の窓：話している人物の立ち絵に差し替える。立ち絵のない者（地の文など）のときは窓を隠す
   FreeArea.prototype.setTalkPortrait = function (fid) {
     var win = this._portraitEl;
     if (!win) return;
@@ -2667,6 +2667,7 @@ RPG.Explore = (function () {
     win._fid = purl ? fid : null;
     win.innerHTML = "";
     win.classList.toggle("empty", !purl);
+    if (this._talkRow) this._talkRow.classList.toggle("has-portrait", !!purl);
     if (purl) { var im = document.createElement("img"); im.src = purl; im.alt = ""; win.appendChild(im); }
   };
   FreeArea.prototype.endScene = function () {
@@ -2828,7 +2829,7 @@ RPG.Explore = (function () {
     wrap.appendChild(frameEl);
     this.attachPointer(cv);
     this._wrapEl = wrap;
-    // 寸劇の台詞を出す欄と、その左の立ち絵の窓（寸劇で誰かが話している間だけ出し、ほかは場所を取らない）
+    // 寸劇の台詞を出す欄と、その左上の立ち絵の窓（寸劇で誰かが話している間だけ出し、ほかは場所を取らない）
     var talkRow = document.createElement("div");
     talkRow.className = "map-talk-row";
     var pwin = document.createElement("div");
