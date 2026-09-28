@@ -602,6 +602,92 @@ RPG.Scenes = (function () {
     for (var k = 0; k < 6; k++) { var bx = 30 + k * 13; img.poly([[bx, 238], [bx + 2, 200 - k * 4], [bx + 3, 238]], function () { return [36, 20, 14]; }); }
   };
 
+  // 祭壇の外：壊れた人工天井の空を、灰色竜が渡っていく（PLAN §2-4：灰色の体、頭・首・胴・翼・尾、
+  // 鱗と翼膜、輪郭が滲むような「灰に還りかけた総体」の質感）。体から灰がこぼれ落ちる。下に祭壇の岩場と廃墟
+  PAINT.dragon = function (img) {
+    ceiling(img, 60, 40, 440);
+    // 地平の廃墟と、祭壇の外の岩場
+    img.all(function (x, y) {
+      var sky = 196 + (nz("a", x, 300) - 0.5) * 16;
+      if (y < sky) return null;
+      if (hash2(Math.floor(x / 11), 0, 71) < 0.5 && y < sky + 8 && y > sky - hash2(Math.floor(x / 11), 1, 72) * 30) return rp(ramp(["#141318", "#1a191f", "#201e25"]), 0.5, x, y);
+      return rp(ramp(["#0e0d10", "#141217", "#1a181d", "#221f25"]), 0.2 + (y - sky) / 80 + (nz("b", x * 2, y * 2) - 0.5) * 0.3, x, y);
+    });
+    img.all(function (x, y) { if (y > 170 && y < 215) img.add(x, y, [70, 64, 70], 0.3 * (1 - Math.abs(y - 196) / 26)); return null; });
+    // 竜の形を、先に型（マスク）として描く：1＝体、2＝翼膜。形は (260,100) を中心に描き、K倍して画面に置く
+    var M = new Uint8Array(W * H), K = 1.3, OX = 244, OY = 108;
+    var T = function (p) { return [OX + (p[0] - 260) * K, OY + (p[1] - 100) * K]; };
+    var mark = function (v) { return function (x, y) { if (x >= 0 && y >= 0 && x < W && y < H && M[y * W + x] !== 1) M[y * W + x] = v; return null; }; };
+    var poly = function (pts, v) { img.poly(pts.map(T), mark(v)); };
+    var ell = function (cx, cy, rx, ry, v) { var c = T([cx, cy]); img.ellipse(c[0], c[1], rx * K, ry * K, mark(v)); };
+    var chain = function (x0, y0, x1, y1, r0, r1, wave, n) {
+      for (var i = 0; i <= n; i++) {
+        var t = i / n, r = r0 + (r1 - r0) * t;
+        ell(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t + Math.sin(t * Math.PI * 1.5) * wave, r, r * 0.9, 1);
+      }
+    };
+    // 遠い側の翼（胴の後ろ）
+    poly([[268, 88], [316, 30], [392, 14], [404, 32], [388, 42], [376, 38], [362, 56], [346, 50], [332, 70], [300, 92]], 2);
+    // 手前の翼：肩→肘→手首、指の骨の先へ、縁は膜がたわんだ弧
+    poly([[250, 94], [206, 42], [160, 22], [84, 34], [96, 44], [98, 62], [116, 58], [128, 78], [148, 70], [166, 90], [194, 84], [228, 104]], 2);
+    // 胴（太め）・首・頭（あご付き）・角・背の棘・尾・脚
+    ell(258, 102, 52, 22, 1);
+    chain(222, 98, 150, 110, 16, 10, -7, 16);
+    poly([[156, 100], [130, 101], [110, 106], [98, 112], [112, 114], [104, 119], [124, 122], [142, 124], [158, 121]], 1);
+    poly([[148, 102], [154, 82], [158, 101]], 1); poly([[138, 102], [134, 86], [145, 102]], 1);
+    for (var sp = 0; sp < 9; sp++) { var sx = 176 + sp * 16, sy = sp < 3 ? 94 - sp * 1.5 : 82 + (sp - 3) * 1.2; poly([[sx - 5, sy + 6], [sx, sy - 5], [sx + 5, sy + 6]], 1); }
+    chain(302, 100, 452, 58, 15, 2, 10, 34);
+    ell(248, 122, 10, 7, 1); ell(284, 120, 9, 7, 1);
+    poly([[240, 126], [236, 136], [244, 130], [248, 138], [250, 127]], 1);
+    // 翼の骨（膜の上に、体の色で太めの線）
+    var bones = [[[250, 94], [206, 42]], [[206, 42], [160, 22]], [[160, 22], [84, 34]], [[160, 22], [98, 62]], [[160, 22], [128, 78]], [[160, 22], [166, 90]],
+      [[268, 88], [316, 30]], [[316, 30], [392, 14]], [[316, 30], [376, 38]], [[316, 30], [346, 50]]];
+    bones.forEach(function (bn) {
+      var a0 = T(bn[0]), a1 = T(bn[1]), n = Math.ceil(Math.hypot(a1[0] - a0[0], a1[1] - a0[1]));
+      for (var i = 0; i <= n; i++) {
+        var x = Math.round(a0[0] + (a1[0] - a0[0]) * i / n), y = Math.round(a0[1] + (a1[1] - a0[1]) * i / n), w = i < n * 0.3 ? 3 : 2;
+        for (var k = 0; k < w; k++) if (y + k < H && x >= 0 && x < W) M[(y + k) * W + x] = 1;
+      }
+    });
+    var at = function (x, y) { return x < 0 || y < 0 || x >= W || y >= H ? 0 : M[y * W + x]; };
+    var GREY = ramp(["#141418", "#1e1e22", "#2a2a2e", "#38383c", "#4a4a4e", "#606064", "#78787a", "#8a8a8a", "#a8a8a4", "#c4c2bc"]);
+    // 輪郭が滲む：体のまわりに、薄い灰色のにじみ（灰に還りかけた総体）
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      if (at(x, y)) continue;
+      var near = at(x - 2, y) || at(x + 2, y) || at(x, y - 2) || at(x, y + 2) || at(x - 3, y - 1) || at(x + 3, y + 1);
+      if (near && hash2(x, y, 73) < 0.5) img.add(x, y, [132, 130, 126], 0.28);
+    }
+    // 体の上下の範囲（陰影に使う）
+    var colTop = new Int16Array(W).fill(-1), colBot = new Int16Array(W).fill(-1);
+    for (var cx2 = 0; cx2 < W; cx2++) for (var cy2 = 0; cy2 < H; cy2++) if (M[cy2 * W + cx2] === 1) { if (colTop[cx2] < 0) colTop[cx2] = cy2; colBot[cx2] = cy2; }
+    for (var yy = 0; yy < H; yy++) for (var xx = 0; xx < W; xx++) {
+      var v = M[yy * W + xx];
+      if (!v) continue;
+      var edge = !at(xx - 1, yy) || !at(xx + 1, yy) || !at(xx, yy - 1) || !at(xx, yy + 1);
+      if (v === 2) {
+        // 翼膜：空が少しだけ透ける暗い灰色。付け根ほど濃く、縁ほど薄い
+        img.add(xx, yy, [40, 38, 44], 0.88);
+        if (edge) img.set(xx, yy, [22, 21, 25]);
+        continue;
+      }
+      // 体：上から壊れた空の光を受けて背が明るみ、腹は影に沈む。鱗は粗い段の模様
+      var h = colBot[xx] > colTop[xx] ? (yy - colTop[xx]) / (colBot[xx] - colTop[xx]) : 0.5;
+      var t = 0.72 - h * 0.55 + (nz("b", xx * 2, yy * 2) - 0.5) * 0.12 + ((((xx + (yy >> 1)) >> 1) + (yy >> 1)) % 3 === 0 ? -0.07 : 0);
+      if (!at(xx, yy - 1)) t = 0.95;
+      else if (!at(xx, yy - 2)) t += 0.18;
+      img.set(xx, yy, edge && at(xx, yy - 1) ? [16, 16, 19] : rp(GREY, t, xx, yy));
+    }
+    // 目：鈍く光る
+    var eye = T([122, 110]); img.set(Math.round(eye[0]), Math.round(eye[1]), [214, 206, 170]); img.set(Math.round(eye[0]) + 1, Math.round(eye[1]), [170, 156, 120]);
+    // 体からこぼれ落ちる灰
+    for (var i = 0; i < 420; i++) {
+      var ax = 80 + hash2(i, 1, 74) * 360, ay0 = 110 + hash2(i, 2, 75) * 30, fall = hash2(i, 3, 76) * 90;
+      var ax2 = ax + Math.sin(i) * 6 + fall * 0.15, ay = ay0 + fall;
+      if (ay > 200 || at(Math.round(ax2), Math.round(ay))) continue;
+      img.add(Math.round(ax2), Math.round(ay), hash2(i, 4, 77) < 0.5 ? [150, 148, 144] : [110, 108, 106], 0.7 - fall / 200);
+    }
+  };
+
   // 祭壇へ続く隘路：両側に迫る廃墟の壁、瓦礫の上に立ち塞がる灰色の鳥人の影
   PAINT.narrow = function (img) {
     var cz = ceiling(img, 40, 180, 310);
@@ -780,8 +866,11 @@ RPG.Scenes = (function () {
   }
 
   // 壊れた人工天井（空）が見える場面
-  var SKY_SCENES = { village: 1, plaza: 1, gate: 1, gateClosed: 1, ruins: 1, narrow: 1, awakening: 1 };
+  var SKY_SCENES = { village: 1, plaza: 1, gate: 1, gateClosed: 1, ruins: 1, narrow: 1, awakening: 1, dragon: 1 };
   function hasSky(id) { return !!SKY_SCENES[id]; }
+  // 人物の影を出さない場面（見せたいものが絵そのもの＝灰色竜の姿を影で隠さない）
+  var NO_FIGURE_SCENES = { dragon: 1 };
+  function noFigures(id) { return !!NO_FIGURE_SCENES[id]; }
 
-  return { canvasFor: canvasFor, hasSky: hasSky, figureFor: figureFor, figureForSpeaker: figureForSpeaker, figIdForSpeaker: figIdForSpeaker, ids: Object.keys(PAINT), figIds: Object.keys(FIG) };
+  return { canvasFor: canvasFor, hasSky: hasSky, noFigures: noFigures, figureFor: figureFor, figureForSpeaker: figureForSpeaker, figIdForSpeaker: figIdForSpeaker, ids: Object.keys(PAINT), figIds: Object.keys(FIG) };
 })();

@@ -75,7 +75,7 @@ RPG.Story = (function () {
         stage.appendChild(frame);
         containerEl.appendChild(stage);
         if (beat.kind !== "choice") frame.onclick = advance;
-        placeFigures(frame, beat);
+        if (!(RPG.Scenes.noFigures && RPG.Scenes.noFigures(bgId))) placeFigures(frame, beat);
       }
       // 演出：fx:"quake"＝画面が揺れて赤く光る（暗転はしない）
       if (beat.emph && RPG.Sound) RPG.Sound.play("levelup");

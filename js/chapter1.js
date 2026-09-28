@@ -330,9 +330,16 @@ RPG.Chapter1 = (function () {
 
   var kujiBeats = [
     { kind: "header", text: "集落中央広場・くじ", bg: "plaza" },
+    { speaker: "集落の者", text: "……今度は、誰なんだろうな。" },
+    { speaker: "集落の者", text: "うちじゃありませんように……うちじゃありませんように……。" },
     { speaker: "信徒", text: "静まれ。招竜派の祭司、カガリ様がくじを引かれる。" },
-    { speaker: "カガリ", text: "供物を捧げれば、竜はこの地を避けて通る。此度も一人を選ぶ。木札を引く。誰に当たろうと、恨みは無しだ。" },
-    { speaker: "カガリ", text: "此度の供物は……セオ、お前だ。" },
+    { speaker: "カガリ", text: "供物を捧げれば、竜はこの地を避けて通る。此度も一人を選ぶ。" },
+    { speaker: "カガリ", text: "この箱には、灰縁に住む者すべての名を刻んだ木札が入っている。老いも若きも、一人一枚。誰に当たろうと、恨みは無しだ。" },
+    { kind: "choice", speaker: "ミラ", text: "……大丈夫。こんなにたくさん札があるんだもの。当たるわけない。", options: ["そうだな", "……"] },
+    { speaker: "カガリ", text: "――引く。" },
+    { speaker: "カガリ", text: "此度の供物は……" },
+    { speaker: "カガリ", text: "セオ。お前だ。" },
+    { speaker: "集落の者", text: "……セオか。……うちじゃ、なかった。" },
     { speaker: "信徒", text: "来い。祭壇まで連れて行く。" },
     { speaker: "ミラ", text: "待って。……私が行く。" },
     { speaker: "カガリ", text: "ほう。供物は一人。誰が座ろうと、竜は構わぬ。" },
@@ -728,11 +735,7 @@ RPG.Chapter1 = (function () {
     { speaker: "ミラ", text: "それで、その人は……鳥人、よね？　絶えたって聞いてたのに。" },
     { speaker: "灰色の鳥人", text: "絶えてはいない。数えるほどしか残っていないだけだ。" },
     { speaker: "ミラ", text: "……っ、揺れてる？　地の底から、何か……唸ってる。", fx: "quake" },
-    { speaker: "灰色の鳥人", text: "灰色竜だ。儀式の騒ぎに寄ってきたか。" },
-    { speaker: "ミラ", text: "竜……。あれさえいなくなれば、生贄なんて――" },
-    { speaker: "灰色の鳥人", text: "竜は殺せない。挑んだ奴は皆、灰になった。" },
-    { speaker: "ミラ", text: "……じゃあ、どうすればいいのよ。" },
-    { speaker: "灰色の鳥人", text: "さあな。……ここを出るぞ。" },
+    { speaker: "灰色の鳥人", text: "……外だ。ここを出るぞ。" },
   ];
 
   function afterDungeonExit() {
@@ -741,8 +744,20 @@ RPG.Chapter1 = (function () {
       return;
     }
     game.companions.push("mira");
-    Story.play(app, endBeats, function () { game.flags.named = true; onChapterEnd(); });
+    Story.play(app, dragonBeats.concat(endBeats), function () { game.flags.named = true; onChapterEnd(); });
   }
+
+  var dragonBeats = [
+    { kind: "header", text: "祭壇の外", bg: "dragon", fx: "quake" },
+    { speaker: "ミラ", text: "……な、に……あれ……。" },
+    { speaker: "灰色の鳥人", text: "灰色竜だ。儀式の騒ぎに寄ってきたか。……動くな。気づかれなければ、通り過ぎる。" },
+    { speaker: "ミラ", text: "灰が、降ってる……。あれが、竜……。" },
+    { speaker: "灰色の鳥人", text: "あれが寝床を変えてこちらへ来れば、集落ひとつ、ひとたまりもない。" },
+    { speaker: "ミラ", text: "……あれさえいなくなれば、生贄なんて――" },
+    { speaker: "灰色の鳥人", text: "竜は殺せない。挑んだ奴は皆、灰になった。" },
+    { speaker: "ミラ", text: "……じゃあ、どうすればいいのよ。" },
+    { speaker: "灰色の鳥人", text: "さあな。……行ったか。灰縁までは同じ道だ。行くぞ。" },
+  ];
 
   var endBeats = [
     { kind: "header", text: "灰縁の集落・門", bg: "gateClosed" },
