@@ -814,21 +814,26 @@ RPG.Scenes = (function () {
     return (figCache[id] = cv);
   }
   function figureForSpeaker(name) { return SPEAKER_FIG[name] ? figureFor(SPEAKER_FIG[name]) : null; }
-  // 小さな立ち絵（マップの寸劇の台詞欄に添える）：立ち絵の、人物が描かれている範囲だけを切り出した画像。
+  // 小さな立ち絵（マップの寸劇の立ち絵の窓に出す）。
+  // 人物ごとの大きさがそろうよう、窓と同じ縦横比の枠で、頭のてっぺんから下端までを切り出す
+  // （どの人物も、頭が窓の上端近くまで来る。横幅では縮めないので、横に広い人物（ツェルフの翼など）は左右が切れる）。
+  // 枠の横の中心は頭の位置（人物の上から3分の1の範囲にある影の横の重心）に合わせる。
   // 同じ人物は一度だけ作って、画像のアドレス（data URL）で使い回す
   var portraitCache = {};
   function portraitFor(id) {
     if (portraitCache[id] !== undefined) return portraitCache[id];
     var cv = figureFor(id);
     if (!cv) return (portraitCache[id] = null);
-    var d = cv.getContext("2d").getImageData(0, 0, W, H).data, x0 = W, y0 = H, x1 = -1, y1 = -1;
-    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-    if (x1 < 0) return (portraitCache[id] = null);
-    // 人物の全身を、少し余白を付けて切り出す（青い影は中に模様がないので、小さく出すときは輪郭の全体で誰か分かるようにする）
-    var pad = 4, cw = x1 - x0 + 1 + pad * 2, ch = y1 - y0 + 1 + pad;
+    var d = cv.getContext("2d").getImageData(0, 0, W, H).data, y0 = -1;
+    for (var y = 0; y < H && y0 < 0; y++) for (var x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3]) { y0 = y; break; }
+    if (y0 < 0) return (portraitCache[id] = null);
+    var yHead = y0 + Math.round((H - y0) / 3), sx = 0, n = 0;
+    for (var y2 = y0; y2 < yHead; y2++) for (var x2 = 0; x2 < W; x2++) if (d[(y2 * W + x2) * 4 + 3]) { sx += x2; n++; }
+    var cx = Math.round(sx / n);
+    var ch = H - Math.max(0, y0 - 4), cw = Math.round(ch * 0.77);
     var out = document.createElement("canvas");
     out.width = cw; out.height = ch;
-    out.getContext("2d").drawImage(cv, x0, y0, x1 - x0 + 1, y1 - y0 + 1, pad, pad, x1 - x0 + 1, y1 - y0 + 1);
+    out.getContext("2d").drawImage(cv, cx - cw / 2, H - ch, cw, ch, 0, 0, cw, ch);
     return (portraitCache[id] = out.toDataURL());
   }
   function figIdForSpeaker(name) { return SPEAKER_FIG[name] || null; }
