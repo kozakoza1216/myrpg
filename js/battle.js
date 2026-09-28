@@ -489,6 +489,22 @@ RPG.Battle = (function () {
     }
   };
 
+  // デバッグ：この戦いを勝ったことにする。敵を全員倒れた扱いにし（とどめは先頭の味方）、通常の勝利と同じ終わり方をする
+  // （経験値も普通に勝ったときと同じだけ入る。イベント戦は、打ち切りで終わったときと同じ扱い）
+  State.prototype.debugWin = function () {
+    if (this.phase === "done") return;
+    this.clearFxTimers();
+    this.fx = null; this.fxActor = null; this.pending = null;
+    if (this.el.classList && this.el.classList.remove) this.el.classList.remove("fx-instant", "fx-phase");
+    this.el.onclick = null;
+    var finisher = this.party.filter(function (c) { return !c.defeated; })[0] || this.party[0];
+    this.enemies.forEach(function (e) {
+      if (e.defeated) return;
+      e.hp = 0; e.defeated = true; e.defeatedBy = finisher;
+    });
+    this.finish(this.eventEnd ? "event" : "victory");
+  };
+
   State.prototype.finish = function (result) {
     this.phase = "done";
     if (RPG.Sound) RPG.Sound.play(result === "defeat" ? "defeat" : "victory");
@@ -956,6 +972,14 @@ RPG.Battle = (function () {
     title.className = "battle-title";
     title.textContent = this.enemies.map(function (e) { return e.name; }).join(" / ");
     el.appendChild(title);
+    // デバッグ：勝ったことにする
+    if (this.phase !== "done") {
+      var dbg = document.createElement("button");
+      dbg.className = "debug-win";
+      dbg.textContent = "デバッグ：勝利";
+      dbg.onclick = function (e) { if (e) e.stopPropagation(); self.debugWin(); };
+      el.appendChild(dbg);
+    }
 
     // 戦場：場所の絵を暗く落として敷き、その上に 敵の後衛 → 敵の前衛 → ログ → 味方の前衛 → 味方の後衛 と縦に並べる
     var field = document.createElement("div");

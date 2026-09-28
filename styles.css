@@ -94,6 +94,7 @@ button {
 
 /* ── 戦闘 ── */
 .battle-screen {
+  position: relative;
   background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem;
 }
 .battle-title { text-align: center; color: var(--accent); letter-spacing: 0.1em; margin: 0 0 0.6rem; font-size: 1.1rem; }
@@ -357,3 +358,7 @@ button {
 
 /* 戦い方の手ほどき（初めての場面で一度だけ） */
 .battle-tip { font-size: 0.8rem; line-height: 1.5; text-align: left; color: #e8dcc8; background: #231b12; border: 1px dashed #8a6a3a; border-radius: 6px; padding: 0.45rem 0.6rem; margin: 0 0 0.6rem; }
+
+/* デバッグ：戦いを勝ったことにする（右上の小さなボタン） */
+.debug-win { position: absolute; top: 0.25rem; right: 0.4rem; font-size: 0.68rem; padding: 0.2rem 0.5rem; border: 1px dashed #7a5a3a; background: #1a120c; color: #b89868; border-radius: 4px; opacity: 0.8; z-index: 6; }
+.battle-screen .battle-title { margin-top: 0.7rem; }
