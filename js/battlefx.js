@@ -39,6 +39,51 @@ RPG.BattleFx = (function () {
     if (head < 1) { p.dot(bx + 2, by - 1, col.core); p.dot(bx - 1, by + 2, col.edge); }
   }
 
+  function shieldArc(p, f, o, breaks, r) {
+    var top = (o.from || "top") === "top", cy = top ? 16 : 32, bulge = top ? -1 : 1;
+    var alive = breaks ? f < 0.45 : f < 0.85;
+    if (alive) {
+      var a = f < 0.15 ? f / 0.15 : 1, flash = f < 0.3;
+      var col = flash ? "#ffffff" : "#8ac0f0", edge = flash ? "#c8e8ff" : "#4a80c0";
+      // 盾の弧（攻撃の来る側へふくらむ）と、中の六角の格子
+      p.ring(C, cy, 20 * a, 7 * a, edge, 2, top ? Math.PI : 0, top ? Math.PI * 2 : Math.PI);
+      p.ring(C, cy, 19 * a, 6 * a, col, 1, top ? Math.PI : 0, top ? Math.PI * 2 : Math.PI);
+      for (var x = -14; x <= 14; x += 7) for (var k = 0; k < 2; k++) {
+        var yy = cy + bulge * (1 + k * 3) * a;
+        if (((x / 7) + k) % 2 === 0) p.dot(C + x * a, yy, flash ? "#ffffff" : "#6aa0e0");
+      }
+      if (breaks && f > 0.22) {
+        // ひび
+        p.line(C - 2, cy + bulge * 5, C + 3, cy + bulge * 1, "#ffffff", 1);
+        p.line(C + 3, cy + bulge * 1, C - 1, cy - bulge * 3, "#ffffff", 1);
+        p.line(C + 3, cy + bulge * 1, C + 9, cy + bulge * 3, "#ffffff", 1);
+      }
+    } else if (breaks) {
+      // 砕けた破片が散る
+      var g = (f - 0.45) / 0.55;
+      for (var i = 0; i < 14; i++) {
+        var ax = (r() - 0.5) * 40, ay = bulge * (r() * 6) + g * 18 * (top ? 1 : -1) * (0.4 + r());
+        if (r() < g * 0.8) continue;
+        p.dot(C + ax * (1 + g), cy + ay, i % 2 ? "#8ac0f0" : "#e0f0ff", 2);
+      }
+    }
+  }
+  function bars(p, f, o, breaks, r) {
+    var top = (o.from || "top") === "top", cy = top ? 16 : 32;
+    if (!breaks || f < 0.45) {
+      var a = Math.min(1, f / 0.18), c = f < 0.25 ? "#fff0c0" : "#d0a050";
+      p.line(C - 14 * a, cy - 6 * a, C + 14 * a, cy + 6 * a, "#6a4a20", 4);
+      p.line(C - 14 * a, cy + 6 * a, C + 14 * a, cy - 6 * a, "#6a4a20", 4);
+      p.line(C - 14 * a, cy - 6 * a, C + 14 * a, cy + 6 * a, c, 2);
+      p.line(C - 14 * a, cy + 6 * a, C + 14 * a, cy - 6 * a, c, 2);
+    } else {
+      var g = (f - 0.45) / 0.55, s = 10 + g * 10;
+      p.line(C - s - 8, cy - 4 + g * 8, C - s, cy + g * 10, "#d0a050", 2);
+      p.line(C + s, cy + g * 10, C + s + 8, cy - 4 + g * 8, "#d0a050", 2);
+      for (var i = 0; i < 6; i++) p.dot(C + (r() - 0.5) * 30, cy + g * 14 * r(), "#8a6a30", 2);
+    }
+  }
+
   var DRAW = {
     slash: function (p, f, o, r) { var c = pal(o); slashStroke(p, f, 42, 5, 6, 43, c, o.big ? 2 : 1); if (f > 0.3 && f < 0.7) for (var i = 0; i < 5; i++) p.dot(C + (r() - 0.5) * 20, C + (r() - 0.5) * 20, c.edge); },
     twin: function (p, f, o) { var c = pal(o); slashStroke(p, f * 1.25, 42, 5, 6, 43, c, 1); slashStroke(p, (f - 0.22) * 1.25, 6, 5, 42, 43, c, 1); },
@@ -121,6 +166,22 @@ RPG.BattleFx = (function () {
       }
       if (f < 0.3) p.dot(C, C, c.core, 5 - f * 10);
     },
+    // 受けの反応（受けた本人の枠の上に出す）。o.from＝攻撃が来る向き（"top"／"bottom"）
+    // 盾：攻撃の来る側に、光の盾が張られて弾く
+    shield: function (p, f, o) { shieldArc(p, f, o, false); },
+    // 盾が破れる：張った盾にひびが入り、砕けて散る
+    shieldBreak: function (p, f, o, r) { shieldArc(p, f, o, true, r); },
+    // かわす：横へ流れる残像の線
+    speed: function (p, f, o, r) {
+      for (var i = 0; i < 9; i++) {
+        var y = 10 + r() * 28, len = 6 + r() * 12, x = 4 + f * 30 + r() * 10;
+        if (f > 0.85) continue;
+        p.line(x, y, x + len * (1 - f), y, i % 2 ? "#a8d0ff" : "#e8f4ff", 1);
+      }
+    },
+    // 足止め：攻撃の前に、交差した柵が立ちはだかる
+    barricade: function (p, f, o) { bars(p, f, o, false); },
+    barricadeBreak: function (p, f, o, r) { bars(p, f, o, true, r); },
     ash: function (p, f, o, r) {
       for (var i = 0; i < 30; i++) {
         var x = 6 + r() * 36, y0 = 14 + r() * 26, sp = 0.5 + r();

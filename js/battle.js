@@ -275,6 +275,41 @@ RPG.Battle = (function () {
       ref.box.classList.add("fx-actor", who.isEnemy ? "fx-actor-down" : "fx-actor-up");
       setBar(ref, "mp", who.mp, who.maxMp);     // 技に使ったMPはここで減らす
     }
+    // 攻め手と受け手の枠に目印（判定の欄の「攻め」「受け」と同じ色）。誰と誰の競り合いかを枠で分かるようにする
+    if (fx.judge) {
+      var badge = function (r, role, extra, text) {
+        if (!r) return;
+        var b = document.createElement("span"); b.className = "role-badge " + role + (extra ? " " + extra : ""); b.textContent = text;
+        r.box.appendChild(b); r.box.classList.add("fx-role-" + role);
+      };
+      badge(this.fxBoxOf(fx.judge.ac), "atk", fx.judge.ac && fx.judge.ac.isEnemy ? "hostile" : "", "攻め");
+      badge(this.fxBoxOf(fx.judge.dc), "def", "", "受け");
+    }
+  };
+
+  // 受けの結果は、受けた本人の枠の上で見せる（盾が弾く／破れる、身をかわす、足止めが効く／破られる）
+  var REACT = {
+    defense: { win: ["shield", "防いだ"], lose: ["shieldBreak", "破られた"] },
+    evade: { win: ["speed", "かわした"], lose: ["speed", "かわしきれない"] },
+    hold: { win: ["barricade", "止めた"], lose: ["barricadeBreak", "止めきれない"] },
+    riposte: { win: ["spark", "返した"], lose: ["spark", "返せない"] },
+  };
+  State.prototype.fxReact = function (j) {
+    var ref = this.fxBoxOf(j.dc);
+    if (!ref) return;
+    var defWin = !j.win, key = j.stanceKey === "defenseStance" ? "defense" : j.stanceKey, r = REACT[key], fxType, word, cls = defWin ? "good" : "bad";
+    if (j.counterHit) { fxType = "spark"; word = "カウンター！"; cls = "counter"; }
+    else if (j.counterMiss) { fxType = null; word = "空振り"; cls = "bad"; }
+    else if (j.brokeThrough) { fxType = "shieldBreak"; word = "突破された"; cls = "bad"; }
+    else if (r) { fxType = r[defWin ? "win" : "lose"][0]; word = r[defWin ? "win" : "lose"][1]; }
+    else { fxType = null; word = defWin ? "受けた" : "受けきれない"; }
+    var from = j.dc.isEnemy ? "bottom" : "top";     // 攻撃が来る向き（敵は上、味方は下に並ぶ）
+    if (fxType) this.fxAnim(fxType, ref.box, { from: from, big: j.counterHit, dur: 520, seed: 5 });
+    if (key === "evade") { ref.box.classList.remove("fx-evade", "fx-evade-fail"); void ref.box.offsetWidth; ref.box.classList.add(defWin ? "fx-evade" : "fx-evade-fail"); }
+    var pop = document.createElement("div");
+    pop.className = "react-pop " + cls;
+    pop.textContent = word;
+    ref.box.appendChild(pop);
   };
 
   // ②判定の競り合い
@@ -296,7 +331,6 @@ RPG.Battle = (function () {
     var mid = document.createElement("div"); mid.className = "clash-mid"; mid.textContent = "判定"; wrap.appendChild(mid);
     var D = side("def", "受け・" + j.stance, j.d);
     stage.appendChild(wrap);
-    var verdict = document.createElement("div"); verdict.className = "clash-verdict"; stage.appendChild(verdict);
     var note = document.createElement("div"); note.className = "clash-note"; stage.appendChild(note);
     // スコアがせり上がる
     var count = function (el, to, ms) {
@@ -319,8 +353,7 @@ RPG.Battle = (function () {
       (j.win ? D : A).el.classList.add("lose");
       self.fxAnim("spark", mid, { hostile: hostile, dur: 350 });
       if (!i2 && RPG.Sound) RPG.Sound.play("clash");
-      verdict.textContent = j.tag || (j.win ? "通った！" : j.stanceWord || "受けきった！");
-      verdict.className = "clash-verdict show " + (j.tagCls || (j.win ? "atk" : "def"));
+      self.fxReact(j);
     });
     this.later(820, function () { if (j.text) { note.textContent = j.text; note.classList.add("show"); } });
   };
@@ -724,12 +757,12 @@ RPG.Battle = (function () {
     if (first && !skill.guaranteedHit) this.fx.judge = { a: attacker.name, as: result.attackerScore, d: defender.name, ds: result.defenderScore, win: result.attackerWins, stance: stanceLabel,
       text: judgeText(stance, result, !!bonuses.defenderBonus, isBreakthrough && result.attackerWins && backline) };
     if (first && this.fx.judge) {
-      // 判定の大きな一言（カウンター成立・空振り・突破は専用の言い方）
+      // 演出で、受けた本人の枠の上に受けの結果を見せるための控え
       var jj = this.fx.judge;
-      if (result.isCounter && !result.counterMiss && !result.attackerWins) { jj.tag = "カウンター！"; jj.tagCls = "counter"; }
-      else if (result.counterMiss) { jj.tag = "空振り！"; jj.tagCls = "miss"; }
-      else if (isBreakthrough && result.attackerWins && backline) { jj.tag = "突破！"; jj.tagCls = "atk"; }
-      jj.stanceWord = { defense: "防いだ！", evade: "かわした！", hold: "止めた！", riposte: "返した！" }[stance];
+      jj.ac = attacker; jj.dc = defender; jj.stanceKey = stance;
+      jj.brokeThrough = isBreakthrough && result.attackerWins && backline;
+      jj.counterHit = !!(result.isCounter && !result.counterMiss && !result.attackerWins);
+      jj.counterMiss = !!result.counterMiss;
     }
     if (result.reflected) {
       attacker.hp = Math.max(0, attacker.hp - result.damage);

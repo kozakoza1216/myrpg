@@ -310,18 +310,33 @@ button {
 .clash-side.win .cs-score { color: #ffe08a; transform: scale(1.12); }
 .clash.hostile .clash-side.atk.win { background: #6a2418; border-color: #d06040; box-shadow: 0 0 12px rgba(255, 110, 80, 0.5); }
 .clash-side.lose { filter: brightness(0.6) saturate(0.6); }
-.clash-verdict { min-height: 1.3rem; font-size: 1.15rem; font-weight: bold; letter-spacing: 0.12em; opacity: 0; }
-.clash-verdict.show { animation: verdict-in 0.35s ease-out both; }
-.clash-verdict.atk { color: #ffd060; } .clash-verdict.def { color: #a8d0ff; }
-.clash.hostile + .clash-verdict.atk { color: #ff8a6a; }   /* 敵の攻撃が通った＝こちらには悪い知らせなので赤 */
-.clash-verdict.counter { color: #ff7a5a; font-size: 1.35rem; } .clash-verdict.miss { color: #c8b8ff; }
+/* 受け側は青。判定の欄の「受け」と、受け手の枠の目印を同じ色にして結びつける */
+.clash-side.def { border-color: #3a5070; }
+.clash-side.def .cs-role { color: #8ab0d8; }
+.clash-side.def.win { background: #1c3a5c; border-color: #6aa0e0; box-shadow: 0 0 12px rgba(120, 180, 255, 0.5); }
+.clash-side.def.win .cs-score { color: #d0e8ff; }
+.clash.hostile .clash-side.atk .cs-role { color: #e0907a; }
+/* 枠の目印：攻め手（味方は金・敵は赤）と受け手（青） */
+.role-badge { position: absolute; top: -0.6rem; left: 0.35rem; font-size: 0.62rem; font-weight: bold; line-height: 1; padding: 0.18rem 0.35rem; border-radius: 3px; z-index: 4; color: #1a120a; background: #c8a03c; animation: fx-callout 0.25s ease-out both; }
+.role-badge.hostile { background: #d06040; color: #fff0e8; }
+.role-badge.def { background: #6aa0e0; color: #0a1420; }
+.combatant-box.fx-role-def { outline: 2px solid #6aa0e0; }
+/* 受けの結果：受けた本人の枠の上端に出して、そのまま残す */
+.react-pop { position: absolute; top: -0.75rem; right: 0.3rem; white-space: nowrap; font-size: 0.85rem; font-weight: bold; padding: 0.1rem 0.5rem; border-radius: 10px; z-index: 5; background: #0e141c; border: 1px solid #6aa0e0; color: #cfe6ff; animation: react-in 0.35s ease-out both; }
+.react-pop.bad { border-color: #8a5a48; color: #f0b8a0; background: #1c1210; }
+.react-pop.counter { border-color: #ff7a5a; color: #ffd0c0; background: #3a1410; font-size: 0.95rem; }
+@keyframes react-in { 0% { opacity: 0; transform: translateY(6px) scale(1.5); } 60% { opacity: 1; transform: scale(0.95); } 100% { opacity: 1; transform: none; } }
+/* かわす：横へ身を流して戻る（かわしきれないときは途中で止まる） */
+.combatant-box.fx-evade { animation: fx-evade 0.5s ease-out; }
+.combatant-box.fx-evade-fail { animation: fx-evade-fail 0.4s ease-out; }
+@keyframes fx-evade { 0% { transform: none; box-shadow: none; } 35% { transform: translateX(22px); box-shadow: -16px 0 0 -3px rgba(168, 208, 255, 0.28); } 100% { transform: none; box-shadow: none; } }
+@keyframes fx-evade-fail { 0% { transform: none; } 40% { transform: translateX(8px); } 100% { transform: none; } }
 .clash-note { font-size: 0.78rem; color: #ffe0a0; opacity: 0; min-height: 1rem; }
 .clash-note.show { animation: fx-callout 0.3s ease-out both; }
 @keyframes clash-in-l { 0% { opacity: 0; transform: translateX(-30px); } 100% { opacity: 1; transform: none; } }
 @keyframes clash-in-r { 0% { opacity: 0; transform: translateX(30px); } 100% { opacity: 1; transform: none; } }
 @keyframes clash-bump-l { 0% { transform: none; } 35% { transform: translateX(10px); } 100% { transform: none; } }
 @keyframes clash-bump-r { 0% { transform: none; } 35% { transform: translateX(-10px); } 100% { transform: none; } }
-@keyframes verdict-in { 0% { opacity: 0; transform: scale(1.8); } 60% { opacity: 1; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
 /* 攻撃エフェクト（48×48のドットを拡大） */
 .fx-sprite { position: absolute; left: 50%; top: 50%; width: 132px; height: 132px; transform: translate(-50%, -50%); image-rendering: pixelated; image-rendering: crisp-edges; pointer-events: none; z-index: 3; }
 .fx-sprite.whiff { opacity: 0.55; transform: translate(-30%, -50%); }
