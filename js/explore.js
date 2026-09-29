@@ -441,6 +441,17 @@ RPG.Explore = (function () {
     return svg;
   };
 
+  // 正面3マス以内にまっすぐ見えている宝箱・階段・出口・扉などは、踏まなくても自動地図に記録する
+  // （壁や施錠扉の向こうは見えないので、そこで視線を止める）
+  var SEEN_RANGE = 3;
+  Dungeon.prototype.noteSeen = function () {
+    for (var d = 1; d <= SEEN_RANGE; d++) {
+      var c = this.forward(d), tile = this.tileAt(c.x, c.y);
+      if (tile === "chest" || specialKind(tile)) this.markVisited(c.x, c.y);
+      if (this.isBlocking(tile)) break;
+    }
+  };
+
   Dungeon.prototype.renderAutomap = function () {
     var size = 10;
     var minX = 0, minY = 0, maxX = 0, maxY = 0;
@@ -504,6 +515,7 @@ RPG.Explore = (function () {
 
     var mapBox = document.createElement("div");
     mapBox.className = "automap-box";
+    this.noteSeen();
     mapBox.appendChild(this.renderAutomap());
     wrap.appendChild(mapBox);
 
