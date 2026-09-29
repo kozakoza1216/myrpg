@@ -21,13 +21,25 @@ RPG.Chapter2 = (function () {
     }
     // ツェルフの好感度（PLAN §7.5-4h：−10〜+20・初期0。本筋の進行には絡まない）。
     // 一つの選択で動く量は資料に数値がないため、仮に±1とする
+    // 解散してパーティにいない間は動かない（§7.5-4h：解散後は好感度を稼ぐ手段がない）
     function affinity(d) {
+      if (F().tzelfLeft) return;
       var v = (F().affinity || 0) + d;
       F().affinity = Math.max(-10, Math.min(20, v));
     }
     // ⑤でツェルフが「……無事か」と漏らす好感度（資料は「一定以上」。仮に2）
     var DERE_AT = 2;
     function tz() { return ctx.tzelfName(); }
+    function hasTz() { return game().party.some(function (c) { return c.defId === "tzelf"; }); }
+    // ツェルフの台詞（パーティにいなければ出さない）
+    function T(text, extra) { return hasTz() ? Object.assign({ speaker: tz(), text: text }, extra || {}) : null; }
+    // ツェルフが言う台詞。いなければミラ、ミラもいなければ地の文
+    function sayTz(bg, lines) {
+      if (lines.tzelf && hasTz()) return { speaker: tz(), text: lines.tzelf, bg: bg };
+      return say(bg, { mira: lines.mira, alone: lines.alone || "" });
+    }
+    // 出さない台詞（null・文のない語り）を除く
+    function B(list) { return list.filter(function (b) { return b && (b.text || b.kind === "choice" || b.kind === "header"); }); }
 
     // ── この章の状態（セーブに含める） ──
     var st = {
@@ -291,11 +303,11 @@ RPG.Chapter2 = (function () {
         });
       };
       if (firstVisit) {
-        Story.play(app(), [
+        Story.play(app(), B([
           { kind: "header", text: "枯野", bg: "kareno" },
           say("kareno", { mira: "……木も草も、枯れてる。なのに、人がいる。", tzelf: "静かな場所だ。……竜の気配がない。", alone: "枯れ果てた野に、天幕が並んでいる。" }),
-          { speaker: tz(), text: "狩猟隊の野営だ。……面倒な連中に見つかる前に、抜けたかったんだがな。" },
-        ], go);
+          T("狩猟隊の野営だ。……面倒な連中に見つかる前に、抜けたかったんだがな。"),
+        ]), go);
         return;
       }
       go();
@@ -305,39 +317,118 @@ RPG.Chapter2 = (function () {
     function captainRoom(next) {
       if (!F().metSharla) {
         F().metSharla = true;
-        Story.play(app(), [
+        Story.play(app(), B([
           { kind: "header", text: "隊長室", bg: "captain" },
           { kind: "choice", speaker: "シャルラ", text: "あら、どうかした？", options: ["力を貸して", "頼みたいことが", "……"] },
           { speaker: "シャルラ", text: "分かったわ……と、言いたいところだけど、仕事が忙しくてね。" },
-          { speaker: "シャルラ", text: "東区狩猟隊の隊長、シャルラよ。……で、そっちの鳥人は？　うちの隊の者じゃないわね。" },
-          { speaker: tz(), text: "……名乗る筋合いはない。" },
-          { speaker: "ミラ", text: "ツェルフ、よ。私はミラ。こっちはセオ。灰縁の集落から……追い出されてきたの。" },
+          hasTz() ? { speaker: "シャルラ", text: "東区狩猟隊の隊長、シャルラよ。……で、そっちの鳥人は？　うちの隊の者じゃないわね。" }
+            : { speaker: "シャルラ", text: "東区狩猟隊の隊長、シャルラよ。……で、あなたたちは？　見ない顔ね。" },
+          T("……名乗る筋合いはない。"),
+          hasTz() ? { speaker: "ミラ", text: "ツェルフ、よ。私はミラ。こっちはセオ。灰縁の集落から……追い出されてきたの。" }
+            : { speaker: "ミラ", text: "私はミラ。こっちはセオ。灰縁の集落から……追い出されてきたの。" },
           { speaker: "シャルラ", text: "そう。ここは竜が命を吸い尽くして去った跡だから、竜も戻ってこない。休みたくなったら、いつでもいらっしゃい。" },
-        ], next);
+        ]), next);
         return;
       }
-      var opts = ["休む", "話す"], canAsk = F().owlRumor && !F().arwaHint;
-      if (canAsk) opts.push("梟の魔女のこと");
-      opts.push("出る");
-      Story.play(app(), [{ kind: "choice", speaker: "シャルラ", bg: "captain", text: "あら、どうかした？", options: opts }], function (c) {
-        var pick = opts[c];
-        if (pick === "休む") { ctx.restAt("captain", "restCaptain", next); return; }
+      var extras = ["話す"];
+      if (F().owlRumor && !F().arwaHint) extras.push("梟の魔女のこと");
+      baseMenu({ bg: "captain", restFlag: "restCaptain", speaker: "シャルラ", prompt: "あら、どうかした？", extras: extras, onExtra: function (pick, done) {
         if (pick === "話す") {
-          Story.play(app(), [{ speaker: "シャルラ", bg: "captain", text: "旧管理者の施設跡？　灰の谷を抜けた先ね。あそこは竜の寝床に近い。……無茶はしないことね。" }], next);
+          Story.play(app(), [{ speaker: "シャルラ", bg: "captain", text: "旧管理者の施設跡？　灰の谷を抜けた先ね。あそこは竜の寝床に近い。……無茶はしないことね。" }], done);
           return;
         }
-        if (pick === "梟の魔女のこと") {
-          // ⑦の心当たり：梟の魔女＝義姉アルワ（攻略チャート第二章【道中の寄り道】）
-          F().arwaHint = true;
-          Story.play(app(), [
-            { speaker: "シャルラ", bg: "captain", text: "梟の魔女？　……ああ、それ義姉さんのことね。" },
-            { speaker: "シャルラ", text: "生きてるなら、昔いた場所にいるんじゃない。……もう長いこと、会ってないけどね。" },
-            say("captain", { mira: "義姉さん……。", tzelf: "……そうか。", alone: "" }),
-          ].filter(function (b) { return b.text; }), next);
+        // ⑦の心当たり：梟の魔女＝義姉アルワ（攻略チャート第二章【道中の寄り道】）
+        F().arwaHint = true;
+        Story.play(app(), B([
+          { speaker: "シャルラ", bg: "captain", text: "梟の魔女？　……ああ、それ義姉さんのことね。" },
+          { speaker: "シャルラ", text: "生きてるなら、昔いた場所にいるんじゃない。……もう長いこと、会ってないけどね。" },
+          say("captain", { mira: "義姉さん……。", tzelf: "……そうか。", alone: "" }),
+        ]), done);
+      } }, next);
+    }
+
+    // ── 拠点の共通メニュー：休む／ツェルフと話す／ツェルフを外す・呼ぶ（PLAN §7.5-4h） ──
+    // o：{ bg, restFlag（休むと立つファストトラベル登録の印）, speaker, prompt, extras, onExtra(pick, done), afterRest(done), leave }
+    function baseMenu(o, next) {
+      var joined = F().ch2Joined, list = ["休む"];
+      if (joined && hasTz() && F().tzTalkReady) list.push("ツェルフと話す");
+      (o.extras || []).forEach(function (x) { list.push(x); });
+      if (joined && hasTz()) list.push("ツェルフを外す");
+      if (joined && !hasTz() && F().tzelfLeft) list.push("ツェルフを呼ぶ");
+      list.push(o.leave || "出る");
+      Story.play(app(), [{ kind: "choice", speaker: o.speaker || "", bg: o.bg, text: o.prompt || "", options: list }], function (c) {
+        var pick = list[c];
+        if (pick === "休む") {
+          ctx.restAt(o.bg, o.restFlag, function () { F().tzTalkReady = true; if (o.afterRest) o.afterRest(next); else next(); });
           return;
         }
+        if (pick === "ツェルフと話す") { tzelfTalk(o.bg, next); return; }
+        if (pick === "ツェルフを外す") { dismissTzelf(o.bg, next); return; }
+        if (pick === "ツェルフを呼ぶ") { recallTzelf(o.bg, next); return; }
+        if (o.extras && o.extras.indexOf(pick) >= 0) { o.onExtra(pick, next); return; }
         next();
       });
+    }
+
+    // ツェルフと話す（扉①：話しかけ続ける・気遣う選択を重ねると好感度が芽生える）。休むたびに一度だけ。
+    // 上がる＝背伸びしない素直な選択・突き放されても引き止める・気遣い／下がる＝地雷（過去に土足・同情・道具扱い・
+    // 竜を殺すと言う・恩に着せる）と背伸びした宣言（§7.5-4h）。一つの選択で動く量は仮に±1
+    var TZ_TALKS = [
+      { lead: [{ speaker: "ミラ", text: "ツェルフって、いつから一人で旅してるの？" }], text: "……さあな。数えるのはやめた。",
+        options: ["大変だったな", "俺たちも似たようなもんだ", "昔の話、聞かせろよ"], deltas: [-1, 1, -1],
+        replies: ["……同情なら要らん。", "……そうか。", "……詮索するな。"] },
+      { lead: [], text: "お前、剣の握りが甘い。……それでよく祭壇まで来たな。",
+        options: ["教えてくれ", "余計なお世話だ", "一人でも勝てた"], deltas: [1, 0, -1],
+        replies: ["……握りは、こうだ。二度は言わん。", "そうか。なら好きにしろ。", "……本気で言ってるのか、それ。"] },
+      { lead: [{ speaker: "ミラ", text: "ねえ……竜って、本当に倒せないの？" }], text: "…………。",
+        options: ["いつか倒してみせる", "倒さずに済む道を探す", "……"], deltas: [-1, 1, 0],
+        replies: ["……軽々しく言うな。", "……ああ。それでいい。", "……。"] },
+      { lead: [{ speaker: "ミラ", text: "さっき、一人で先に行ったでしょ。……もう知らない。" }, { speakerTz: true, text: "…???" }], text: "……何を怒っている。",
+        options: ["ミラは心配してたんだ", "気にするな", "俺たちがいなきゃ危なかったぞ"], deltas: [1, 0, -1],
+        replies: ["……ハッ。……そういうことか。", "……そうか。", "……恩を売るつもりか。"] },
+      { lead: [], text: "錠を開ける腕が要るなら言え。……それだけの付き合いだろう。",
+        options: ["それだけじゃない", "頼りにしてる", "便利な奴だな"], deltas: [1, 0, -1],
+        replies: ["……っ。……勝手にしろ。", "……ああ。", "……そうか。道具なら、道具らしく使え。"] },
+    ];
+    function tzelfTalk(bg, next) {
+      F().tzTalkReady = false;
+      var n = F().tzTalkN || 0, t = TZ_TALKS[n];
+      if (!t) { Story.play(app(), [{ speaker: tz(), bg: bg, text: "……話すことはない。寝ろ。" }], next); return; }
+      F().tzTalkN = n + 1;
+      var lead = t.lead.map(function (b) { return b.speakerTz ? { speaker: tz(), text: b.text } : b; });
+      if (lead.length) lead[0] = Object.assign({ bg: bg }, lead[0]);
+      Story.play(app(), lead.concat([{ kind: "choice", speaker: tz(), bg: lead.length ? undefined : bg, text: t.text, options: t.options }]), function (c) {
+        affinity(t.deltas[c]);
+        Story.play(app(), [{ speaker: tz(), text: t.replies[c] }], next);
+      });
+    }
+    // 解散（§7.5-4h）：好感度−5。解散中は好感度が動かない。呼び戻せるのは好感度0以上のときだけ
+    function dismissTzelf(bg, next) {
+      Story.play(app(), [{ kind: "choice", bg: bg, text: "ツェルフをパーティから外す？", options: ["外す", "やめておく"] }], function (c) {
+        if (c !== 0) { next(); return; }
+        affinity(-5);
+        var g = game(), me = g.party.filter(function (x) { return x.defId === "tzelf"; })[0];
+        g.party = g.party.filter(function (x) { return x !== me; });
+        g.reserve = (g.reserve || []).concat([me]);
+        F().tzelfLeft = true;
+        Story.play(app(), B([
+          { speaker: tz(), text: "……そうか。利害が一致しなくなった、ということだな。" },
+          say(bg, { mira: "ツェルフ……。", alone: "" }),
+          { kind: "narration", text: "（ツェルフがパーティを離れた）" },
+        ]), next);
+      });
+    }
+    function recallTzelf(bg, next) {
+      if ((F().affinity || 0) < 0) {
+        Story.play(app(), B([say(bg, { mira: "……来ない、ね。", alone: "" }), { kind: "narration", text: "（ツェルフは戻ってこなかった）" }]), next);
+        return;
+      }
+      var g = game(), me = (g.reserve || []).filter(function (x) { return x.defId === "tzelf"; })[0];
+      if (!me) { next(); return; }
+      g.reserve = g.reserve.filter(function (x) { return x !== me; });
+      g.party.push(me);
+      F().tzelfLeft = false;
+      Story.play(app(), [{ speaker: tz(), bg: bg, text: "……呼んだか。まあいい。" }, { kind: "narration", text: "（ツェルフがパーティに戻った）" }], next);
     }
 
     // ── 灯の集落 ──
@@ -367,26 +458,23 @@ RPG.Chapter2 = (function () {
       go();
     }
     function inn(next) {
-      Story.play(app(), [{ kind: "choice", speaker: "宿の主人", bg: "inn", text: "泊まっていくかい。", options: ["休む", "やめておく"] }], function (c) {
-        if (c !== 0) { next(); return; }
-        ctx.restAt("inn", "restInn", function () {
-          if (F().innNight) { next(); return; }
-          F().innNight = true;
-          // 扉①：道中で気遣う選択（好感度）
-          Story.play(app(), [
-            say("inn", { mira: "……すぅ……。", alone: "" }),
-            { kind: "choice", speaker: tz(), bg: "inn", text: "……寝ておけ。見張りは俺がやる。", options: ["交代で見張ろう", "頼んだ", "信用できるか"] },
-          ].filter(function (b) { return b.text || b.kind === "choice"; }), function (c2) {
-            var lines = [
-              [{ speaker: tz(), bg: "inn", text: "……物好きな奴だ。先に寝ろ。起こしてやる。" }],
-              [{ speaker: tz(), bg: "inn", text: "ああ。" }],
-              [{ speaker: tz(), bg: "inn", text: "なら、自分で起きていろ。" }],
-            ];
-            affinity(c2 === 0 ? 1 : c2 === 2 ? -1 : 0);
-            Story.play(app(), lines[c2], next);
-          });
+      baseMenu({ bg: "inn", restFlag: "restInn", speaker: "宿の主人", prompt: "泊まっていくかい。", leave: "やめておく", afterRest: function (done) {
+        if (F().innNight || !hasTz()) { done(); return; }
+        F().innNight = true;
+        // 扉①：道中で気遣う選択（好感度）
+        Story.play(app(), B([
+          say("inn", { mira: "……すぅ……。", alone: "" }),
+          { kind: "choice", speaker: tz(), bg: "inn", text: "……寝ておけ。見張りは俺がやる。", options: ["交代で見張ろう", "頼んだ", "信用できるか"] },
+        ]), function (c2) {
+          var lines = [
+            [{ speaker: tz(), bg: "inn", text: "……物好きな奴だ。先に寝ろ。起こしてやる。" }],
+            [{ speaker: tz(), bg: "inn", text: "ああ。" }],
+            [{ speaker: tz(), bg: "inn", text: "なら、自分で起きていろ。" }],
+          ];
+          affinity(c2 === 0 ? 1 : c2 === 2 ? -1 : 0);
+          Story.play(app(), lines[c2], done);
         });
-      });
+      } }, next);
     }
     function hall(next) {
       if (F().truths && F().truths.T3) {
@@ -400,8 +488,8 @@ RPG.Chapter2 = (function () {
         { speaker: "古老", text: "その碑か。鳥人は滅んだと、皆は言うがな。わしの祖父は違うと言うとった。" },
         { speaker: "古老", text: "死んだんじゃない。竜のもとへ還ったんだ、と。……わずかに、還らずに残った者もおる、ともな。" },
         say("hall", { mira: "……還った……？", alone: "" }),
-        { speaker: tz(), text: "……昔話だ。" },
-      ].filter(function (b) { return b.text; }).concat(gainTruth("T3")), next);
+        T("……昔話だ。"),
+      ].filter(function (b) { return b && b.text; }).concat(gainTruth("T3")), next);
     }
     function farmer(next) {
       if (F().truths && F().truths.T2) {
@@ -446,7 +534,7 @@ RPG.Chapter2 = (function () {
             });
           },
         });
-        if (firstVisit) a.playScene(valleyEntryScene, function (c) {
+        if (firstVisit && hasTz()) a.playScene(valleyEntryScene, function (c) {
           affinity(c === 0 ? 1 : c === 2 ? -1 : 0);
         });
       };
@@ -486,6 +574,19 @@ RPG.Chapter2 = (function () {
       ], function () {
         fight(["dragon_kin"], "竜の眷属", function () {
           var dere = (F().affinity || 0) >= DERE_AT;
+          if (!hasTz()) {
+            // ツェルフがいない：シャルラが助けに来る
+            Story.play(app(), [
+              { kind: "header", text: "灰の谷の深部", bg: "valley" },
+              { speaker: "シャルラ", text: "下がって！　——狩猟隊、囲め！" },
+              { kind: "narration", text: "眷属は灰の中へ沈み、気配が遠のいていった。" },
+              { speaker: "シャルラ", text: "間に合った……。こんな所まで二人で来るなんて、無茶するわね。" },
+              { speaker: "ミラ", text: "……ありがとう、シャルラさん。" },
+              { kind: "choice", speaker: "ミラ", text: "……セオ？　そんな顔、しないでよ。私、ちゃんとここにいるから。", options: ["もう二度と、失わない", "……"] },
+              { speaker: "ミラ", text: "……うん。" },
+            ], function () { area.render(); });
+            return;
+          }
           var beats = [
             { kind: "header", text: "灰の谷の深部", bg: "valley" },
             { speaker: tz(), text: "……下がっていろ。こいつは、人の手に負える相手じゃない。" },
@@ -521,10 +622,10 @@ RPG.Chapter2 = (function () {
       Story.play(app(), [
         say("valley", { mira: "……何か、灰に埋もれてる。竜の眷属……？　動かない……。", tzelf: "……眷属の成れの果てだ。", alone: "灰に埋もれた、竜の眷属の骸だ。" }),
         say("valley", { mira: "これ……羽じゃない？　眷属なのに、鳥人みたいな……。", alone: "崩れかけた体に、羽の形が残っている。" }),
-        { speaker: tz(), text: "…………" },
-        say("valley", { mira: "ツェルフ？", alone: "" }),
-        { speaker: tz(), text: "……触るな。行くぞ。" },
-      ].filter(function (b) { return b.text; }).concat(gainTruth("T4")), next);
+        T("…………"),
+        hasTz() ? say("valley", { mira: "ツェルフ？", alone: "" }) : null,
+        T("……触るな。行くぞ。"),
+      ].filter(function (b) { return b && b.text; }).concat(gainTruth("T4")), next);
     }
 
     // ── アーカイブ（擬似3D） ──
@@ -571,7 +672,7 @@ RPG.Chapter2 = (function () {
       if (firstVisit) {
         Story.play(app(), [
           { kind: "header", text: "アーカイブ", bg: "archive" },
-          { speaker: tz(), text: "ここだ。旧管理者の施設跡……。" },
+          sayTz("archive", { tzelf: "ここだ。旧管理者の施設跡……。", mira: "ここが、旧管理者の施設跡……。", alone: "旧管理者の施設跡だ。" }),
           say("archive", { mira: "中に、まだ明かりが残ってる……。千年前の建物なのに。", alone: "" }),
         ].filter(function (b) { return b.text; }), go);
         return;
@@ -600,7 +701,7 @@ RPG.Chapter2 = (function () {
         if (F().keeperDown) { dungeon.render(); return; }
         Story.play(app(), [
           { kind: "header", text: "記録庫", bg: "archive" },
-          { speaker: tz(), text: "……動いている。千年、ここを守り続けてきたのか。" },
+          sayTz("archive", { tzelf: "……動いている。千年、ここを守り続けてきたのか。", mira: "……動いてる。ずっと、ここを守ってるの……？", alone: "何かが動いている。" }),
           say("archive", { mira: "来る……！", alone: "" }),
         ].filter(function (b) { return b.text; }), function () {
           ctx.runBattle(["archive_keeper"], "書庫番", false, function () {
@@ -616,21 +717,21 @@ RPG.Chapter2 = (function () {
       var beats = [
         { kind: "header", text: "記録庫", bg: "archive" },
         { kind: "narration", text: "端末に、かすれた文字が残っている。「竜を鎮める術、記録になし。ただし——“真の名”に鍵あり」" },
-        { speaker: tz(), text: "……決定的な答えは、ない。" },
-        say("archive", { mira: "真の名……？", alone: "" }),
-        { speaker: tz(), text: "名を持つ者の、本当の名だ。……それが何なのかまでは、書いていない。" },
+        sayTz("archive", { tzelf: "……決定的な答えは、ない。", mira: "竜を止める方法は……書いてない、か。", alone: "" }),
+        hasTz() ? say("archive", { mira: "真の名……？", alone: "" }) : null,
+        sayTz("archive", { tzelf: "名を持つ者の、本当の名だ。……それが何なのかまでは、書いていない。", mira: "真の名……。誰かの、本当の名前ってこと……？", alone: "" }),
       ];
       if (F().arwaHint) {
         F().ch2End = "main";
         beats = beats.concat([
           say("archive", { mira: "真の名……。シャルラさんの言ってた“梟の魔女”なら、知ってるかも。", alone: "" }),
-          { speaker: tz(), text: "昔の住処、か。……行ってみる価値はある。" },
+          sayTz("archive", { tzelf: "昔の住処、か。……行ってみる価値はある。", alone: "" }),
         ]);
       } else {
         F().ch2End = "alt";
-        beats = beats.concat([{ speaker: tz(), text: "特に収穫なかったな。どうする。" }]);
+        beats = beats.concat([sayTz("archive", { tzelf: "特に収穫なかったな。どうする。", mira: "……手がかり、ここで途切れちゃったね。どうしよう。", alone: "" })]);
       }
-      Story.play(app(), beats.filter(function (b) { return b.text; }), function () { ctx.chapterEnd(); });
+      Story.play(app(), B(beats), function () { ctx.chapterEnd(); });
     }
 
     // ── ①同行の成立（第一章の外縁・追放直後） ──
@@ -680,6 +781,7 @@ RPG.Chapter2 = (function () {
         ][c];
         affinity(c === 0 ? 1 : c === 2 ? -1 : 0);
         F().ch2Joined = true;
+        F().tzTalkReady = true;
         Story.play(app(), react.concat([
           { speaker: "ミラ", text: "決まりね。……で、その施設跡って、どっち？" },
           { speaker: tz(), text: "廃区画を抜けて、枯野の先だ。灯の集落を通って、灰の谷を越える。" },
@@ -719,7 +821,7 @@ RPG.Chapter2 = (function () {
 
     RPG.Chapter2.AREAS = { kareno: KARENO_AREA, tomoshi: TOMOSHI_AREA, valley: VALLEY_AREA, archive: ARCHIVE_FLOORS };
     return {
-      begin: begin, extendWorld: extendWorld, outskirtsExtra: outskirtsExtra, handles: function (id) { return !!IDS[id]; }, enterPlace: enterPlace,
+      begin: begin, extendWorld: extendWorld, outskirtsExtra: outskirtsExtra, baseMenu: baseMenu, handles: function (id) { return !!IDS[id]; }, enterPlace: enterPlace,
       snapshot: snapshot, restore: restore, resumeSaved: resumeSaved, placeLabel: placeLabel, handlesPlace: handlesPlace,
     };
   }

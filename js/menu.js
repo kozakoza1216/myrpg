@@ -12,10 +12,13 @@ RPG.Save = (function () {
     try { window.localStorage.setItem(KEY, JSON.stringify(data)); return true; } catch (e) { return false; }
   }
   // 戦闘キャラの状態は、元データから作り直せない部分（HP・MP・覚えた技）だけを残す
+  function packMember(c) { return { defId: c.defId, level: c.level, exp: c.exp, hp: c.hp, mp: c.mp, skills: c.skills.slice(), row: c.row || null }; }
   function packGame(game) {
     return {
       steps: game.steps, stepLimit: game.stepLimit,
-      party: game.party.map(function (c) { return { defId: c.defId, level: c.level, exp: c.exp, hp: c.hp, mp: c.mp, skills: c.skills.slice(), row: c.row || null }; }),
+      party: game.party.map(packMember),
+      // パーティから外れている仲間（ツェルフの解散中など）
+      reserve: (game.reserve || []).map(packMember),
       companions: game.companions.slice(), flags: Object.assign({}, game.flags), items: Object.assign({}, game.items || {}),
       crit: game.crit ? JSON.parse(JSON.stringify(game.crit)) : null,
       encounterIn: game.encounterIn || 0,
@@ -37,16 +40,18 @@ RPG.Save = (function () {
     });
     return base;
   }
+  function unpackMember(m) {
+    var c = RPG.Battle.createCombatant(m.defId, false);
+    if (m.level) { RPG.Battle.setLevel(c, m.level); c.exp = m.exp; }
+    c.hp = Math.min(m.hp, c.maxHp); c.mp = Math.min(m.mp, c.maxMp); c.skills = migrateSkills(m);
+    if (m.row) c.row = m.row;
+    return c;
+  }
   function unpackGame(p) {
     return {
       steps: p.steps, stepLimit: p.stepLimit,
-      party: p.party.map(function (m) {
-        var c = RPG.Battle.createCombatant(m.defId, false);
-        if (m.level) { RPG.Battle.setLevel(c, m.level); c.exp = m.exp; }
-        c.hp = Math.min(m.hp, c.maxHp); c.mp = Math.min(m.mp, c.maxMp); c.skills = migrateSkills(m);
-        if (m.row) c.row = m.row;
-        return c;
-      }),
+      party: p.party.map(unpackMember),
+      reserve: (p.reserve || []).map(unpackMember),
       companions: p.companions.slice(), flags: Object.assign({}, p.flags), items: Object.assign({}, p.items || {}),
       crit: p.crit ? RPG.Data.upgradeSeed(JSON.parse(JSON.stringify(p.crit))) : RPG.Data.newSeed(),
       encounterIn: p.encounterIn || 0,
@@ -147,8 +152,23 @@ RPG.Menu = (function () {
           grid.appendChild(div("menu-stat-val", String(c.stats[s[0]])));
         });
         card.appendChild(grid);
+        if (c.defId === "tzelf" && (game.chapter || 1) >= 2) card.appendChild(affinityRow());
         body.appendChild(card);
       });
+      // 解散して、いまパーティにいないツェルフ
+      (game.reserve || []).forEach(function (c) {
+        if (c.defId !== "tzelf") return;
+        var card = div("menu-card");
+        card.appendChild(div("menu-name", c.name + "　Lv " + c.level + "（パーティを離れている）"));
+        card.appendChild(affinityRow());
+        body.appendChild(card);
+      });
+    }
+    // ツェルフの好感度（PLAN §7.5-4h：−10〜+20・0が中立。マイナスは「嫌い」の領域）
+    function affinityRow() {
+      var v = (game.flags && game.flags.affinity) || 0;
+      var feel = v <= -5 ? "嫌われている" : v < 0 ? "距離を置かれている" : v < 5 ? "中立" : v < 10 ? "少し打ち解けた" : v < 15 ? "信頼されている" : "深く信頼されている";
+      return div("menu-row-sub", "好感度 " + v + "（" + feel + "）");
     }
 
     function renderSkills(body) {

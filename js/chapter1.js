@@ -324,7 +324,7 @@ RPG.Chapter1 = (function () {
   function tzelfName() { return game.flags && game.flags.named ? "ツェルフ" : "灰色の鳥人"; }
   // 戦闘やメニューに出る名前も、名乗るまでは「灰色の鳥人」（PLAN §7.5-7 で初めて名が付く）
   function syncTzelfName() {
-    game.party.forEach(function (c) { if (c.defId === "tzelf") c.name = tzelfName(); });
+    game.party.concat(game.reserve || []).forEach(function (c) { if (c.defId === "tzelf") c.name = tzelfName(); });
   }
   function say(bg, lines) {
     // lines：{ mira, tzelf, alone }。居る者の台詞を選ぶ
@@ -761,10 +761,13 @@ RPG.Chapter1 = (function () {
     Story.play(app, beats, next);
   }
   function onCamp(next) {
-    Story.play(app, [
-      say("ruins", { mira: "焚き火の跡……。誰かがここで野営してたのね。", tzelf: "焚き火の跡だ。休むならここだな。", alone: "焚き火の跡がある。誰かが野営していたらしい。" }),
-      { kind: "choice", options: ["休む", "先を急ぐ"] },
-    ], function (c) { if (c === 0) restAt("ruins", "restCamp", next); else next(); });
+    var line = say("ruins", { mira: "焚き火の跡……。誰かがここで野営してたのね。", tzelf: "焚き火の跡だ。休むならここだな。", alone: "焚き火の跡がある。誰かが野営していたらしい。" });
+    // 第二章からは、ほかの拠点と同じメニュー（ツェルフと話す・外す／呼ぶ）
+    if ((game.chapter || 1) >= 2 && chapter2()) {
+      Story.play(app, [line], function () { ch2.baseMenu({ bg: "ruins", restFlag: "restCamp", leave: "先を急ぐ" }, next); });
+      return;
+    }
+    Story.play(app, [line, { kind: "choice", options: ["休む", "先を急ぐ"] }], function (c) { if (c === 0) restAt("ruins", "restCamp", next); else next(); });
   }
 
   // 崩れた壁をどかした後の下層の地図（壁の瓦礫を除いた設計図。地形は設計図ごとに一度だけ作られるので、別に持つ）
