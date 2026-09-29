@@ -146,6 +146,8 @@ RPG.Data = (function () {
       // 技：ツインスラッシュ／ソニックウェーブ／デア・レーゲン（PLAN §5-2）。レベルが上がると順に覚える。
       // 覚えるレベルは資料にないため、Lv1〜20に散らして置く（Lv5＝第二章の途中、Lv10＝第三章の目安、Lv15＝第四章以降の切り札）
       learnset: [{ lv: 5, skill: "twin_slash" }, { lv: 10, skill: "sonic_wave" }, { lv: 15, skill: "der_regen" }],
+      // 探索技能（PLAN §5-2・探索個性は一人一個）：解錠＝体内に隠した解錠具で物理的な錠前をこじ開ける
+      exploreSkill: "unlock",
       canCounter: false,
       picto: { bodyColor: "#6e6c68", headColor: "#8e8b86", beakColor: "#e0b040" },
     },

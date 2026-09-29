@@ -771,20 +771,22 @@ RPG.Chapter1 = (function () {
     });
   }
 
-  // 施錠扉：ツェルフがいれば解錠でこじ開ける（難度1＝時間5・PLAN §8-3b の「難度×5÷個性保持人数」）。
-  // いなければ開かない（西の遠回りで祭壇へ行ける）
+  // 施錠扉：解錠の技能を持つ仲間がいれば開ける（第一章ではツェルフだけ）。
+  // かかる時間は「難度×5÷解錠を持つ人数」（端数切り上げ・PLAN §8-3b）。祭壇の扉は難度1（攻略チャート第一章⑧）。
+  // 誰が開けても同じ場面になるよう、台詞ではなく地の文で「〇〇は鍵を開けた。」とだけ出す（開けるのは解錠を持つ先頭の仲間）。
+  // 誰もいなければ開かない（西へ回れば祭壇へ行ける）
+  var LOCK_DIFFICULTY = { altar: 1 };
   function onDungeonLocked(id, dungeon, x, y) {
     var key = x + "," + y;
-    if (!hasTzelf()) {
+    var pickers = game.party.filter(function (c) { return (Data.CHARACTERS[c.defId] || {}).exploreSkill === "unlock"; });
+    if (!pickers.length) {
       Story.play(app, [{ kind: "narration", bg: "shrine", text: "扉には錠が下りている。びくともしない。" }], function () { shrineDungeon.render(); });
       return;
     }
-    Story.play(app, [
-      { speaker: tzelfName(), bg: "shrine", text: "錠か。……下がっていろ。" },
-      { speaker: tzelfName(), text: "……開いた。" },
-    ], function () {
+    var cost = Math.ceil((LOCK_DIFFICULTY[id] || 1) * 5 / pickers.length);
+    Story.play(app, [{ kind: "narration", bg: "shrine", text: pickers[0].name + "は鍵を開けた。" }], function () {
       shrineTaken[shrineFloorId][key] = true;
-      game.steps += 5;
+      game.steps += cost;
       var here = { x: dungeon.x, y: dungeon.y, dir: dungeon.dir };
       var reenter = function () { enterShrineFloor(shrineFloorId, here); };
       if (Explore.checkTimeUp(game, reenter)) return;
