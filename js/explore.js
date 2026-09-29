@@ -164,7 +164,7 @@ RPG.Explore = (function () {
     var tile = this.tileAt(target.x, target.y);
     if (tile === "chest") {
       this.data.grid[target.y][target.x] = "floor";
-      if (this.cb.onChest) this.cb.onChest();
+      if (this.cb.onChest) this.cb.onChest(target.x, target.y);
       return;
     }
     if (typeof tile === "string" && tile.indexOf("npc:") === 0) {
@@ -369,6 +369,7 @@ RPG.Explore = (function () {
       else if (typeof tile === "string" && tile.indexOf("event:") === 0) color = "#c85040";
       else if (typeof tile === "string" && tile.indexOf("stairs:") === 0) color = "#5090c8";
       else if (tile === "exit") color = "#60c880";
+      else if (typeof tile === "string" && tile.indexOf("locked") === 0) color = "#a06a30";
       svg.appendChild(el("rect", {
         x: (parts[0] - minX) * size, y: (parts[1] - minY) * size, width: size - 1, height: size - 1, fill: color,
       }));
