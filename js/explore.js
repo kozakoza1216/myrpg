@@ -115,7 +115,18 @@ RPG.Explore = (function () {
   }
 
   Dungeon.prototype.step = function (backward) {
-    var target = this.forward(backward ? -1 : 1);
+    var v = DIRS[backward ? (this.dir + 2) % 4 : this.dir];
+    if (backward && this.touchTile(this.x + v.dx, this.y + v.dy)) return;
+    this.stepTo(this.x + v.dx, this.y + v.dy, backward ? "step-back" : "step-fwd");
+  };
+  // 向きを変えずに、左右へ一歩（side：-1＝左、1＝右）。前へ進むときと同じく、宝箱・扉にはそのまま触れる
+  Dungeon.prototype.strafe = function (side) {
+    var v = DIRS[(this.dir + (side < 0 ? 3 : 1)) % 4], x = this.x + v.dx, y = this.y + v.dy;
+    if (this.touchTile(x, y)) return;
+    this.stepTo(x, y, side < 0 ? "step-left" : "step-right");
+  };
+  Dungeon.prototype.stepTo = function (tx, ty, action) {
+    var target = { x: tx, y: ty };
     var tile = this.tileAt(target.x, target.y);
     if (this.isBlocking(tile)) {
       this.flash("壁に阻まれた。");
@@ -124,7 +135,7 @@ RPG.Explore = (function () {
     this.x = target.x; this.y = target.y;
     this.markVisited(this.x, this.y);
     this.game.steps += 1;
-    this.lastAction = backward ? "step-back" : "step-fwd";
+    this.lastAction = action;
     var selfD = this;
     if (checkTimeUp(this.game, function () { selfD.render(); })) return;
     var leftScreen = this.onEnterTile(tile);
@@ -161,21 +172,26 @@ RPG.Explore = (function () {
 
   Dungeon.prototype.interactFront = function () {
     var target = this.forward(1);
-    var tile = this.tileAt(target.x, target.y);
+    if (this.touchTile(target.x, target.y)) return;
+    this.step(false);
+  };
+  // 隣のマスの宝箱・人・施錠扉に触れる（触れたら true。歩いては入らない）
+  Dungeon.prototype.touchTile = function (x, y) {
+    var tile = this.tileAt(x, y);
     if (tile === "chest") {
-      this.data.grid[target.y][target.x] = "floor";
-      if (this.cb.onChest) this.cb.onChest(target.x, target.y);
-      return;
+      this.data.grid[y][x] = "floor";
+      if (this.cb.onChest) this.cb.onChest(x, y);
+      return true;
     }
     if (typeof tile === "string" && tile.indexOf("npc:") === 0) {
       if (this.cb.onNpc) this.cb.onNpc(tile.slice(4));
-      return;
+      return true;
     }
     if (typeof tile === "string" && tile.indexOf("locked:") === 0) {
-      if (this.cb.onLocked) this.cb.onLocked(tile.slice(7), this);
-      return;
+      if (this.cb.onLocked) this.cb.onLocked(tile.slice(7), this, x, y);
+      return true;
     }
-    this.step(false);
+    return false;
   };
 
   // 脇の開口部の先を実際に何マス覗けるか調べる（上限PEEK_MAXまで）
@@ -450,8 +466,11 @@ RPG.Explore = (function () {
         x: (parts[0] - minX) * size, y: (parts[1] - minY) * size, width: size - 1, height: size - 1, fill: color,
       }));
     });
-    svg.appendChild(el("circle", {
-      cx: (this.x - minX) * size + size / 2, cy: (this.y - minY) * size + size / 2, r: 3, fill: "#e04030",
+    // 自分の位置は、向いている方角を指す矢印で示す
+    var px = (this.x - minX) * size + size / 2, py = (this.y - minY) * size + size / 2;
+    svg.appendChild(el("polygon", {
+      points: [px, py - 4.6, px + 3.8, py + 3.8, px, py + 1.6, px - 3.8, py + 3.8].join(" "),
+      fill: "#f04830", stroke: "#1a0c08", "stroke-width": 0.8, transform: "rotate(" + this.dir * 90 + " " + px + " " + py + ")",
     }));
     return svg;
   };
@@ -490,10 +509,13 @@ RPG.Explore = (function () {
 
     var controls = document.createElement("div");
     controls.className = "dungeon-controls";
+    // 上の段：向きを変える・前へ　下の段：向きを変えずに左・後ろ・右へ
     controls.appendChild(ctrlBtn("↺", function () { self.turn(-1); }));
     controls.appendChild(ctrlBtn("▲ 進む", function () { self.interactFront(); }));
     controls.appendChild(ctrlBtn("↻", function () { self.turn(1); }));
+    controls.appendChild(ctrlBtn("◀ 左へ", function () { self.strafe(-1); }));
     controls.appendChild(ctrlBtn("▼ 戻る", function () { self.step(true); }));
+    controls.appendChild(ctrlBtn("右へ ▶", function () { self.strafe(1); }));
     wrap.appendChild(controls);
     appendMenuButton(wrap, this.cb);
 

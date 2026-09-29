@@ -773,8 +773,8 @@ RPG.Chapter1 = (function () {
 
   // 施錠扉：ツェルフがいれば解錠でこじ開ける（難度1＝時間5・PLAN §8-3b の「難度×5÷個性保持人数」）。
   // いなければ開かない（西の遠回りで祭壇へ行ける）
-  function onDungeonLocked(id, dungeon) {
-    var fx = dungeon.forward(1), key = fx.x + "," + fx.y;
+  function onDungeonLocked(id, dungeon, x, y) {
+    var key = x + "," + y;
     if (!hasTzelf()) {
       Story.play(app, [{ kind: "narration", bg: "shrine", text: "扉には錠が下りている。びくともしない。" }], function () { shrineDungeon.render(); });
       return;

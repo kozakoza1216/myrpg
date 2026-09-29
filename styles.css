@@ -148,10 +148,15 @@ button {
 @keyframes dscene-bump { 0% { transform: translateX(0); } 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-3px); } 100% { transform: translateX(0); } }
 .dungeon-scene.act-step-fwd { animation: dscene-fwd 0.18s ease-out; }
 .dungeon-scene.act-step-back { animation: dscene-back 0.18s ease-out; }
+@keyframes dscene-left { from { opacity: 0.5; transform: translateX(-7%); } to { opacity: 1; transform: none; } }
+@keyframes dscene-right { from { opacity: 0.5; transform: translateX(7%); } to { opacity: 1; transform: none; } }
+.dungeon-scene.act-step-left { animation: dscene-left 0.18s ease-out; }
+.dungeon-scene.act-step-right { animation: dscene-right 0.18s ease-out; }
 .dungeon-scene.act-bump { animation: dscene-bump 0.3s ease-out; }
 .dungeon-msg { color: #e0a040; font-size: 0.9rem; }
 .automap-box { background: #100c08; border: 1px solid var(--border); padding: 4px; }
-.dungeon-controls { display: flex; gap: 0.5rem; align-items: center; }
+.dungeon-controls { display: grid; grid-template-columns: repeat(3, minmax(4.6rem, 1fr)); gap: 0.45rem; align-items: stretch; }
+.dungeon-controls button { margin: 0; }
 .worldmap { width: 100%; max-width: 420px; border: 1px solid var(--border); border-radius: 6px; background: #1a1612; }
 .fast-travel-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.45rem; }
 .fast-travel-controls .prompt { width: 100%; text-align: center; margin: 0; }
