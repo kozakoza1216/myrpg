@@ -222,6 +222,65 @@ RPG.Explore = (function () {
     }));
   }
 
+  // 行き止まりに見えないよう、出口・階段・イベントの部屋・施錠扉は、そのマスの手前の面に
+  // 壁と扉（または階段の口）を描く。f はその面の枠（奥行きごとの frames の一つ）
+  function specialKind(tile) {
+    if (typeof tile !== "string") return null;
+    if (tile === "exit") return "exit";
+    if (tile.indexOf("locked") === 0) return "locked";
+    if (tile.indexOf("event:") === 0) return "altar";
+    if (tile === "stairs:ground" || tile === "stairs:upper") return "up";
+    if (tile.indexOf("stairs:") === 0) return "down";
+    return null;
+  }
+  function drawDoorFace(svg, f, kind) {
+    var fw = f.r - f.l, fh = f.b - f.t, sw = Math.max(1, fw / 140);
+    svg.appendChild(el("polygon", {
+      points: [f.l, f.t, f.r, f.t, f.r, f.b, f.l, f.b].join(" "),
+      fill: "#5c5446", stroke: "#201c16", "stroke-width": 1.5,
+    }));
+    var w = fw * (kind === "altar" ? 0.46 : 0.36), h = fh * 0.8, x = (f.l + f.r) / 2 - w / 2, y = f.b - h, cx = x + w / 2;
+    // 上が丸いアーチ形の口
+    var arch = "M" + x + "," + f.b + " L" + x + "," + (y + w / 2) + " A" + (w / 2) + "," + (w / 2) + " 0 0 1 " + (x + w) + "," + (y + w / 2) + " L" + (x + w) + "," + f.b + " Z";
+    if (kind === "exit") {
+      // 外へ開いた戸口：外の光が差し込む
+      svg.appendChild(el("path", { d: arch, fill: "#d8cca0", stroke: "#2a241c", "stroke-width": sw * 2 }));
+      svg.appendChild(el("path", { d: arch, fill: "#fff6d8", opacity: 0.35, transform: "translate(" + cx + "," + f.b + ") scale(0.7) translate(" + (-cx) + "," + (-f.b) + ")" }));
+      svg.appendChild(el("polygon", { points: [x, f.b, x + w, f.b, x + w + w * 0.5, f.b + fh * 0.12, x - w * 0.5, f.b + fh * 0.12].join(" "), fill: "#d8cca0", opacity: 0.18 }));
+    } else if (kind === "up" || kind === "down") {
+      // 階段の口：上り（手前から奥へ段が上がり、明るくなる）／下り（段が奥の暗がりへ沈む）
+      svg.appendChild(el("path", { d: arch, fill: "#0e0c0a", stroke: "#2a241c", "stroke-width": sw * 2 }));
+      var n = 5;
+      for (var i = 0; i < n; i++) {
+        var k = i / n, sh = h * 0.1;
+        if (kind === "down") {
+          var sy = f.b - sh * (i + 1) * 0.9, inset = w * 0.06 * i;
+          svg.appendChild(el("rect", { x: x + inset + sw, y: sy, width: w - inset * 2 - sw * 2, height: sh * 0.55, fill: "#7a6e58", opacity: 0.85 - k * 0.7 }));
+        } else {
+          var uy = f.b - sh * (i + 1) * 1.25, inset2 = w * 0.05 * i;
+          svg.appendChild(el("rect", { x: x + inset2 + sw, y: uy, width: w - inset2 * 2 - sw * 2, height: sh * 0.5, fill: "#9a8e74", opacity: 0.35 + k * 0.5 }));
+          svg.appendChild(el("rect", { x: x + inset2 + sw, y: uy + sh * 0.5, width: w - inset2 * 2 - sw * 2, height: sh * 0.75, fill: "#3a3228", opacity: 0.9 }));
+        }
+      }
+    } else if (kind === "altar") {
+      // 祭壇の間の大扉：赤い両開き、金の縁取り
+      svg.appendChild(el("path", { d: arch, fill: "#5a2620", stroke: "#c8a050", "stroke-width": sw * 2.2 }));
+      svg.appendChild(el("line", { x1: cx, y1: y + w * 0.12, x2: cx, y2: f.b, stroke: "#c8a050", "stroke-width": sw * 1.4 }));
+      svg.appendChild(el("circle", { cx: cx - w * 0.1, cy: y + h * 0.58, r: sw * 2.2, fill: "#c8a050" }));
+      svg.appendChild(el("circle", { cx: cx + w * 0.1, cy: y + h * 0.58, r: sw * 2.2, fill: "#c8a050" }));
+      svg.appendChild(el("path", { d: "M" + (cx - w * 0.16) + "," + (y + h * 0.3) + " L" + cx + "," + (y + h * 0.18) + " L" + (cx + w * 0.16) + "," + (y + h * 0.3), fill: "none", stroke: "#c8a050", "stroke-width": sw * 1.4 }));
+    } else if (kind === "locked") {
+      // 施錠扉：鉄の帯と錠前
+      svg.appendChild(el("path", { d: arch, fill: "#3e3226", stroke: "#1a140e", "stroke-width": sw * 2 }));
+      [0.35, 0.72].forEach(function (r) {
+        svg.appendChild(el("rect", { x: x, y: y + h * r, width: w, height: sw * 3, fill: "#6a6a66" }));
+      });
+      var lx = cx, ly = y + h * 0.52, lw = w * 0.2;
+      svg.appendChild(el("path", { d: "M" + (lx - lw * 0.3) + "," + ly + " L" + (lx - lw * 0.3) + "," + (ly - lw * 0.35) + " A" + (lw * 0.3) + "," + (lw * 0.3) + " 0 0 1 " + (lx + lw * 0.3) + "," + (ly - lw * 0.35) + " L" + (lx + lw * 0.3) + "," + ly, fill: "none", stroke: "#c89050", "stroke-width": sw * 1.6 }));
+      svg.appendChild(el("rect", { x: lx - lw / 2, y: ly, width: lw, height: lw * 0.8, fill: "#c89050", stroke: "#402c14", "stroke-width": sw }));
+    }
+  }
+
   // ── 擬似3D描画 ──
   Dungeon.prototype.renderScene = function () {
     // 直前の操作（前進/後退/旋回/衝突）に応じたアニメーションを毎回付け直すことで、
@@ -271,7 +330,9 @@ RPG.Explore = (function () {
       // 色は周りの側壁（#4a4438／#5a5244）と同じ系統の色みに揃える。
       // 以前は暖色寄りの明るい色（#6a6050）を使っていたため、
       // 同じ壁のはずなのに正面だけ別の材質に見えてしまっていた。
-      svg.appendChild(el("polygon", {
+      var blockedKind = specialKind(this.tileAt(this.forward(blockedAt).x, this.forward(blockedAt).y));
+      if (blockedKind) drawDoorFace(svg, bf0, blockedKind);
+      else svg.appendChild(el("polygon", {
         points: [bf0.l, bf0.t, bf0.r, bf0.t, bf0.r, bf0.b, bf0.l, bf0.b].join(" "),
         fill: "#5c5446", stroke: "#201c16", "stroke-width": 1.5,
       }));
@@ -286,6 +347,11 @@ RPG.Explore = (function () {
     var loopStart = blockedAt >= 0 ? blockedAt - 1 : maxDepth;
     for (var depth = loopStart; depth >= 0; depth--) {
       var f0 = frames[depth], f1 = frames[depth + 1];
+      var cellNext = this.forward(depth + 1);
+      if (depth + 1 < blockedAt || blockedAt < 0) {
+        var nextKind = specialKind(this.tileAt(cellNext.x, cellNext.y));
+        if (nextKind && nextKind !== "locked") drawDoorFace(svg, f1, nextKind);
+      }
       var cellHere = this.forward(depth);
       var rv = this.right();
 
@@ -340,10 +406,6 @@ RPG.Explore = (function () {
     } else if (typeof frontTile === "string" && frontTile.indexOf("npc:") === 0) {
       svg.appendChild(el("circle", { cx: cx, cy: symFrame.b - 34, r: 10, fill: "#e8dcc8" }));
       svg.appendChild(el("polygon", { points: [cx - 10, symFrame.b - 24, cx + 10, symFrame.b - 24, cx, symFrame.b].join(" "), fill: "#5b7a9d" }));
-    } else if (typeof frontTile === "string" && frontTile.indexOf("locked") === 0) {
-      svg.appendChild(el("rect", { x: cx - 12, y: symFrame.t + 6, width: 24, height: (symFrame.b - symFrame.t) - 12, fill: "#3a3228", stroke: "#c89050", "stroke-width": 2 }));
-    } else if (frontTile === "exit") {
-      svg.appendChild(el("rect", { x: symFrame.l, y: symFrame.t, width: symFrame.r - symFrame.l, height: symFrame.b - symFrame.t, fill: "#d8c898", opacity: 0.5 }));
     }
 
     return svg;

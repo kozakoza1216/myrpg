@@ -792,6 +792,11 @@ RPG.Chapter1 = (function () {
       Story.play(app, [say("shrine", { tzelf: "儀式の間は崩れて埋まっている。……もう誰もいない。", alone: "儀式の間は、瓦礫に埋もれていた。" })], function () { shrineDungeon.render(); });
       return;
     }
+    // カガリを倒した後に祭壇の間へ入り直しても、戦いは繰り返さない
+    if (id === "kagari" && game.flags.kagariDefeated) {
+      Story.play(app, [say("shrine", { mira: "……もうここに用はないよ。行こう。", tzelf: "長居は無用だ。", alone: "祭壇の間は静まり返っている。" })], function () { shrineDungeon.render(); });
+      return;
+    }
     if (id === "kagari") {
       Story.play(app, kagariPreBeats, function () {
         runBattle(["kagari"], "祭司カガリ", false, afterKagari);
