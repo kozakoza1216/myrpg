@@ -131,6 +131,10 @@ RPG.Data = (function () {
     // 書庫番（アーカイブの管理機構・bosses.md）。アクセス制限（魔力封印型）は魔力封印の仕組みがまだないので載せていない
     keeper_index: { name: "索引撃", category: "attack", attribute: "physical", mp: 0, power: 1.7, techBonus: 30, isMagic: false },
     keeper_beam: { name: "検索光線", category: "attack", attribute: "magic", mp: 0, power: 2.0, techBonus: 20, isMagic: true },
+    // 灰色竜（bosses.md）：薙ぎ払い・灰塵の咆哮（広範囲の大技）・外皮再生（HP50%以下で1回、最大HPの15%）
+    gd_sweep: { name: "薙ぎ払い", category: "attack", attribute: "physical", mp: 0, power: 2.0, techBonus: 20, isMagic: false, area: true },
+    gd_roar: { name: "灰塵の咆哮", category: "attack", attribute: "magic", mp: 0, power: 2.8, techBonus: -30, isMagic: true, area: true },
+    gd_regen: { name: "外皮再生", category: "special", attribute: "none", mp: 0, selfHealPercent: 0.15, usesLimit: 1 },
   });
 
   // ノーマル遠距離攻撃：弓を装備しているときだけ使える（弓がないと、この行動そのものができない。遠距離の「技」は弓がなくても使える）
@@ -145,7 +149,7 @@ RPG.Data = (function () {
     kagari_staff: "near", kagari_chant: "all", kin_power_strike: "near", kin_sweep: "near",
     e_knockdown: "near", e_double: "near", e_vital: "near", e_poison_arrow: "far", e_fire: "all", e_thunder: "all",
     e_chain: "near", e_frozen: "all", e_acid: "near", e_dark_pulse: "all", e_gehenna: "all", e_ash_charge: "near", e_fang_charge: "near",
-    keeper_index: "near", keeper_beam: "all",
+    keeper_index: "near", keeper_beam: "all", gd_sweep: "near", gd_roar: "all",
   };
   Object.keys(RANGE).forEach(function (id) { SKILLS[id].range = RANGE[id]; });
 
@@ -236,6 +240,14 @@ RPG.Data = (function () {
       skills: ["keeper_index", "keeper_beam"],
       picto: { bodyColor: "#4a5a6a", headColor: "#8aa0b0" },
     },
+    // 灰色竜・灰の谷エンカウント版（bosses.md：最終章版の2倍＋調整。判定力だけ0.6倍）。
+    // 探索中にシードの率で出会う。倒す相手ではなく、逃げる／撃退してやり過ごす
+    grey_dragon_valley: {
+      id: "grey_dragon_valley", exp: 0, name: "灰色竜", isBoss: true, canCounter: true, counterSkillId: "gd_sweep", judgeMul: 0.6,
+      stats: { hp: 5000, atk: 180, def: 100, spd: 136, mag: 152, men: 164, tec: 168, luck: 100 },
+      skills: ["gd_sweep", "gd_roar", "gd_regen"],
+      picto: { bodyColor: "#6a6a6a", headColor: "#8a8a8a", isAnimal: true },
+    },
     kagari: {
       id: "kagari", exp: 350, name: "カガリ", isBoss: true,
       stats: { hp: 300, atk: 60, def: 32, spd: 55, mag: 40, men: 32, tec: 62, luck: 50 },
@@ -287,12 +299,49 @@ RPG.Data = (function () {
     crystal_defense_stance: { name: "防御姿勢の記憶結晶", desc: "使うと〈防御姿勢〉を覚える。", learn: "defense_stance" },
   };
 
-  // ── 単一シード（PLAN §8-5b）：いまはクリティカル周期だけを使う（パーティ全体の累計攻撃回数で何回目に出るか）。
-  // シード0〜9の周期は設計書のサンプル表のまま。新しく始めたとき・全滅したときに引き直し、ロードでは復元する（§4-11）
-  var CRIT_PERIODS = [22, 33, 42, 32, 37, 42, 20, 25, 30, 37];
-  function newSeed() {
-    var seed = Math.floor(Math.random() * CRIT_PERIODS.length);
-    return { seed: seed, period: CRIT_PERIODS[seed], count: 0 };
+  // ── 単一シード（PLAN §8-5b）：ゲームの揺らぎを一つのシードが統べる。シードが決めるのは次の5つだけ
+  //   ①灰色竜のエンカウント率（一歩ごと）②ミラの全体小回復の発動率（1ターンごと）③フウィムの喀血の周期
+  //   ④ランダム出現NPC ⑤クリティカルの周期（パーティ全体の累計攻撃回数）
+  // 値は設計書のサンプル表（シード0〜9）のまま。新しく始めたとき・拠点で休んだとき・灰色竜から逃げた／撃退したとき・
+  // 全滅からやり直すときに引き直す（ロードでは復元）。引き直すと、周期を数えるカウンターも0に戻る。
+  // 率で決まる①②も、シードと「何回目の判定か」から決まる擬似乱数で判定する＝同じシード・同じカウンターなら結果も同じ
+  var DRAGON_RATE = { "極小": 0.001, "小": 0.003, "中": 0.006, "大": 0.010, "特大": 0.020 };
+  var MIRA_RATE = { "極小": 0.02, "小": 0.04, "中": 0.07, "大": 0.12, "特大": 0.20 };
+  var SEED_TABLE = [
+    { dragon: "中", mira: "大", cough: 10, npcs: [4, 8, 9], crit: 22 },
+    { dragon: "大", mira: "小", cough: 11, npcs: [1, 3, 6], crit: 33 },
+    { dragon: "特大", mira: "中", cough: 11, npcs: [2, 5, 7], crit: 42 },
+    { dragon: "小", mira: "中", cough: 11, npcs: [1, 3, 6], crit: 32 },
+    { dragon: "小", mira: "中", cough: 12, npcs: [2, 5, 9], crit: 37 },
+    { dragon: "大", mira: "小", cough: 26, npcs: [4, 5, 8], crit: 42 },
+    { dragon: "大", mira: "中", cough: 15, npcs: [7, 8, 9], crit: 20 },
+    { dragon: "極小", mira: "特大", cough: 30, npcs: [3, 5, 7], crit: 25 },
+    { dragon: "特大", mira: "中", cough: 15, npcs: [1, 6, 8], crit: 30 },
+    { dragon: "中", mira: "中", cough: 15, npcs: [2, 4], crit: 37 },
+  ];
+  // シードの状態（セーブに入る）。period/count はクリティカルの周期とカウンター（以前の版と同じ名前）
+  function seedState(n) {
+    var t = SEED_TABLE[n];
+    return { seed: n, period: t.crit, count: 0, dragonRate: DRAGON_RATE[t.dragon], miraRate: MIRA_RATE[t.mira],
+      coughPeriod: t.cough, coughCount: 0, npcs: t.npcs.slice(), dragonN: 0, miraN: 0 };
+  }
+  function newSeed() { return seedState(Math.floor(Math.random() * SEED_TABLE.length)); }
+  // 以前の版の記録（クリティカルの周期しか持たない）を、同じシード番号の全要素に広げる（カウンターは持ち越す）
+  function upgradeSeed(sd) {
+    if (!sd || sd.seed === undefined || !SEED_TABLE[sd.seed]) return newSeed();
+    if (sd.dragonRate !== undefined) return sd;
+    var full = seedState(sd.seed);
+    full.count = sd.count || 0;
+    return full;
+  }
+  // シードと判定の回数から決まる 0〜1 の値（kind：dragon／mira）。呼ぶたびにその判定のカウンターが1進む
+  var KIND_SALT = { dragon: 0x9e3779b1, mira: 0x85ebca77 };
+  function seedRoll(sd, kind) {
+    var key = kind + "N";
+    sd[key] = (sd[key] || 0) + 1;
+    var h = (Math.imul(sd.seed + 1, 0x27d4eb2d) ^ Math.imul(sd[key], 0x165667b1) ^ (KIND_SALT[kind] || 0)) >>> 0;
+    h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d); h = Math.imul(h ^ (h >>> 12), 0x297a2d39); h ^= h >>> 15;
+    return (h >>> 0) / 4294967296;
   }
 
   // ── レベルと経験値（PLAN.md「経験値テーブル」、全キャラステータス一覧「レベル成長仕様」） ──
@@ -362,5 +411,5 @@ RPG.Data = (function () {
 
   return { SKILLS: SKILLS, TRUTHS: TRUTHS, TRUTH_ORDER: TRUTH_ORDER, CHARACTERS: CHARACTERS, ENEMIES: ENEMIES, ITEMS: ITEMS, cloneStats: cloneStats,
     useHealItem: useHealItem, healNeeded: healNeeded,
-    MAX_LEVEL: MAX_LEVEL, expForLevel: expForLevel, levelForExp: levelForExp, statsAt: statsAt, skillsAt: skillsAt, expRate: expRate, strengthRate: strengthRate, newSeed: newSeed };
+    MAX_LEVEL: MAX_LEVEL, expForLevel: expForLevel, levelForExp: levelForExp, statsAt: statsAt, skillsAt: skillsAt, expRate: expRate, strengthRate: strengthRate, newSeed: newSeed, upgradeSeed: upgradeSeed, seedRoll: seedRoll, SEED_TABLE: SEED_TABLE };
 })();

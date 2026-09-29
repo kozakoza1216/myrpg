@@ -17,7 +17,7 @@ RPG.Save = (function () {
       steps: game.steps, stepLimit: game.stepLimit,
       party: game.party.map(function (c) { return { defId: c.defId, level: c.level, exp: c.exp, hp: c.hp, mp: c.mp, skills: c.skills.slice(), row: c.row || null }; }),
       companions: game.companions.slice(), flags: Object.assign({}, game.flags), items: Object.assign({}, game.items || {}),
-      crit: game.crit ? Object.assign({}, game.crit) : null,
+      crit: game.crit ? JSON.parse(JSON.stringify(game.crit)) : null,
       encounterIn: game.encounterIn || 0,
       chapter: game.chapter || 1,
     };
@@ -48,7 +48,7 @@ RPG.Save = (function () {
         return c;
       }),
       companions: p.companions.slice(), flags: Object.assign({}, p.flags), items: Object.assign({}, p.items || {}),
-      crit: p.crit ? Object.assign({}, p.crit) : RPG.Data.newSeed(),
+      crit: p.crit ? RPG.Data.upgradeSeed(JSON.parse(JSON.stringify(p.crit))) : RPG.Data.newSeed(),
       encounterIn: p.encounterIn || 0,
       chapter: p.chapter || 1,
     };

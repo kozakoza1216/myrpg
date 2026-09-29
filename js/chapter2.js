@@ -156,6 +156,7 @@ RPG.Chapter2 = (function () {
     // 東へそれた「谷の奥」に、灰化しかけた竜の眷属が埋もれている（扉⑤・T4）。竜血の眷属が番をしている
     var VALLEY_AREA = {
       label: "灰の谷",
+      dragonZone: true,   // 灰色竜エンカあり（PLAN 推奨レベル表・§8-5c：屋外の危険地帯）
       start: { tx: 3, ty: 40 },
       entryPoints: { tomoshi: { tx: 3, ty: 40 }, archive: { tx: 36, ty: 3 } },
       symbols: [

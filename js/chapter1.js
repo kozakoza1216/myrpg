@@ -346,8 +346,43 @@ RPG.Chapter1 = (function () {
     return ch2;
   }
 
+  // ── 灰色竜のランダムエンカウント（PLAN §8-5b）：屋外を移動した歩数ぶん、シードの率で判定する ──
+  // 竜の姿を初めて見る第一章⑨までは出さない（第二章から）。時間切れの後も出さない（竜はもう活性化している）
+  function dragonHook(n, cont) {
+    if ((game.chapter || 1) < 2 || timeUp() || !game.crit || game.crit.dragonRate === undefined) return false;
+    for (var i = 0; i < n; i++) {
+      if (RPG.Data.seedRoll(game.crit, "dragon") < game.crit.dragonRate) { dragonEncounter(cont); return true; }
+    }
+    return false;
+  }
+  // 灰色竜に出くわした：逃げる／立ち向かう。どちらでやり過ごしても、シードが引き直される（§8-5b）
+  function dragonEncounter(cont) {
+    var reseed = function () { game.crit = RPG.Data.newSeed(); };
+    Story.play(app, [
+      { kind: "header", text: "灰色竜", bg: "dragon", fx: "shake" },
+      say("dragon", { mira: "……っ、あの影……！　灰色竜……！", tzelf: "灰色竜だ。……気づかれたか。", alone: "灰色竜の影が、頭上を覆った。" }),
+      hasTzelf() ? { kind: "choice", speaker: tzelfName(), text: "逃げるぞ。……それとも、やる気か。", options: ["逃げる", "立ち向かう"] }
+        : { kind: "choice", options: ["逃げる", "立ち向かう"] },
+    ], function (c) {
+      if (c === 1) {
+        // 灰の谷版の灰色竜（bosses.md）。第二章の戦力では届かない壁＝返り討ちが普通。勝てば撃退（引き継ぎエンドは準備中）
+        runBattle(["grey_dragon_valley"], "灰色竜", false, function () {
+          reseed();
+          Story.play(app, [{ kind: "narration", bg: "dragon", text: "灰色竜は翼を広げ、灰の空へ去っていった。" }], cont);
+        }, null, "dragon");
+        return;
+      }
+      reseed();
+      Story.play(app, [
+        say("dragon", { tzelf: "走れ！　振り返るな！", mira: "走って……！", alone: "" }),
+        { kind: "narration", bg: "dragon", text: "灰の中を駆け抜け、竜の影を振り切った。" },
+      ].filter(function (b) { return b.text; }), cont);
+    });
+  }
+
   function run(appEl, gameState, endCallback) {
     app = appEl; game = gameState; onChapterEnd = endCallback;
+    Explore.setDragonHook(dragonHook);
     game.onTimeUp = onTimeUp;
     Story.play(app, wakeBeats, function () { enterVillage(); villageArea.playScene(openingScene); });
   }
@@ -513,6 +548,8 @@ RPG.Chapter1 = (function () {
   // セーブした場所から再開する
   function resume(appEl, gameState, snap, endCallback) {
     app = appEl; game = gameState; onChapterEnd = endCallback;
+    Explore.setDragonHook(dragonHook);
+    game.crit = RPG.Data.upgradeSeed(game.crit);
     game.onTimeUp = onTimeUp;
     syncTzelfName();
     villageTaken = snap.villageTaken || {};
@@ -1006,7 +1043,7 @@ RPG.Chapter1 = (function () {
       if (!lines.length) { next(); return; }
       // レベルアップと技の習得は、枠を光らせて目立たせる
       Story.play(app, lines.map(function (t) { return { kind: "narration", text: t, emph: /レベル\d+になった|を覚えた/.test(t) }; }), next);
-    }, Object.assign({ items: game.items, crit: game.crit, eventEnd: eventEnd, strength: RPG.Data.strengthRate(game.steps, game.stepLimit), bg: bg || (place && BATTLE_BG[place.kind]) || null }, extra || {}));
+    }, Object.assign({ items: game.items, crit: game.crit, mira: hasMira(), eventEnd: eventEnd, strength: RPG.Data.strengthRate(game.steps, game.stepLimit), bg: bg || (place && BATTLE_BG[place.kind]) || null }, extra || {}));
   }
 
   // 全滅：記録から再開するか、タイトルへ戻る。やり直すときはシードを引き直す（§4-11）

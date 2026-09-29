@@ -61,14 +61,15 @@ RPG.Engine = (function () {
   function resolveJudgment(attacker, skill, defender, defStance, bonuses) {
     bonuses = bonuses || {};
     var atkKind = skill.category === "breakthrough" ? "breakthrough" : "attack";
-    var atkBase = judgeValue(attacker.stats, atkKind, skill.isMagic, attacker.spdMul) * (bonuses.judgeMult || 1) + (skill.techBonus || 0) + (bonuses.attackerBonus || 0) - (attacker.scoreDebuff || 0);
+    // judgeMul：その者の判定力の倍率（灰色竜の灰の谷版は0.6。ダメージには効かない）
+    var atkBase = judgeValue(attacker.stats, atkKind, skill.isMagic, attacker.spdMul) * (bonuses.judgeMult || 1) * (attacker.judgeMul || 1) + (skill.techBonus || 0) + (bonuses.attackerBonus || 0) - (attacker.scoreDebuff || 0);
 
     var isCounter = defStance === "counter" || defStance === "breakthroughCounter";
     // 逆のカウンターは成立せず、攻め側の行動がそのまま通る。
     var counterMiss = (defStance === "counter" && atkKind === "breakthrough") ||
       (defStance === "breakthroughCounter" && atkKind === "attack");
     var defKind = isCounter ? atkKind : defStance; // カウンターは攻撃側と同じ判定式を使う
-    var defBase = judgeValue(defender.stats, defKind, false, defender.spdMul) + (bonuses.defenderBonus || 0) - (defender.scoreDebuff || 0);
+    var defBase = judgeValue(defender.stats, defKind, false, defender.spdMul) * (defender.judgeMul || 1) + (bonuses.defenderBonus || 0) - (defender.scoreDebuff || 0);
     if (isCounter) defBase += 20; // 後出しボーナス（§7-2 大前提1d・検証済み値）
 
     // 受動（防御・回避・足止め）は攻め側と同じ属性として扱う（PLAN §4-3：竜の極大魔法vs回避に同属性の×0.75を掛けている）。

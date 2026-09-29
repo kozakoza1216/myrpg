@@ -99,6 +99,12 @@ RPG.Explore = (function () {
     game.onTimeUp(cont);
     return true;
   }
+  // 灰色竜のエンカウント（PLAN §8-5b・§8-5c）：屋外を歩いた歩数ぶん、シードの率で判定する。
+  // 判定と遭遇の場面は章の側（setDragonHook）に任せる。遭遇したら true を返し、cont で元の流れへ戻る
+  var dragonHook = null;
+  function setDragonHook(fn) { dragonHook = fn; }
+  function dragonCheck(game, n, cont) { return dragonHook ? !!dragonHook(n, cont) : false; }
+
   function stepsText(game) {
     return "歩数 " + game.steps + " / " + game.stepLimit + (game.flags && game.flags.timeUp ? "（時間切れ）" : "");
   }
@@ -721,6 +727,8 @@ RPG.Explore = (function () {
       self.render();
     };
     if (checkTimeUp(this.game, go)) return;
+    // 広域の移動は屋外＝灰色竜に出くわすことがある（PLAN §8-5c）
+    if (dragonCheck(this.game, cost, go)) return;
     go();
   };
 
@@ -2515,6 +2523,15 @@ RPG.Explore = (function () {
     this._walkDist += moved;
     this.updateHudAndPlayer();
     this.checkZone(this.pos.x, this.pos.y);
+    // 灰色竜の出る危険地帯（灰の谷など・data.dragonZone）では、歩いた1タイルごとに灰色竜の判定をする
+    if (this.data.dragonZone && this._kbAttached && !this.scene) {
+      this._drAcc = (this._drAcc || 0) + moved;
+      while (this._drAcc >= TILE) {
+        this._drAcc -= TILE;
+        var selfDr = this;
+        if (dragonCheck(this.game, 1, function () { selfDr.render(); })) { this._drAcc = 0; this.detachKeyboard(); this._walkTarget = null; return; }
+      }
+    }
     // 安全地帯（data.safe）以外では、歩いた1タイルごとにエンカウントを数える。目印に入って画面が変わった時は数えない。
     // シンボルエンカウントの場所（data.symbols がある）では数えない
     if (this.data.safe || this.data.symbols || !this.cb.onEncounter || !this._kbAttached) return;
@@ -2862,9 +2879,12 @@ RPG.Explore = (function () {
     // 広域マップの経路と同じ考え方：移動距離ではなく、その区画を踏破した分の
     // 固定歩数をここでまとめて消費する（ノードの経路にsteps値を持たせるのと同じ形）。
     if (zone.kind === "exit") {
-      this.game.steps += zone.steps === undefined ? 15 : zone.steps;
+      var travel = zone.steps === undefined ? 15 : zone.steps;
+      this.game.steps += travel;
       var exitTo = function () { if (self.cb.onExit) self.cb.onExit(zone.to); };
       if (checkTimeUp(this.game, exitTo)) return;
+      // 場所から場所への移動（広域の移動）は屋外＝灰色竜に出くわすことがある（PLAN §8-5c）
+      if (!zone.noDragon && dragonCheck(this.game, travel, exitTo)) return;
       exitTo();
       return;
     }
@@ -3054,5 +3074,5 @@ RPG.Explore = (function () {
     return f;
   }
 
-  return { start: start, startWorldMap: startWorldMap, createWorldMap: createWorldMap, startFreeArea: startFreeArea, checkTimeUp: checkTimeUp };
+  return { start: start, startWorldMap: startWorldMap, createWorldMap: createWorldMap, startFreeArea: startFreeArea, checkTimeUp: checkTimeUp, setDragonHook: setDragonHook };
 })();

@@ -12,7 +12,7 @@ RPG.Battle = (function () {
     var maxHp = isEnemy ? stats.hp : stats.hp * 4;
     var maxMp = stats.mag + stats.men;
     return {
-      defId: defId, name: src.name, isEnemy: isEnemy, isBoss: !!src.isBoss,
+      defId: defId, name: src.name, isEnemy: isEnemy, isBoss: !!src.isBoss, judgeMul: src.judgeMul || 1,
       isBirdPerson: !!src.isBirdPerson, birdType: src.birdType, picto: src.picto,
       stats: stats, maxHp: maxHp, hp: maxHp, maxMp: isEnemy ? 0 : maxMp, mp: isEnemy ? 0 : maxMp,
       skills: isEnemy ? src.skills.slice() : Data.skillsAt(defId, level), canCounter: !!src.canCounter, counterSkillId: src.counterSkillId,
@@ -125,6 +125,8 @@ RPG.Battle = (function () {
     this.party = party;
     this.items = opts.items || null;
     this.crit = opts.crit || { period: 15 + Math.floor(Math.random() * 26), count: 0 };
+    // opts.mira：ミラが同行している（非戦闘。1ターンごとに、シードの率で全体小回復が自動で発動する・PLAN §5-2／§8-5b）
+    this.mira = !!opts.mira;
     this.eventEnd = opts.eventEnd || null;
     // opts.bg：背景にする場所の絵（会話場面の絵の名前。RPG.Scenes）
     this.bg = opts.bg || null;
@@ -176,9 +178,10 @@ RPG.Battle = (function () {
   State.prototype.continueFx = function () {
     if (this.phase !== "fx") return;
     this.clearFxTimers();
-    var actor = this.fxActor;
-    this.fx = null; this.fxActor = null;
+    var actor = this.fxActor, then = this._fxThen;
+    this.fx = null; this.fxActor = null; this._fxThen = null;
     if (this.el.classList && this.el.classList.remove) this.el.classList.remove("fx-instant", "fx-phase");
+    if (then) { then(); return; }
     this.endTurn(actor);
   };
 
@@ -467,6 +470,26 @@ RPG.Battle = (function () {
     return ready[0];
   };
 
+  // ミラの全体小回復：味方の手番が来るたび（＝1ターン）に一度、シードの率で判定する。
+  // 回復量は資料に数値がないため、仮に最大HPの10%
+  var MIRA_HEAL = 0.1;
+  State.prototype.miraHeal = function () {
+    if (!this.mira || this.crit.miraRate === undefined) return false;
+    if (RPG.Data.seedRoll(this.crit, "mira") >= this.crit.miraRate) return false;
+    var self = this, healed = false;
+    this.fxReset();
+    this.fx.title = "ミラの手当て";
+    this.party.forEach(function (c) {
+      if (c.defeated || c.hp >= c.maxHp) return;
+      var h = Math.min(c.maxHp - c.hp, Math.max(1, Math.round(c.maxHp * MIRA_HEAL)));
+      c.hp += h; healed = true;
+      self.fxMark(c, "heal", h);
+    });
+    if (healed) this.pushLog(["ミラが手当てをした。味方のHPが回復した。"]);
+    else this.fx = null;
+    return healed;
+  };
+
   State.prototype.startLoop = function () {
     this.phase = "idle";
     this.advanceTurn();
@@ -483,9 +506,16 @@ RPG.Battle = (function () {
     if (ready.isEnemy) {
       this.enemyActs(ready);
     } else {
-      this.pending = { actor: ready };
-      this.phase = "playerAct";
-      this.render();
+      var self = this;
+      var start = function () { self.pending = { actor: ready }; self.phase = "playerAct"; self.render(); };
+      // ミラの手当てが出たら、その演出を見せてから、この味方の手番に入る
+      if (this.miraHeal()) {
+        this._fxThen = start;
+        this.phase = "fx"; this.fxActor = null; this.fxShownAt = Date.now(); this.fxDone = false;
+        this.render(); this.runFx();
+        return;
+      }
+      start();
     }
   };
 
@@ -571,6 +601,10 @@ RPG.Battle = (function () {
   };
 
   State.prototype.pickEnemySkill = function (enemy) {
+    if (enemy.defId === "grey_dragon_valley") {
+      if (enemy.hp <= enemy.maxHp * 0.5 && this.canUse(enemy, "gd_regen")) return "gd_regen";
+      return Math.random() < 0.3 ? "gd_roar" : "gd_sweep";
+    }
     if (enemy.defId === "kagari") {
       var hpRatio = enemy.hp / enemy.maxHp;
       if (hpRatio <= 0.3 && this.canUse(enemy, "kagari_offering")) return "kagari_offering";
