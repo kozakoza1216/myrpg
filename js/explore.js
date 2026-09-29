@@ -281,11 +281,18 @@ RPG.Explore = (function () {
     }
   }
 
-  // 宝箱：そのマスの手前の縁に置く（大きさは奥行きに合わせる。目の前のときは以前と同じ28×18）
+  // 宝箱：そのマスの手前の縁に置く。遠くの扉や階段の口と同じくらい目に付くよう、
+  // 大きさは枠の幅に比例させ（扉の口より一回り小さいくらい）、金の錠前と縁取りで床から浮かせる
   function drawChest(svg, f) {
-    var k = (f.r - f.l) / 260, cx = (f.l + f.r) / 2, w = 28 * k, h = 18 * k;
-    svg.appendChild(el("rect", { x: cx - w / 2, y: f.b - h - 2 * k, width: w, height: h, fill: "#b08040", stroke: "#402c14", "stroke-width": Math.max(1, 2 * k) }));
-    svg.appendChild(el("rect", { x: cx - w / 2, y: f.b - h - 2 * k, width: w, height: h * 0.35, fill: "#8a6030", opacity: 0.8 }));
+    var fw = f.r - f.l, cx = (f.l + f.r) / 2, w = fw * 0.3, h = w * 0.6, sw = Math.max(1, fw / 140);
+    var x = cx - w / 2, y = f.b - h - fw * 0.01;
+    svg.appendChild(el("ellipse", { cx: cx, cy: f.b, rx: w * 0.62, ry: h * 0.14, fill: "#000", opacity: 0.35 }));
+    svg.appendChild(el("rect", { x: x, y: y, width: w, height: h, fill: "#a8743a", stroke: "#3a2610", "stroke-width": sw * 1.5 }));
+    svg.appendChild(el("rect", { x: x, y: y, width: w, height: h * 0.38, fill: "#c08a48", stroke: "#3a2610", "stroke-width": sw }));
+    [0.18, 0.82].forEach(function (r) {
+      svg.appendChild(el("rect", { x: x + w * r - w * 0.04, y: y, width: w * 0.08, height: h, fill: "#d8b050", opacity: 0.9 }));
+    });
+    svg.appendChild(el("rect", { x: cx - w * 0.07, y: y + h * 0.3, width: w * 0.14, height: h * 0.24, fill: "#f0d070", stroke: "#3a2610", "stroke-width": sw * 0.8 }));
   }
 
   // ── 擬似3D描画 ──
