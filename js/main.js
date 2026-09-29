@@ -53,7 +53,7 @@ window.RPG = window.RPG || {};
     }
     var foot = document.createElement("p");
     foot.className = "footnote";
-    foot.textContent = "判定バトル（攻撃/突破/防御/回避/足止め/カウンター）と擬似3D探索を実装した第一章の縦切り版です。";
+    foot.textContent = "判定バトル（攻撃/突破/防御/回避/足止め/カウンター）と擬似3D探索を実装した、第一章と第二章（本筋）の版です。";
     wrap.appendChild(h1);
     wrap.appendChild(sub);
     wrap.appendChild(btn);
@@ -69,9 +69,18 @@ window.RPG = window.RPG || {};
     var wrap = document.createElement("div");
     wrap.className = "title-screen";
     var h2 = document.createElement("h2");
-    h2.textContent = "第一章　― Keep your head down. への序章 ―";
     var p = document.createElement("p");
-    p.textContent = "帰る場所を失った三人が、旅を続ける。ツェルフの目的に同行する第二章は準備中です。";
+    if ((game.chapter || 1) >= 2) {
+      // 第二章の締め（攻略チャート第二章⑦）：アルワの居場所の心当たりの有無で、第三章か第三章altへ
+      var alt = game.flags && game.flags.ch2End === "alt";
+      h2.textContent = "第二章　ツェルフの目的に同行　― 了 ―";
+      p.textContent = alt
+        ? "“真の名”の手がかりは、そこで途切れた。行き先を見失った三人の旅（第三章alt）は準備中です。"
+        : "“真の名”を知る梟の魔女を追って。アルワを追う第三章は準備中です。";
+    } else {
+      h2.textContent = "第一章　― Keep your head down. への序章 ―";
+      p.textContent = "帰る場所を失った三人が、旅を続ける。ツェルフの目的に同行する第二章は準備中です。";
+    }
     var foot = document.createElement("p");
     foot.className = "footnote";
     var names = ["ツェルフ"].concat(game.companions.indexOf("mira") >= 0 ? ["ミラ（非戦闘）"] : []);

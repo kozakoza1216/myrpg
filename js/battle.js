@@ -531,6 +531,23 @@ RPG.Battle = (function () {
     var alive = this.party.filter(function (c) { return !c.defeated; });
     if (alive.length === 0) return;
 
+    // 書庫番の保守モード（bosses.md）：HP50%以下で一度だけ、攻撃・防御+20%（2行動）。切れた後の1行動は止まる
+    if (enemy.defId === "archive_keeper") {
+      if (enemy._maint) {
+        enemy._maint -= 1;
+        if (!enemy._maint) {
+          enemy.stats.atk = enemy._maintBase.atk; enemy.stats.def = enemy._maintBase.def;
+          this.pushLog([enemy.name + "は保守モードを終え、動きが止まっている。"]);
+          this.endTurn(enemy);
+          return;
+        }
+      } else if (!enemy._maintDone && enemy.hp <= enemy.maxHp * 0.5) {
+        enemy._maintDone = true; enemy._maint = 2;
+        enemy._maintBase = { atk: enemy.stats.atk, def: enemy.stats.def };
+        enemy.stats.atk = Math.round(enemy.stats.atk * 1.2); enemy.stats.def = Math.round(enemy.stats.def * 1.2);
+        this.pushLog([enemy.name + "は保守モードに入った。攻撃と防御が上がった！"]);
+      }
+    }
     var skillId = this.pickEnemySkill(enemy);
     if (!skillId) {
       // 届く技がない（近距離しか持たない後衛など）：判定不発で手番を終える（PLAN §4-10）

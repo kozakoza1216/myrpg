@@ -110,6 +110,29 @@ RPG.Data = (function () {
     },
   };
 
+  // ── 第二章の雑魚敵・ボスの技（enemies.md／bosses.md。技リストの値に、雑魚は＋0.3、ボスは＋0.6の底上げ） ──
+  // 状態異常（混乱の声・麻痺針・魔力封印・毒・よろめき・防御低下・地形変化）は、判定バトルの仕組みにまだ無いので、
+  // 威力のある技はダメージだけを、威力のない搦め手は技ごと、いまは載せていない
+  Object.assign(SKILLS, {
+    e_knockdown: { name: "叩き伏せ", category: "attack", attribute: "physical", mp: 0, power: 0.9, techBonus: 30, isMagic: false },
+    e_double: { name: "二連撃", category: "attack", attribute: "physical", mp: 0, power: 1.4, techBonus: 20, isMagic: false },
+    e_vital: { name: "急所狙い", category: "attack", attribute: "physical", mp: 0, power: 1.4, techBonus: 20, isMagic: false },
+    e_poison_arrow: { name: "毒矢", category: "attack", attribute: "physical", mp: 0, power: 1.24, techBonus: 30, isMagic: false },
+    e_fire: { name: "火炎弾", category: "attack", attribute: "magic", mp: 0, power: 1.4, techBonus: 30, isMagic: true },
+    e_thunder: { name: "雷撃", category: "attack", attribute: "magic", mp: 0, power: 1.4, techBonus: 30, isMagic: true },
+    e_chain: { name: "チェインライトニング", category: "attack", attribute: "magic", mp: 0, power: 1.7, techBonus: 20, isMagic: true, area: true },
+    e_frozen: { name: "フローズングラウンド", category: "attack", attribute: "magic", mp: 0, power: 0.7, techBonus: 20, isMagic: true },
+    e_acid: { name: "アシッドクラウド", category: "attack", attribute: "magic", mp: 0, power: 0.7, techBonus: 20, isMagic: true },
+    e_dark_pulse: { name: "ダークパルス", category: "attack", attribute: "magic", mp: 0, power: 1.24, techBonus: 30, isMagic: true },
+    e_gehenna: { name: "ブレイズオブゲヘナ", category: "attack", attribute: "magic", mp: 0, power: 2.3, techBonus: 20, isMagic: true },
+    // 牙の獣の大技：威力は全力突撃と同じ、技ボーナスだけが段階ごとに違う（enemies.md）
+    e_ash_charge: { name: "灰駆", category: "breakthrough", attribute: "physical", mp: 0, power: 1.9, techBonus: -20, isMagic: false },
+    e_fang_charge: { name: "竜牙駆", category: "breakthrough", attribute: "physical", mp: 0, power: 1.9, techBonus: -10, isMagic: false },
+    // 書庫番（アーカイブの管理機構・bosses.md）。アクセス制限（魔力封印型）は魔力封印の仕組みがまだないので載せていない
+    keeper_index: { name: "索引撃", category: "attack", attribute: "physical", mp: 0, power: 1.7, techBonus: 30, isMagic: false },
+    keeper_beam: { name: "検索光線", category: "attack", attribute: "magic", mp: 0, power: 2.0, techBonus: 20, isMagic: true },
+  });
+
   // ノーマル遠距離攻撃：弓を装備しているときだけ使える（弓がないと、この行動そのものができない。遠距離の「技」は弓がなくても使える）
   SKILLS.normal_ranged = { name: "ノーマル遠距離攻撃", category: "attack", attribute: "none", mp: 0, power: 1.0, techBonus: 0, isMagic: false, requiresBow: true };
 
@@ -120,6 +143,9 @@ RPG.Data = (function () {
     bandit_strike: "near", enemy_step_in: "near", enemy_full_charge: "near",
     twin_slash: "near", sonic_wave: "far", der_regen: "all", fire_bolt: "all",
     kagari_staff: "near", kagari_chant: "all", kin_power_strike: "near", kin_sweep: "near",
+    e_knockdown: "near", e_double: "near", e_vital: "near", e_poison_arrow: "far", e_fire: "all", e_thunder: "all",
+    e_chain: "near", e_frozen: "all", e_acid: "near", e_dark_pulse: "all", e_gehenna: "all", e_ash_charge: "near", e_fang_charge: "near",
+    keeper_index: "near", keeper_beam: "all",
   };
   Object.keys(RANGE).forEach(function (id) { SKILLS[id].range = RANGE[id]; });
 
@@ -201,6 +227,15 @@ RPG.Data = (function () {
       skills: ["kin_power_strike", "kin_sweep", "enemy_step_in"],
       picto: { bodyColor: "#3a2a2a", headColor: "#5a4040", isAnimal: true },
     },
+    // ── 第二章 ──
+    // 書庫番（アーカイブ・必須ボス・3人前提。bosses.md の値のまま＝カガリと同じく倍率はかけない）。
+    // カウンターあり。HP50%以下で一度だけ保守モード（攻撃・防御+20%を2行動、切れた後に1行動止まる）
+    archive_keeper: {
+      id: "archive_keeper", exp: 700, name: "書庫番", isBoss: true, canCounter: true, counterSkillId: "keeper_index",
+      stats: { hp: 620, atk: 84, def: 54, spd: 56, mag: 50, men: 60, tec: 78, luck: 50 },
+      skills: ["keeper_index", "keeper_beam"],
+      picto: { bodyColor: "#4a5a6a", headColor: "#8aa0b0" },
+    },
     kagari: {
       id: "kagari", exp: 350, name: "カガリ", isBoss: true,
       stats: { hp: 300, atk: 60, def: 32, spd: 55, mag: 40, men: 32, tec: 62, luck: 50 },
@@ -208,6 +243,28 @@ RPG.Data = (function () {
       picto: { bodyColor: "#7a3050", headColor: "#c89050" },
     },
   };
+
+  // 第二章の雑魚（enemies.md の上位種・最上位種）。能力の形は資料のまま、第一章と同じくエリアごとの倍率で縮める
+  // （倍率は資料になく、シミュレーションで決めた仮の値）。
+  //   アーカイブ＝上位種×0.45（施設の中なので賊は出さない）：Lv4のセオとツェルフで勝率95%前後、HPは半分ほど削られる
+  //   灰の谷＝最上位種・竜血の眷属×VALLEY：推奨Lv10-11（PLAN 推奨レベル表）で勝てる強さ。本筋のLv4-6では歯が立たない
+  //   （シンボルエンカウントなので、見て避けて通れる）
+  var ARCHIVE_SCALE = 0.45, VALLEY_SCALE = 0.6;
+  function ch2Enemy(id, name, exp, st, skills, picto, scale) {
+    var s2 = {};
+    Object.keys(st).forEach(function (k) { s2[k] = Math.round(st[k] * scale); });
+    ENEMIES[id] = { id: id, exp: exp, name: name, isBoss: false, stats: s2, skills: skills, picto: picto };
+  }
+  // 上位種（アーカイブ）
+  ch2Enemy("ash_fang", "灰牙の獣", 17, { hp: 161, atk: 80, def: 19, spd: 85, mag: 0, men: 14, tec: 73, luck: 38 }, ["bandit_strike", "enemy_step_in", "e_ash_charge"], { bodyColor: "#5a5a5a", headColor: "#8a8a82", isAnimal: true }, ARCHIVE_SCALE);
+  ch2Enemy("iron_shell", "鉄殻虫", 24, { hp: 149, atk: 54, def: 54, spd: 36, mag: 30, men: 15, tec: 47, luck: 22 }, ["e_knockdown", "e_frozen"], { bodyColor: "#4a4a56", headColor: "#6a6a78", isAnimal: true }, ARCHIVE_SCALE);
+  ch2Enemy("ember_echo", "燼の残響", 15, { hp: 160, atk: 36, def: 22, spd: 71, mag: 66, men: 18, tec: 73, luck: 62 }, ["e_thunder"], { bodyColor: "#6a4a3a", headColor: "#c08060" }, ARCHIVE_SCALE);
+  // 最上位種（灰の谷）
+  ch2Enemy("cunning_bandit", "狡猾な賊", 45, { hp: 155, atk: 76, def: 35, spd: 78, mag: 0, men: 33, tec: 74, luck: 60 }, ["e_double", "e_vital"], { bodyColor: "#4a3a2a", headColor: "#c8a878" }, VALLEY_SCALE);
+  ch2Enemy("dragon_fang", "竜牙の獣", 41, { hp: 160, atk: 89, def: 21, spd: 93, mag: 0, men: 15, tec: 80, luck: 44 }, ["bandit_strike", "enemy_step_in", "e_fang_charge"], { bodyColor: "#4a4040", headColor: "#7a6a60", isAnimal: true }, VALLEY_SCALE);
+  ch2Enemy("dragon_shell", "竜殻虫", 59, { hp: 148, atk: 61, def: 60, spd: 40, mag: 34, men: 16, tec: 52, luck: 26 }, ["e_knockdown", "e_frozen", "e_acid"], { bodyColor: "#3a3a44", headColor: "#5a5a68", isAnimal: true }, VALLEY_SCALE);
+  ch2Enemy("dragon_echo", "竜の残響", 36, { hp: 159, atk: 40, def: 24, spd: 78, mag: 76, men: 19, tec: 80, luck: 72 }, ["e_thunder", "e_chain"], { bodyColor: "#5a3a4a", headColor: "#b07090" }, VALLEY_SCALE);
+  ch2Enemy("dragonblood_kin", "竜血の眷属", 285, { hp: 1100, atk: 117, def: 47, spd: 71, mag: 54, men: 52, tec: 104, luck: 54 }, ["kin_power_strike", "kin_sweep", "enemy_step_in", "e_gehenna"], { bodyColor: "#3a2020", headColor: "#6a3030", isAnimal: true }, VALLEY_SCALE);
 
   // ── 持ち物（PLAN.md §7.5-4k6「消耗品の価格」／装備・入手物まとめ「記憶結晶」／攻略チャート第一章） ──
   // heal: hp/mp＝回復する量、hpPct/mpPct＝最大値に対する割合。learn: 使うと覚える技。
@@ -294,7 +351,16 @@ RPG.Data = (function () {
     return Object.assign({}, stats);
   }
 
-  return { SKILLS: SKILLS, CHARACTERS: CHARACTERS, ENEMIES: ENEMIES, ITEMS: ITEMS, cloneStats: cloneStats,
+  // 真相の断片（PLAN §7.5-4b の一覧。メニューに出す文）。T1は前半（殺せない）と完成（役目が移る）の二段
+  var TRUTHS = {
+    T1a: "灰色竜は殺せない。挑んだ者は、皆灰になった。",
+    T2: "竜に長く留まられた土地は、命を吸われて痩せる。竜は何十年かごとに寝床を変える。",
+    T3: "鳥人は滅んだのではない。竜のもとへ還った。わずかに、還らずに残った者もいる。",
+    T4: "灰の谷の奥に埋もれた眷属には、鳥人の羽の形が残っていた。",
+  };
+  var TRUTH_ORDER = ["T1a", "T2", "T3", "T4"];
+
+  return { SKILLS: SKILLS, TRUTHS: TRUTHS, TRUTH_ORDER: TRUTH_ORDER, CHARACTERS: CHARACTERS, ENEMIES: ENEMIES, ITEMS: ITEMS, cloneStats: cloneStats,
     useHealItem: useHealItem, healNeeded: healNeeded,
     MAX_LEVEL: MAX_LEVEL, expForLevel: expForLevel, levelForExp: levelForExp, statsAt: statsAt, skillsAt: skillsAt, expRate: expRate, strengthRate: strengthRate, newSeed: newSeed };
 })();

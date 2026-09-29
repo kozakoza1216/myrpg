@@ -221,7 +221,7 @@ RPG.Explore = (function () {
     var outFarX = Math.max(0, Math.min(400, farX + sign * ext * 0.55));
     svg.appendChild(el("polygon", {
       points: [nearX, f0.b, outNearX, f0.b - 3, outFarX, f1.b - 2, farX, f1.b].join(" "),
-      fill: "#1c1812", opacity: 0.9,
+      fill: WALL.gap, opacity: 0.9,
     }));
     // 覗き穴の奥に見える壁面は、自分の視線に対して正面（垂直）に立っている壁。
     // 側壁（視線と平行に奥へすぼまっていく台形）と同じ形で描くと、まるで
@@ -234,9 +234,16 @@ RPG.Explore = (function () {
     // （視線と平行な側壁の色を流用すると、ここだけ別の壁に見えてしまう）。
     svg.appendChild(el("polygon", {
       points: [outNearX, f1.t, farX, f1.t, farX, f1.b, outNearX, f1.b - 2].join(" "),
-      fill: "#5c5446", stroke: "#201c16", "stroke-width": 1,
+      fill: WALL.front, stroke: WALL.edge, "stroke-width": 1,
     }));
   }
+
+  // 壁・床の色（ダンジョンごとの見た目）。stone＝石造り（招竜の祭壇）／facility＝旧管理者の施設（アーカイブ）
+  var WALL_THEMES = {
+    stone: { left: "#4a4438", right: "#5a5244", front: "#5c5446", edge: "#201c16", gap: "#1c1812", floor: "#26221c", detail: "#8a7a5a" },
+    facility: { indoor: true, left: "#3a4248", right: "#465058", front: "#4c565e", edge: "#161c20", gap: "#12161a", floor: "#1c2024", detail: "#7ab0c0", ceiling: "#20262c", light: "#b8e0e8" },
+  };
+  var WALL = WALL_THEMES.stone;
 
   // 行き止まりに見えないよう、出口・階段・イベントの部屋・施錠扉は、そのマスの手前の面に
   // 壁と扉（または階段の口）を描く。f はその面の枠（奥行きごとの frames の一つ）
@@ -245,7 +252,7 @@ RPG.Explore = (function () {
     if (tile === "exit") return "exit";
     if (tile.indexOf("locked") === 0) return "locked";
     if (tile.indexOf("event:") === 0) return "altar";
-    if (tile === "stairs:ground" || tile === "stairs:upper") return "up";
+    if (tile === "stairs:ground" || tile === "stairs:upper" || tile === "stairs:outer") return "up";
     if (tile.indexOf("stairs:") === 0) return "down";
     return null;
   }
@@ -253,7 +260,7 @@ RPG.Explore = (function () {
     var fw = f.r - f.l, fh = f.b - f.t, sw = Math.max(1, fw / 140);
     svg.appendChild(el("polygon", {
       points: [f.l, f.t, f.r, f.t, f.r, f.b, f.l, f.b].join(" "),
-      fill: "#5c5446", stroke: "#201c16", "stroke-width": 1.5,
+      fill: WALL.front, stroke: WALL.edge, "stroke-width": 1.5,
     }));
     var w = fw * (kind === "altar" ? 0.46 : 0.36), h = fh * 0.8, x = (f.l + f.r) / 2 - w / 2, y = f.b - h, cx = x + w / 2;
     // 上が丸いアーチ形の口
@@ -318,18 +325,26 @@ RPG.Explore = (function () {
     var actionClass = this.lastAction ? " act-" + this.lastAction : "";
     var svg = el("svg", { viewBox: "0 0 400 260", class: "dungeon-scene" + actionClass });
 
-    // 壊れた人工天井（§8-2 常時表現）
-    svg.appendChild(el("rect", { x: 0, y: 0, width: 400, height: 130, fill: "url(#skyGrad)" }));
-    var defs = el("defs", {});
-    var grad = el("linearGradient", { id: "skyGrad", x1: 0, y1: 0, x2: 0, y2: 1 });
-    grad.appendChild(el("stop", { offset: "0%", "stop-color": "#3a3630" }));
-    grad.appendChild(el("stop", { offset: "100%", "stop-color": "#6a6258" }));
-    defs.appendChild(grad);
-    svg.appendChild(defs);
-    // 割れた月
-    svg.appendChild(el("circle", { cx: 90, cy: 40, r: 14, fill: "#cfc7b0", opacity: 0.8 }));
-    svg.appendChild(el("circle", { cx: 96, cy: 42, r: 14, fill: "#3a3630", opacity: 0.5 }));
-    svg.appendChild(el("rect", { x: 0, y: 130, width: 400, height: 130, fill: "#26221c" })); // 床
+    WALL = WALL_THEMES[this.data.theme] || WALL_THEMES.stone;
+    if (WALL.indoor) {
+      // 屋内（施設）：天井の板と、切れかけた照明の帯
+      svg.appendChild(el("rect", { x: 0, y: 0, width: 400, height: 130, fill: WALL.ceiling }));
+      for (var pl = 0; pl < 5; pl++) svg.appendChild(el("line", { x1: 0, y1: 16 + pl * 22, x2: 400, y2: 16 + pl * 22, stroke: WALL.edge, "stroke-width": 1, opacity: 0.6 }));
+      svg.appendChild(el("rect", { x: 170, y: 58, width: 60, height: 4, fill: WALL.light, opacity: 0.55 }));
+    } else {
+      // 壊れた人工天井（§8-2 常時表現）
+      svg.appendChild(el("rect", { x: 0, y: 0, width: 400, height: 130, fill: "url(#skyGrad)" }));
+      var defs = el("defs", {});
+      var grad = el("linearGradient", { id: "skyGrad", x1: 0, y1: 0, x2: 0, y2: 1 });
+      grad.appendChild(el("stop", { offset: "0%", "stop-color": "#3a3630" }));
+      grad.appendChild(el("stop", { offset: "100%", "stop-color": "#6a6258" }));
+      defs.appendChild(grad);
+      svg.appendChild(defs);
+      // 割れた月
+      svg.appendChild(el("circle", { cx: 90, cy: 40, r: 14, fill: "#cfc7b0", opacity: 0.8 }));
+      svg.appendChild(el("circle", { cx: 96, cy: 42, r: 14, fill: "#3a3630", opacity: 0.5 }));
+    }
+    svg.appendChild(el("rect", { x: 0, y: 130, width: 400, height: 130, fill: WALL.floor })); // 床
 
     var frames = [
       { l: 0, r: 400, t: 40, b: 220 },
@@ -364,7 +379,7 @@ RPG.Explore = (function () {
       if (blockedKind) drawDoorFace(svg, bf0, blockedKind);
       else svg.appendChild(el("polygon", {
         points: [bf0.l, bf0.t, bf0.r, bf0.t, bf0.r, bf0.b, bf0.l, bf0.b].join(" "),
-        fill: "#5c5446", stroke: "#201c16", "stroke-width": 1.5,
+        fill: WALL.front, stroke: WALL.edge, "stroke-width": 1.5,
       }));
     }
 
@@ -393,13 +408,13 @@ RPG.Explore = (function () {
       if (this.isBlocking(leftTile)) {
         svg.appendChild(el("polygon", {
           points: [f0.l, f0.t, f1.l, f1.t, f1.l, f1.b, f0.l, f0.b].join(" "),
-          fill: "#4a4438", stroke: "#201c16", "stroke-width": 1,
+          fill: WALL.left, stroke: WALL.edge, "stroke-width": 1,
         }));
       }
       if (this.isBlocking(rightTile)) {
         svg.appendChild(el("polygon", {
           points: [f0.r, f0.t, f1.r, f1.t, f1.r, f1.b, f0.r, f0.b].join(" "),
-          fill: "#5a5244", stroke: "#201c16", "stroke-width": 1,
+          fill: WALL.right, stroke: WALL.edge, "stroke-width": 1,
         }));
       }
       // 建物ファサードのディテール（窓っぽい矩形）。実際に壁がある側にだけ置く
@@ -407,12 +422,12 @@ RPG.Explore = (function () {
       // 壁のない左側の宙に窓が浮いて見えるバグがあった）
       if (this.isBlocking(leftTile)) {
         svg.appendChild(el("rect", {
-          x: f0.l + 4, y: (f0.t + f1.t) / 2, width: 6, height: 6, fill: "#8a7a5a", opacity: 0.5,
+          x: f0.l + 4, y: (f0.t + f1.t) / 2, width: 6, height: 6, fill: WALL.detail, opacity: 0.5,
         }));
       }
       if (this.isBlocking(rightTile)) {
         svg.appendChild(el("rect", {
-          x: f0.r - 10, y: (f0.t + f1.t) / 2, width: 6, height: 6, fill: "#8a7a5a", opacity: 0.5,
+          x: f0.r - 10, y: (f0.t + f1.t) / 2, width: 6, height: 6, fill: WALL.detail, opacity: 0.5,
         }));
       }
       // 壁がない側＝脇道の開口部。実際にその先へ何マス進めるかを見て、
@@ -760,6 +775,17 @@ RPG.Explore = (function () {
       d: "M400 0 L272 0 Q292 32 275 66 Q300 95 280 125 Q308 160 287 195 Q315 225 300 260 L400 260 Z",
       fill: "#819364", opacity: 0.9
     }));
+
+    // 第二章で広がる東側（地図の幅が400より広いとき）：森林帯の縁を丸め、枯野の枯れ野と、灰の谷の灰地を描く
+    if (w > 400) {
+      svg.appendChild(el("path", { d: "M398 0 Q428 50 410 110 Q434 170 414 220 Q424 245 408 260 L398 260 Z", fill: "#819364", opacity: 0.9 }));
+      svg.appendChild(el("path", { d: "M380 232 Q420 170 480 178 Q530 186 520 228 Q500 262 440 258 Q396 256 380 232 Z", fill: "#b3a57e", opacity: 0.9 }));
+      svg.appendChild(el("path", { d: "M540 30 Q600 10 645 40 Q662 90 630 128 Q590 146 560 118 Q530 80 540 30 Z", fill: "#8e8a84", stroke: "#6e6a64", "stroke-width": 2, opacity: 0.9 }));
+      svg.appendChild(el("path", { d: "M462 18 Q500 4 532 22 Q540 52 510 62 Q476 64 462 46 Z", fill: "#9a9488", opacity: 0.7 }));
+      [[455, 196], [505, 214], [575, 62], [612, 100], [598, 42], [470, 232]].forEach(function (p, i) {
+        svg.appendChild(el("polygon", { points: (p[0] - 4) + "," + (p[1] + 3) + " " + p[0] + "," + (p[1] - 5) + " " + (p[0] + 4) + "," + (p[1] + 3), fill: i % 2 ? "#6e675a" : "#5e584d", opacity: 0.8 }));
+      });
+    }
 
     // 焼けた集落跡の灰地
     svg.appendChild(el("path", {
@@ -1889,7 +1915,7 @@ RPG.Explore = (function () {
       drawObjectHD(ctx, o);
     });
     ctx.restore();
-    gradeCanvas(e.cv, e.fromLower);
+    gradeCanvas(e.cv, e.fromLower, this.spec.grade);
     e.img = null; e.cache = null; e.lowerD = null; e.fromLower = null;
     e.done = true;
     return true;
@@ -1900,9 +1926,10 @@ RPG.Explore = (function () {
   // 人物・敵・宝箱・出口などの目印はかけずに上から描くので、地面より鮮やかに浮いて見える（見やすさを落とさない）。
   // 明るさはほぼ変えず、色味だけを動かす：彩度を落として灰色へ寄せ、暗い所は薄暮の青紫、明るい所は褪せた夕焼け色へ
   var GRADE = { sat: 0.6, shadow: [-3, -2, 7], light: [9, 3, -6] };
-  function gradeCanvas(cv, skip) {
+  // grade：エリアごとの色の調子（省略時は GRADE。灰の谷の灰色、枯野の枯れ色など）
+  function gradeCanvas(cv, skip, grade) {
     var ctx = cv.getContext("2d"), im = ctx.getImageData(0, 0, cv.width, cv.height), d = im.data;
-    var S = GRADE.sat, sh = GRADE.shadow, li = GRADE.light;
+    var G = grade || GRADE, S = G.sat, sh = G.shadow, li = G.light;
     for (var i = 0, p = 0; i < d.length; i += 4, p++) {
       if (skip && skip[p]) continue;
       var r = d[i], g = d[i + 1], b = d[i + 2];
@@ -1925,7 +1952,7 @@ RPG.Explore = (function () {
     if (this._preview) return this._preview;
     var g = this.grid, cv = makeCanvas(g.cols, g.rows), ctx = cv.getContext("2d");
     for (var y = 0; y < g.rows; y++) for (var x = 0; x < g.cols; x++) { ctx.fillStyle = PREVIEW_COLOR[g.get(x, y)] || "#0a0806"; ctx.fillRect(x, y, 1, 1); }
-    gradeCanvas(cv, null);
+    gradeCanvas(cv, null, this.spec.grade);
     return (this._preview = cv);
   };
 
@@ -2036,7 +2063,14 @@ RPG.Explore = (function () {
     mira: { k: "#1a1410", h: "#6a2a1e", s: "#e8c098", e: "#1a1410", b: "#9a5a3a", B: "#7a4028", w: "#d8c8a0", p: "#5a3a2a", f: "#3a2418" },
     tzelf: { k: "#141414", h: "#8a8a88", s: "#a8a8a4", e: "#e0c060", b: "#4a4a50", B: "#34343a", w: "#6a6a70", p: "#3a3a40", f: "#8a8784", y: "#e0b040" },
     toki: { k: "#1a1410", h: "#c8c0b0", s: "#d8b088", e: "#1a1410", b: "#5a4a38", B: "#3e3226", w: "#8a7050", p: "#3a3024", f: "#2a2018" },
+    // 第二章：シャルラ（鷹の鳥人・東区狩猟隊の隊長。茶の羽、眼鏡）／狩猟隊の隊員（鳥人）／灯の集落の住人
+    sharla: { k: "#1a1410", h: "#7a5230", s: "#b08a60", e: "#d8e0e8", b: "#3a4a3a", B: "#2a3628", w: "#8a6a3a", p: "#34302a", f: "#b08a60", y: "#e0b040" },
+    hunter: { k: "#1a1410", h: "#6a5a48", s: "#9a8a74", e: "#1a1410", b: "#4a4a3a", B: "#34342a", w: "#7a6a50", p: "#3a3428", f: "#9a8a74", y: "#d8a840" },
+    villager: { k: "#1a1410", h: "#4a3a2a", s: "#d8b088", e: "#1a1410", b: "#6a5a40", B: "#4a3e2a", w: "#a89070", p: "#3a3226", f: "#2a2018" },
+    villager2: { k: "#1a1410", h: "#8a8074", s: "#d0a880", e: "#1a1410", b: "#5a4a5a", B: "#403444", w: "#9a8a90", p: "#34303a", f: "#2a2018" },
   };
+  // 鳥人の頭（嘴）を使う人物
+  var BIRD_CAST = { tzelf: true, sharla: true, hunter: true };
   var BIRD_HEAD = {
     down: ["....kkkk....", "...khhhhk...", "..khhhhhhk..", "..khsssshk..", "..ksessesk..", "..kssyyssk..", "...kssssk..."],
     up: HERO_HEAD.up,
@@ -2045,7 +2079,7 @@ RPG.Explore = (function () {
   var castSprites = {};
   function getCastSprites(id) {
     if (castSprites[id]) return castSprites[id];
-    var pal = CAST_PAL[id] || CAST_PAL.toki, heads = id === "tzelf" ? BIRD_HEAD : HERO_HEAD, set = {};
+    var pal = CAST_PAL[id] || CAST_PAL.toki, heads = BIRD_CAST[id] ? BIRD_HEAD : HERO_HEAD, set = {};
     ["down", "up", "left", "right"].forEach(function (dir) {
       set[dir] = {};
       ["idle", "a", "b"].forEach(function (fr) {
@@ -2539,6 +2573,7 @@ RPG.Explore = (function () {
       } else if (z.kind === "talk") {
         if (z.sprite !== "none") px(ctx, "rgba(0,0,0,0.35)", sx - 5, sy, 11, 3);
         if (z.sprite === "none") { /* 人ではない調べる場所（崩れた壁など）：地形そのものが目印 */ }
+        else if (CAST_PAL[z.sprite]) ctx.drawImage(getCastSprites(z.sprite)[z.face || "down"].idle, sx - 6, sy - 16);
         else if (z.sprite === "guard") ctx.drawImage(sprites.guard, sx - 6, sy - 16);
         else ctx.drawImage(sprites.elder, sx - 6, sy - 15);
       }

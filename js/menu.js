@@ -19,6 +19,7 @@ RPG.Save = (function () {
       companions: game.companions.slice(), flags: Object.assign({}, game.flags), items: Object.assign({}, game.items || {}),
       crit: game.crit ? Object.assign({}, game.crit) : null,
       encounterIn: game.encounterIn || 0,
+      chapter: game.chapter || 1,
     };
   }
   // 記録の技を今の定義に合わせる：初めから持つ技とレベルで覚える技は定義から出し直し、記憶結晶で覚えた技だけを記録から残す。
@@ -49,6 +50,7 @@ RPG.Save = (function () {
       companions: p.companions.slice(), flags: Object.assign({}, p.flags), items: Object.assign({}, p.items || {}),
       crit: p.crit ? Object.assign({}, p.crit) : RPG.Data.newSeed(),
       encounterIn: p.encounterIn || 0,
+      chapter: p.chapter || 1,
     };
   }
   return { read: read, write: write, packGame: packGame, unpackGame: unpackGame };
@@ -104,6 +106,8 @@ RPG.Menu = (function () {
       var tabs = div("menu-tabs");
       var list = [["status", "ステータス"], ["skills", "技"], ["items", "持ち物"], ["formation", "配置"]];
       if (opts.fastTravel) list.push(["travel", "ファストトラベル"]);
+      // 真相の断片（PLAN §7.5-4b）：一つでも拾っていれば出す
+      if (game.flags && game.flags.truths && Object.keys(game.flags.truths).length) list.push(["truths", "真相"]);
       list.push(["save", "セーブ／ロード"]);
       list.forEach(function (t) {
         tabs.appendChild(btn(t[1], function () { tab = t[0]; msg = ""; itemSel = null; render(); }, "menu-tab" + (tab === t[0] ? " current" : "")));
@@ -116,6 +120,7 @@ RPG.Menu = (function () {
       else if (tab === "items") renderItems(body);
       else if (tab === "formation") renderFormation(body);
       else if (tab === "travel") renderTravel(body);
+      else if (tab === "truths") renderTruths(body);
       else renderSave(body);
       wrap.appendChild(body);
 
@@ -243,6 +248,15 @@ RPG.Menu = (function () {
           card.appendChild(r);
         });
         body.appendChild(card);
+      });
+    }
+
+    // 拾った真相の断片を、拾った順ではなく番号の順に並べる（番号は見せない）
+    function renderTruths(body) {
+      var got = game.flags.truths || {};
+      body.appendChild(div("menu-row-sub", "拾い集めた真相の断片。"));
+      RPG.Data.TRUTH_ORDER.forEach(function (id) {
+        if (got[id]) body.appendChild(div("menu-row", RPG.Data.TRUTHS[id]));
       });
     }
 

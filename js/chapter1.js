@@ -100,6 +100,7 @@ RPG.Chapter1 = (function () {
       haiberi: { tx: 5, ty: 66 },
       yaketa: { tx: 51, ty: 6 },
       michi: { tx: 105, ty: 39 },
+      kareno: { tx: 106, ty: 64 },
       fromHigh: { tx: 40, ty: 45 },
     },
     // うろつくはぐれ賊（シンボルエンカウント）
@@ -117,6 +118,8 @@ RPG.Chapter1 = (function () {
         { op: "line", pts: [[37, 56], [44, 38], [51, 8], [51, -2]], w: 10, t: "road" },
         // 南東の水路へ下りる通り
         { op: "line", pts: [[54, 52], [68, 63], [92, 65]], w: 9, t: "road" },
+        // 南東の水路沿いに、枯野へ抜ける通り（第二章で旅の先になる）
+        { op: "line", pts: [[92, 65], [114, 64]], w: 7, t: "road" },
         // 北の住居跡へ入り込む路地と、その奥の中庭
         { op: "line", pts: [[43, 36], [28, 29], [16, 25]], w: 7, t: "road" },
         { op: "disc", x: 15, y: 24, r: 5, t: "lot" },
@@ -151,6 +154,8 @@ RPG.Chapter1 = (function () {
       { id: "exit_haiberi", kind: "exit", to: "haiberi", tx: 1.2, ty: 66, r: 22, dir: "w", steps: 10, label: "灰縁の集落へ" },
       { id: "exit_yaketa", kind: "exit", to: "yaketa", tx: 51, ty: 1.4, r: 22, dir: "n", steps: 15, label: "焼けた集落跡方面（寄り道）" },
       { id: "exit_michi", kind: "exit", to: "michi", tx: 110.8, ty: 38, r: 24, dir: "e", steps: 30, label: "祭壇方面" },
+      // 第二章から：枯野へ（廃区画→枯野70歩のうち、区画の中を歩く分を除いた60歩）
+      { id: "exit_kareno", kind: "exit", to: "kareno", tx: 110.8, ty: 64, r: 24, dir: "e", steps: 60, label: "枯野方面", fromChapter: 2 },
     ],
   };
 
@@ -326,6 +331,21 @@ RPG.Chapter1 = (function () {
     return { kind: "narration", text: lines.alone, bg: bg };
   }
 
+  // ── 第二章（js/chapter2.js）へ渡す、この世界の入口 ──
+  var ch2 = null;
+  function chapter2() {
+    if (!ch2 && RPG.Chapter2) ch2 = RPG.Chapter2.create({
+      app: function () { return app; }, game: function () { return game; }, world: WORLD,
+      say: say, tzelfName: tzelfName, addItem: addItem, openMenu: openMenu, runBattle: runBattle, foes: foes, timeUp: timeUp,
+      setPlace: function (p, resume) { place = p; resumePlace = resume; },
+      goTo: goTo,
+      enterOutskirts: function (pos) { enterOutskirts(pos); return outskirtsArea; },
+      outskirts: function () { return outskirtsArea; },
+      chapterEnd: function () { onChapterEnd(); },
+    });
+    return ch2;
+  }
+
   function run(appEl, gameState, endCallback) {
     app = appEl; game = gameState; onChapterEnd = endCallback;
     game.onTimeUp = onTimeUp;
@@ -468,6 +488,7 @@ RPG.Chapter1 = (function () {
   }
   function placeLabel() {
     if (!place) return "";
+    if (place.ch2 && chapter2()) return ch2.placeLabel(place);
     if (place.kind === "hairegion") return place.layer === "upper" ? "廃区画・城壁の歩廊" : "廃区画・下層街路";
     if (place.kind === "shrine") return "招竜の祭壇・" + (place.floor === "inner" ? "内殿" : "外殿");
     return PLACE_LABEL[place.kind];
@@ -481,6 +502,7 @@ RPG.Chapter1 = (function () {
       villageTaken: villageTaken, hairegionTaken: hairegionTaken, hairegionCleared: hairegionCleared, hairegionSymbolsDefeated: hairegionSymbolsDefeated,
       shrineFloorId: shrineFloorId, shrineFloorVisited: shrineFloorVisited, shrineTaken: shrineTaken, shrineLayout: 4,
       world: worldMap ? { current: worldMap.current, visited: worldMap.visited } : null,
+      ch2: ch2 ? ch2.snapshot() : null,
     };
     var area = place.kind === "village" ? villageArea : place.kind === "villageRuin" ? villageRuinArea : place.kind === "outskirts" ? outskirtsArea : place.kind === "hairegion" ? hairegionArea : null;
     if (area) snap.pos = { x: area.pos.x, y: area.pos.y };
@@ -503,11 +525,14 @@ RPG.Chapter1 = (function () {
     shrineFloorVisited = sameLayout && snap.shrineFloorVisited || { ground: {}, inner: {} };
     shrineTaken = sameLayout && snap.shrineTaken || { ground: {}, inner: {} };
     worldMap = null;
+    // 第二章に入っていれば、広域マップに第二章の場所を足し、その章の進み具合を戻す
+    if ((game.chapter || 1) >= 2 && chapter2()) ch2.restore(snap.ch2);
     if (snap.world) {
       createWorld();
       worldMap.current = snap.world.current;
       worldMap.visited = snap.world.visited;
     }
+    if (ch2 && ch2.handlesPlace(snap.place) && ch2.resumeSaved(snap.ch2) !== false) return;
     if (snap.place === "village") enterVillage(snap.pos);
     else if (snap.place === "villageRuin") enterVillageRuin(snap.pos);
     else if (snap.place === "outskirts") enterOutskirts(snap.pos);
@@ -543,6 +568,7 @@ RPG.Chapter1 = (function () {
   }
 
   function enterPlace(id, fromId, firstVisit) {
+    if (chapter2() && ch2.handles(id)) { ch2.enterPlace(id, fromId, firstVisit); return; }
     // 灰縁の集落はくじの前にしか歩けない。追放後は集落の外縁に出て、
     // 門に近づくと、集落長の命を受けた門番に押し戻される。
     if (id === "haiberi") { enterOutskirts(); return; }
@@ -644,10 +670,17 @@ RPG.Chapter1 = (function () {
   function enterOutskirts(pos) {
     place = { kind: "outskirts" };
     resumePlace = function () { outskirtsArea.render(); };
-    outskirtsArea = Explore.startFreeArea(app, pos ? Object.assign({}, OUTSKIRTS_AREA, { start: pos }) : OUTSKIRTS_AREA, game, {
+    // 第二章の始め：発とうとするツェルフが外縁に立っている（同行が決まるまで）
+    var extra = chapter2() && ch2.outskirtsExtra ? ch2.outskirtsExtra() : null;
+    var data = Object.assign({}, OUTSKIRTS_AREA, pos ? { start: pos } : {}, extra ? { zones: OUTSKIRTS_AREA.zones.concat(extra.zones) } : {});
+    outskirtsArea = Explore.startFreeArea(app, data, game, {
       openMenu: openMenu,
-      onExit: function (to) { goTo(to, "haiberi"); },
+      onExit: function (to) {
+        if (extra && extra.onExit && !(game.flags && game.flags.ch2Joined)) { extra.onExit(to, function () { outskirtsArea.render(); }); return; }
+        goTo(to, "haiberi");
+      },
       onTalk: function (zone, next) {
+        if (extra && extra.onTalk(zone, next)) return;
         if (timeUp()) {
           Story.play(app, [say("gate", { mira: "門が開いてる……。見張りも、いない。", tzelf: "門番がいない。……開いたままだ。", alone: "門は開いたままだ。門番はいない。" })], function () { enterVillageRuin(); });
           return;
@@ -705,7 +738,8 @@ RPG.Chapter1 = (function () {
     var areaTemplate = layerId === "upper" ? HAIREGION_UPPER_AREA : hairegionStreetArea();
     var entry = pos || areaTemplate.entryPoints[entryId] || areaTemplate.entryPoints[fromNodeId] || areaTemplate.start;
     if (fromNodeId) hairegionSymbolsDefeated = {};
-    var areaData = Object.assign({}, areaTemplate, { start: entry, arrivedByStairs: !!entryId, symbolDefeated: hairegionSymbolsDefeated });
+    var areaData = Object.assign({}, areaTemplate, { start: entry, arrivedByStairs: !!entryId, symbolDefeated: hairegionSymbolsDefeated,
+      zones: (areaTemplate.zones || []).filter(function (z) { return !z.fromChapter || (game.chapter || 1) >= z.fromChapter; }) });
     place = { kind: "hairegion", layer: layerId === "upper" ? "upper" : "street" };
     resumePlace = function () { hairegionArea.render(); };
     hairegionArea = Explore.startFreeArea(app, areaData, game, {
@@ -888,10 +922,17 @@ RPG.Chapter1 = (function () {
       return;
     }
     game.companions.push("mira");
+    game.flags.truths = game.flags.truths || {};
+    game.flags.truths.T1a = true;
     Story.play(app, dragonBeats, function () {
       enterOutskirts({ tx: 40, ty: 20 });
       outskirtsArea.taken.gate_guard = true;      // この場面では門番を出さない（柵の向こうからトキが答える）
-      outskirtsArea.playScene(gateScene, function () { game.flags.named = true; syncTzelfName(); onChapterEnd(); });
+      // 名乗りのあと、そのまま第二章へ（PLAN §7.5-2c 本筋①：追放直後の門前から）
+      outskirtsArea.playScene(gateScene, function () {
+        game.flags.named = true; syncTzelfName();
+        game.chapter = 2;
+        if (chapter2()) ch2.begin(); else onChapterEnd();
+      });
     });
   }
 
