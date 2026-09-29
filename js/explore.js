@@ -281,6 +281,13 @@ RPG.Explore = (function () {
     }
   }
 
+  // 宝箱：そのマスの手前の縁に置く（大きさは奥行きに合わせる。目の前のときは以前と同じ28×18）
+  function drawChest(svg, f) {
+    var k = (f.r - f.l) / 260, cx = (f.l + f.r) / 2, w = 28 * k, h = 18 * k;
+    svg.appendChild(el("rect", { x: cx - w / 2, y: f.b - h - 2 * k, width: w, height: h, fill: "#b08040", stroke: "#402c14", "stroke-width": Math.max(1, 2 * k) }));
+    svg.appendChild(el("rect", { x: cx - w / 2, y: f.b - h - 2 * k, width: w, height: h * 0.35, fill: "#8a6030", opacity: 0.8 }));
+  }
+
   // ── 擬似3D描画 ──
   Dungeon.prototype.renderScene = function () {
     // 直前の操作（前進/後退/旋回/衝突）に応じたアニメーションを毎回付け直すことで、
@@ -351,6 +358,8 @@ RPG.Explore = (function () {
       if (depth + 1 < blockedAt || blockedAt < 0) {
         var nextKind = specialKind(this.tileAt(cellNext.x, cellNext.y));
         if (nextKind && nextKind !== "locked") drawDoorFace(svg, f1, nextKind);
+        // 宝箱も、目の前に来なくても通路の奥に見えるように描く（袋小路の入口から中身の有無が分かる）
+        else if (this.tileAt(cellNext.x, cellNext.y) === "chest") drawChest(svg, f1);
       }
       var cellHere = this.forward(depth);
       var rv = this.right();
@@ -401,9 +410,7 @@ RPG.Explore = (function () {
     var frontTile = this.tileAt(frontCell.x, frontCell.y);
     var symFrame = frames[1];
     var cx = (symFrame.l + symFrame.r) / 2;
-    if (frontTile === "chest") {
-      svg.appendChild(el("rect", { x: cx - 14, y: symFrame.b - 20, width: 28, height: 18, fill: "#b08040", stroke: "#402c14", "stroke-width": 2 }));
-    } else if (typeof frontTile === "string" && frontTile.indexOf("npc:") === 0) {
+    if (typeof frontTile === "string" && frontTile.indexOf("npc:") === 0) {
       svg.appendChild(el("circle", { cx: cx, cy: symFrame.b - 34, r: 10, fill: "#e8dcc8" }));
       svg.appendChild(el("polygon", { points: [cx - 10, symFrame.b - 24, cx + 10, symFrame.b - 24, cx, symFrame.b].join(" "), fill: "#5b7a9d" }));
     }

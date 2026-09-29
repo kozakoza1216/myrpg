@@ -224,58 +224,63 @@ RPG.Chapter1 = (function () {
 
   // 招竜の祭壇＝入口の外殿（ground）と、カガリと対峙する奥の内殿（inner）の2階層。
   // inner の階段は、カガリを倒した後は「外へ出る」に化ける（もう外殿を歩き直す必要はない）。
-  // 踏破歩数は資料の70歩（PLAN ダンジョン内部の踏破歩数）に合わせる：
-  //   外殿：入口から階段まで最短38歩
-  //   内殿：階段から祭壇まで、施錠扉を通って最短29歩＋解錠の5歩（難度1×5÷解錠持ち1人）＝34歩
-  //   合わせて72歩
-  // 施錠扉はツェルフの解錠で開く（攻略チャート第一章⑧）。開けなくても、西の遠回り（43歩）で祭壇へ行ける（進行保証）。
+  // 踏破歩数は資料の70歩（PLAN ダンジョン内部の踏破歩数）に近づける：
+  //   外殿：入口から階段まで38歩
+  //   内殿：階段から祭壇まで、施錠扉を通って30歩＋解錠の5歩（難度1×5÷解錠持ち1人）＝35歩
+  //   合わせて73歩
+  // 道を間違えたときの損を小さくするため、どちらの階も蛇行する一本道にして、
+  // 脇道は宝箱のある1〜2マスの袋小路だけにする（分かれ道から奥の突き当たりまで見える長さ）。
+  // 施錠扉はツェルフの解錠で開く（攻略チャート第一章⑧）。開けなくても、扉の前の広間から西へ回れば
+  // 祭壇の前室に入れる（36歩＝扉を開けた場合とほぼ同じ。どちらを選んでも損はない。進行保証）。
   // 地図の記号：# 壁／. 床／E 出口／S 内殿への階段／U 外殿への階段／C 宝箱／D 施錠扉／K カガリの祭壇
   var SHRINE_TILE = { "#": "wall", ".": "floor", E: "exit", S: "stairs:inner", U: "stairs:ground", C: "chest", D: "locked:altar", K: "event:kagari" };
   var SHRINE_FLOORS = {
     ground: {
       start: { x: 1, y: 11, dir: 1 },
       map: [
-        "#################",
-        "#S......#.....C.#",
-        "#######.#.#####.#",
-        "#.....#.#.#.....#",
-        "#.###.#.#.#.#####",
-        "#.#C#...#.#.....#",
-        "#.#.#####.#####.#",
-        "#.........#.....#",
-        "#.#######.#.#####",
-        "#.......#.#.....#",
-        "#######.#.#####.#",
-        "#E......#.......#",
-        "#################",
+        "###########",
+        "#.......###",
+        "#.##C##.###",
+        "#.###...###",
+        "#.###.#####",
+        "#.###.###S#",
+        "#.###.###.#",
+        "#.#C#.....#",
+        "#.#.#######",
+        "#.....#####",
+        "#####.#####",
+        "#E....#####",
+        "###########",
       ],
     },
     inner: {
-      start: { x: 9, y: 14, dir: 0 },
+      start: { x: 6, y: 15, dir: 0 },
       map: [
-        "###################",
-        "#...#...#K#########",
-        "#.#.#.#.#.#########",
-        "#.#C#.#...#####C###",
-        "#.###.###D#####.###",
-        "#.....###.#####...#",
-        "#.#######.#######.#",
-        "#.#######.....###.#",
-        "#.###########.###.#",
-        "#......######.....#",
-        "######.##########.#",
-        "#......##.....###.#",
-        "#.###########.###.#",
-        "#.................#",
-        "#########U#########",
+        "###########",
+        "######K####",
+        "######.####",
+        "###....####",
+        "###.##.####",
+        "###.##D####",
+        "###....####",
+        "######.####",
+        "######....#",
+        "#######C#.#",
+        "#########.#",
+        "#.........#",
+        "#.#########",
+        "#......####",
+        "###C##.####",
+        "######U####",
+        "###########",
       ],
     },
   };
   // 宝箱の中身（場所ごと）。記憶結晶は資料どおり（装備・入手物まとめ：招竜の祭壇＝急所狙い／防御姿勢）。
   // 回復薬・魔石の箱は仮（資料の祭壇の宝箱は装備品だが、装備の仕組みがまだないので消耗品を入れておく）
   var SHRINE_CHESTS = {
-    ground: { "3,5": "crystal_defense_stance", "14,1": "potion" },
-    inner: { "15,3": "crystal_vital_strike", "3,3": "magic_stone" },
+    ground: { "3,7": "crystal_defense_stance", "4,2": "potion" },
+    inner: { "7,9": "crystal_vital_strike", "3,14": "magic_stone" },
   };
   // 取った宝箱・開けた扉を反映した、その階の地図（探索中に書き換わるので、入るたびに作り直す）
   function shrineGrid(floorId) {
@@ -470,7 +475,7 @@ RPG.Chapter1 = (function () {
     var snap = {
       place: place.kind, layer: place.layer, floor: place.floor,
       villageTaken: villageTaken, hairegionTaken: hairegionTaken, hairegionCleared: hairegionCleared, hairegionSymbolsDefeated: hairegionSymbolsDefeated,
-      shrineFloorId: shrineFloorId, shrineFloorVisited: shrineFloorVisited, shrineTaken: shrineTaken, shrineLayout: 2,
+      shrineFloorId: shrineFloorId, shrineFloorVisited: shrineFloorVisited, shrineTaken: shrineTaken, shrineLayout: 3,
       world: worldMap ? { current: worldMap.current, visited: worldMap.visited } : null,
     };
     var area = place.kind === "village" ? villageArea : place.kind === "villageRuin" ? villageRuinArea : place.kind === "outskirts" ? outskirtsArea : place.kind === "hairegion" ? hairegionArea : null;
@@ -489,8 +494,8 @@ RPG.Chapter1 = (function () {
     hairegionCleared = !!snap.hairegionCleared;
     hairegionSymbolsDefeated = snap.hairegionSymbolsDefeated || {};
     shrineFloorId = snap.shrineFloorId || "ground";
-    // 前の版（狭い祭壇）の記録では、歩いた跡と位置が今の地図に合わないので、跡は消して宝箱だけ持ち越さない
-    var sameLayout = snap.shrineLayout === 2;
+    // 前の版の祭壇の記録では、歩いた跡と位置が今の地図に合わないので、跡は消して宝箱だけ持ち越さない
+    var sameLayout = snap.shrineLayout === 3;
     shrineFloorVisited = sameLayout && snap.shrineFloorVisited || { ground: {}, inner: {} };
     shrineTaken = sameLayout && snap.shrineTaken || { ground: {}, inner: {} };
     worldMap = null;
@@ -729,7 +734,7 @@ RPG.Chapter1 = (function () {
     place = { kind: "shrine", floor: floorId };
     resumePlace = function () { shrineDungeon.render(); };
     var grid = shrineGrid(floorId);
-    // 保存した位置が壁の中なら（前の版の狭い祭壇で保存した記録など）、その階の入口から始める
+    // 保存した位置が壁の中なら（前の版の祭壇で保存した記録など）、その階の入口から始める
     if (dpos && (!grid[dpos.y] || !grid[dpos.y][dpos.x] || grid[dpos.y][dpos.x] === "wall")) dpos = null;
     var floorData = { start: dpos || SHRINE_FLOORS[floorId].start, grid: grid };
     shrineDungeon = Explore.start(app, floorData, game, {
