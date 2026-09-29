@@ -133,10 +133,16 @@ RPG.Chapter1 = (function () {
         { op: "disc", x: 18, y: 63, r: 1.6, t: "rubble" }, { op: "disc", x: 97, y: 42, r: 2, t: "rubble" },
         { op: "disc", x: 46, y: 33, r: 2, t: "rubble" }, { op: "disc", x: 24, y: 28, r: 1.4, t: "rubble" },
         { op: "scatter", t: "rubble", on: ["road", "plaza", "lot"], count: 140, keep: 4 },
+        // 大通りの北に入り込む袋小路。入口を崩れた壁（重い瓦礫）が塞いでいて、奥に宝箱が見える。
+        // 怪力でどかせば入れる（攻略チャート第一章⑤。第一章には怪力持ちがいないので、今は通れない）
+        { op: "line", pts: [[56, 47], [56, 41]], w: 3, t: "road" },
+        { op: "rect", x: 54, y: 44, w: 5, h: 2, t: "rubble", strengthWall: true },
       ],
     },
     zones: [
       { id: "chest1", kind: "chest", tx: 13.5, ty: 23, r: 14, label: "北の住居跡" },
+      { id: "chest3", kind: "chest", tx: 56, ty: 42.2, r: 14 },
+      { id: "strength_wall", kind: "talk", sprite: "none", tx: 56, ty: 46.6, r: 18, label: "崩れた壁" },
       { id: "chest2", kind: "chest", tx: 91, ty: 68.5, r: 14, label: "水路脇の荷箱" },
       { id: "stairs_up", kind: "stairs", toLayer: "upper", entry: "fromStreet", tx: 40, ty: 45, r: 16, label: "城壁へ上る石段" },
       // 入ってきた側（灰縁の集落方面）へも、他の出口と同じくここを歩いて
@@ -224,14 +230,12 @@ RPG.Chapter1 = (function () {
 
   // 招竜の祭壇＝入口の外殿（ground）と、カガリと対峙する奥の内殿（inner）の2階層。
   // inner の階段は、カガリを倒した後は「外へ出る」に化ける（もう外殿を歩き直す必要はない）。
-  // 踏破歩数は資料の70歩（PLAN ダンジョン内部の踏破歩数）に近づける：
-  //   外殿：入口から階段まで38歩
-  //   内殿：階段から祭壇まで、施錠扉を通って30歩＋解錠の5歩（難度1×5÷解錠持ち1人）＝35歩
-  //   合わせて73歩
+  // 踏破歩数は資料の70歩（PLAN ダンジョン内部の踏破歩数）に合わせる：外殿38歩＋内殿32歩＝70歩。
   // 道を間違えたときの損を小さくするため、どちらの階も蛇行する一本道にして、
-  // 脇道は宝箱のある1〜2マスの袋小路だけにする（分かれ道から奥の突き当たりまで見える長さ）。
-  // 施錠扉はツェルフの解錠で開く（攻略チャート第一章⑧）。開けなくても、扉の前の広間から西へ回れば
-  // 祭壇の前室に入れる（36歩＝扉を開けた場合とほぼ同じ。どちらを選んでも損はない。進行保証）。
+  // 脇道は1〜2マスの袋小路だけにする（分かれ道から奥の突き当たりまで見える長さ）。
+  // 施錠扉（攻略チャート第一章⑧の解錠の"見せ"）は近道ではなく、内殿の広間の脇の宝の小部屋の入口に置く。
+  // 開けるには時間（歩数）がかかる＝「その先のお宝に時間を割く価値があるか」を選ばせる（PLAN §8-3b）。
+  // 開けなくても祭壇へは行ける（本筋は解錠不要・PLAN §5-2）。
   // 地図の記号：# 壁／. 床／E 出口／S 内殿への階段／U 外殿への階段／C 宝箱／D 施錠扉／K カガリの祭壇
   var SHRINE_TILE = { "#": "wall", ".": "floor", E: "exit", S: "stairs:inner", U: "stairs:ground", C: "chest", D: "locked:altar", K: "event:kagari" };
   var SHRINE_FLOORS = {
@@ -260,27 +264,27 @@ RPG.Chapter1 = (function () {
         "######K####",
         "######.####",
         "###....####",
-        "###.##.####",
-        "###.##D####",
-        "###....####",
+        "###.#######",
+        "###.#######",
+        "###....DC##",
         "######.####",
         "######....#",
         "#######C#.#",
         "#########.#",
-        "#.........#",
-        "#.#########",
-        "#......####",
-        "###C##.####",
+        "###.......#",
+        "###.#######",
+        "###....####",
+        "######.####",
         "######U####",
         "###########",
       ],
     },
   };
   // 宝箱の中身（場所ごと）。記憶結晶は資料どおり（装備・入手物まとめ：招竜の祭壇＝急所狙い／防御姿勢）。
-  // 回復薬・魔石の箱は仮（資料の祭壇の宝箱は装備品だが、装備の仕組みがまだないので消耗品を入れておく）
+  // 〈急所狙い〉は施錠扉の奥の小部屋に置く。回復薬・魔石の箱は仮（資料の祭壇の宝箱は装備品だが、装備の仕組みがまだないので消耗品を入れておく）
   var SHRINE_CHESTS = {
     ground: { "3,7": "crystal_defense_stance", "4,2": "potion" },
-    inner: { "7,9": "crystal_vital_strike", "3,14": "magic_stone" },
+    inner: { "8,6": "crystal_vital_strike", "7,9": "magic_stone" },
   };
   // 取った宝箱・開けた扉を反映した、その階の地図（探索中に書き換わるので、入るたびに作り直す）
   function shrineGrid(floorId) {
@@ -475,7 +479,7 @@ RPG.Chapter1 = (function () {
     var snap = {
       place: place.kind, layer: place.layer, floor: place.floor,
       villageTaken: villageTaken, hairegionTaken: hairegionTaken, hairegionCleared: hairegionCleared, hairegionSymbolsDefeated: hairegionSymbolsDefeated,
-      shrineFloorId: shrineFloorId, shrineFloorVisited: shrineFloorVisited, shrineTaken: shrineTaken, shrineLayout: 3,
+      shrineFloorId: shrineFloorId, shrineFloorVisited: shrineFloorVisited, shrineTaken: shrineTaken, shrineLayout: 4,
       world: worldMap ? { current: worldMap.current, visited: worldMap.visited } : null,
     };
     var area = place.kind === "village" ? villageArea : place.kind === "villageRuin" ? villageRuinArea : place.kind === "outskirts" ? outskirtsArea : place.kind === "hairegion" ? hairegionArea : null;
@@ -495,7 +499,7 @@ RPG.Chapter1 = (function () {
     hairegionSymbolsDefeated = snap.hairegionSymbolsDefeated || {};
     shrineFloorId = snap.shrineFloorId || "ground";
     // 前の版の祭壇の記録では、歩いた跡と位置が今の地図に合わないので、跡は消して宝箱だけ持ち越さない
-    var sameLayout = snap.shrineLayout === 3;
+    var sameLayout = snap.shrineLayout === 4;
     shrineFloorVisited = sameLayout && snap.shrineFloorVisited || { ground: {}, inner: {} };
     shrineTaken = sameLayout && snap.shrineTaken || { ground: {}, inner: {} };
     worldMap = null;
@@ -658,9 +662,47 @@ RPG.Chapter1 = (function () {
     });
   }
 
+  // 崩れた壁をどかした後の下層の地図（壁の瓦礫を除いた設計図。地形は設計図ごとに一度だけ作られるので、別に持つ）
+  var hairegionOpenedArea = null;
+  function hairegionStreetArea() {
+    if (!hairegionTaken.strength_wall) return HAIREGION_AREA;
+    if (!hairegionOpenedArea) {
+      var tm = HAIREGION_AREA.tilemap;
+      hairegionOpenedArea = Object.assign({}, HAIREGION_AREA, {
+        tilemap: { cols: tm.cols, rows: tm.rows, seed: tm.seed, ops: tm.ops.filter(function (op) { return !op.strengthWall; }) },
+      });
+    }
+    return hairegionOpenedArea;
+  }
+
+  // 探索技能（解錠・怪力・慧眼）を持つ仲間（PLAN §5-2。一人一個）
+  function partyWithSkill(skill) {
+    return game.party.filter(function (c) { return (Data.CHARACTERS[c.defId] || {}).exploreSkill === skill; });
+  }
+
+  // 崩れた壁：怪力を持つ仲間がいればどかす（時間は「難度×5÷怪力を持つ人数」・PLAN §8-3b）。
+  // 難度は資料にないため仮に1。誰が動かしても同じ場面になるよう、地の文で「〇〇は瓦礫をどかした。」とだけ出す
+  var STRENGTH_WALL_DIFFICULTY = 1;
+  function onStrengthWall(next) {
+    var movers = partyWithSkill("strength");
+    if (!movers.length) {
+      Story.play(app, [{ kind: "narration", text: "崩れた壁が道を塞いでいる。奥に何かあるが、重くて動かせない。" }], next);
+      return;
+    }
+    var cost = Math.ceil(STRENGTH_WALL_DIFFICULTY * 5 / movers.length);
+    Story.play(app, [{ kind: "narration", text: movers[0].name + "は瓦礫をどかした。" }], function () {
+      hairegionTaken.strength_wall = true;
+      game.steps += cost;
+      var here = { x: hairegionArea.pos.x, y: hairegionArea.pos.y };
+      var reenter = function () { enterHairegion(null, "street", null, here); };
+      if (Explore.checkTimeUp(game, reenter)) return;
+      reenter();
+    });
+  }
+
   function enterHairegion(fromNodeId, layerId, entryId, pos) {
     hairegionCleared = true;
-    var areaTemplate = layerId === "upper" ? HAIREGION_UPPER_AREA : HAIREGION_AREA;
+    var areaTemplate = layerId === "upper" ? HAIREGION_UPPER_AREA : hairegionStreetArea();
     var entry = pos || areaTemplate.entryPoints[entryId] || areaTemplate.entryPoints[fromNodeId] || areaTemplate.start;
     if (fromNodeId) hairegionSymbolsDefeated = {};
     var areaData = Object.assign({}, areaTemplate, { start: entry, arrivedByStairs: !!entryId, symbolDefeated: hairegionSymbolsDefeated });
@@ -670,6 +712,10 @@ RPG.Chapter1 = (function () {
       openMenu: openMenu,
       onExit: function (to) { goTo(to, "hairegion"); },
       onStairs: function (toLayer, toEntry) { enterHairegion(null, toLayer, toEntry); },
+      onTalk: function (zone, next) {
+        if (zone.id === "strength_wall") { onStrengthWall(next); return; }
+        next();
+      },
       onChest: function (zoneId, next) {
         if (zoneId === "chest1") {
           addItem("crystal_naginata");
@@ -774,11 +820,11 @@ RPG.Chapter1 = (function () {
   // 施錠扉：解錠の技能を持つ仲間がいれば開ける（第一章ではツェルフだけ）。
   // かかる時間は「難度×5÷解錠を持つ人数」（端数切り上げ・PLAN §8-3b）。祭壇の扉は難度1（攻略チャート第一章⑧）。
   // 誰が開けても同じ場面になるよう、台詞ではなく地の文で「〇〇は鍵を開けた。」とだけ出す（開けるのは解錠を持つ先頭の仲間）。
-  // 誰もいなければ開かない（西へ回れば祭壇へ行ける）
+  // 誰もいなければ開かない（奥は宝の小部屋なので、開けなくても祭壇へは行ける）
   var LOCK_DIFFICULTY = { altar: 1 };
   function onDungeonLocked(id, dungeon, x, y) {
     var key = x + "," + y;
-    var pickers = game.party.filter(function (c) { return (Data.CHARACTERS[c.defId] || {}).exploreSkill === "unlock"; });
+    var pickers = partyWithSkill("unlock");
     if (!pickers.length) {
       Story.play(app, [{ kind: "narration", bg: "shrine", text: "扉には錠が下りている。びくともしない。" }], function () { shrineDungeon.render(); });
       return;

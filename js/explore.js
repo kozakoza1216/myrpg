@@ -2537,8 +2537,9 @@ RPG.Explore = (function () {
         ctx.drawImage(sign, sx - 7, sy - 13);
         if (z.dir === "n") { px(ctx, "#e8dcc8", sx - 1, sy - 20, 2, 1); px(ctx, "#e8dcc8", sx - 2, sy - 19, 4, 1); px(ctx, "#e8dcc8", sx - 3, sy - 18, 6, 1); }
       } else if (z.kind === "talk") {
-        px(ctx, "rgba(0,0,0,0.35)", sx - 5, sy, 11, 3);
-        if (z.sprite === "guard") ctx.drawImage(sprites.guard, sx - 6, sy - 16);
+        if (z.sprite !== "none") px(ctx, "rgba(0,0,0,0.35)", sx - 5, sy, 11, 3);
+        if (z.sprite === "none") { /* 人ではない調べる場所（崩れた壁など）：地形そのものが目印 */ }
+        else if (z.sprite === "guard") ctx.drawImage(sprites.guard, sx - 6, sy - 16);
         else ctx.drawImage(sprites.elder, sx - 6, sy - 15);
       }
     });
