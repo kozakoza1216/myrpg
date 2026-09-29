@@ -264,7 +264,11 @@ RPG.Chapter2 = (function () {
     }
     function posOf(fromId, data) { return data.entryPoints[fromId] || data.start; }
 
-    function enterPlace(id, fromId, firstVisit) {
+    function enterPlace(id, fromId, firstVisit, point) {
+      // 拠点・涸れ間へのファストトラベル（第一章の FT_POINTS）：その前に降りる
+      if (point === "kareno_captain") return enterKareno({ tx: 22, ty: 12.8 });
+      if (point === "tomoshi_inn") return enterTomoshi({ tx: 24, ty: 15 });
+      if (point === "archive_karema") return enterArchive("inner", KAREMA_POS);
       if (id === "kareno") return enterKareno(fromId ? posOf(fromId, KARENO_AREA) : null, firstVisit);
       if (id === "tomoshi") return enterTomoshi(fromId ? posOf(fromId, TOMOSHI_AREA) : null, firstVisit);
       if (id === "hainotani") return enterValley(fromId ? posOf(fromId, VALLEY_AREA) : null, firstVisit);
@@ -317,7 +321,7 @@ RPG.Chapter2 = (function () {
       opts.push("出る");
       Story.play(app(), [{ kind: "choice", speaker: "シャルラ", bg: "captain", text: "あら、どうかした？", options: opts }], function (c) {
         var pick = opts[c];
-        if (pick === "休む") { rest("captain", next); return; }
+        if (pick === "休む") { ctx.restAt("captain", "restCaptain", next); return; }
         if (pick === "話す") {
           Story.play(app(), [{ speaker: "シャルラ", bg: "captain", text: "旧管理者の施設跡？　灰の谷を抜けた先ね。あそこは竜の寝床に近い。……無茶はしないことね。" }], next);
           return;
@@ -334,13 +338,6 @@ RPG.Chapter2 = (function () {
         }
         next();
       });
-    }
-
-    // 休息：HPとMPが全快し、シードを引き直す（PLAN §8-5b：拠点で休むとシードが更新される）
-    function rest(bg, next) {
-      game().party.forEach(function (c) { c.hp = c.maxHp; c.mp = c.maxMp; c.defeated = false; });
-      game().crit = Data.newSeed();
-      Story.play(app(), [{ kind: "narration", bg: bg, text: "（ひと晩休んだ。体力と魔力が回復した）" }], next);
     }
 
     // ── 灯の集落 ──
@@ -372,7 +369,7 @@ RPG.Chapter2 = (function () {
     function inn(next) {
       Story.play(app(), [{ kind: "choice", speaker: "宿の主人", bg: "inn", text: "泊まっていくかい。", options: ["休む", "やめておく"] }], function (c) {
         if (c !== 0) { next(); return; }
-        rest("inn", function () {
+        ctx.restAt("inn", "restInn", function () {
           if (F().innNight) { next(); return; }
           F().innNight = true;
           // 扉①：道中で気遣う選択（好感度）
@@ -541,7 +538,15 @@ RPG.Chapter2 = (function () {
         });
       });
     }
+    var KAREMA_POS = { x: 11, y: 8, dir: 2 };
     function enterArchive(floorId, dpos, firstVisit) {
+      // 涸れ間にたどり着いた後は、入口から涸れ間へ歩数を使わずに行ける（§8-4b）
+      if (floorId === "outer" && !dpos && F().karemaReached && !F().keeperDown) {
+        Story.play(app(), [{ kind: "choice", speaker: "", bg: "archive", text: "", options: ["涸れ間へ行く", "入口から進む"] }], function (c) {
+          if (c === 0) enterArchive("inner", KAREMA_POS); else enterArchive("outer", ARCHIVE_FLOORS.outer.start);
+        });
+        return;
+      }
       var go = function () {
         st.archiveFloor = floorId;
         var grid = archiveGrid(floorId);
@@ -575,12 +580,20 @@ RPG.Chapter2 = (function () {
     }
     function onArchiveEvent(id) {
       if (id === "karema") {
-        // 涸れ間（PLAN §8-4b）：竜が命を吸い尽くした区画。無料で全回復（ワープは次以降）
+        // 涸れ間（PLAN §8-4b）：竜が命を吸い尽くした区画。無料で全回復（時間もシードも変わらない）。
+        // たどり着くと、入口とここを無料で行き来できるようになり、ファストトラベルの行き先にもなる
         game().party.forEach(function (c) { c.hp = c.maxHp; c.mp = c.maxMp; });
-        Story.play(app(), [
+        var first = !F().karemaReached;
+        F().karemaReached = true;
+        var beats = first ? [
           say("archive", { mira: "ここ……空気が止まってる。何も寄ってこない感じ。", tzelf: "涸れ間だ。吸われるものが残っていない場所には、何も寄りつかない。", alone: "静まり返った区画だ。" }),
-          { kind: "narration", text: "（体力と魔力が回復した）" },
-        ], function () { dungeon.render(); });
+          { kind: "narration", text: "（体力と魔力が回復した。ここと施設の入口は、歩数を使わずに行き来できるようになった）" },
+        ] : [{ kind: "narration", text: "（体力と魔力が回復した）" }];
+        beats.push({ kind: "choice", options: ["先へ進む", "入口へ戻る"] });
+        Story.play(app(), beats, function (c) {
+          if (c === 1) { enterArchive("outer", { x: 1, y: 9, dir: 1 }); return; }
+          dungeon.render();
+        });
         return;
       }
       if (id === "keeper") {

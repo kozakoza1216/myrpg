@@ -145,6 +145,8 @@ RPG.Chapter1 = (function () {
     zones: [
       { id: "chest1", kind: "chest", tx: 13.5, ty: 23, r: 14, label: "北の住居跡" },
       { id: "chest3", kind: "chest", tx: 56, ty: 42.2, r: 14 },
+      // 野営地（拠点・PLAN §7.5-4k5：野営地＝廃区画）。休むと体力と魔力が戻り、ファストトラベルの行き先に登録される
+      { id: "camp", kind: "talk", sprite: "none", tx: 48, ty: 55, r: 18, label: "野営地" },
       { id: "strength_wall", kind: "talk", sprite: "none", tx: 56, ty: 46.6, r: 18, label: "崩れた壁" },
       { id: "chest2", kind: "chest", tx: 91, ty: 68.5, r: 14, label: "水路脇の荷箱" },
       { id: "stairs_up", kind: "stairs", toLayer: "upper", entry: "fromStreet", tx: 40, ty: 45, r: 16, label: "城壁へ上る石段" },
@@ -342,6 +344,7 @@ RPG.Chapter1 = (function () {
       enterOutskirts: function (pos) { enterOutskirts(pos); return outskirtsArea; },
       outskirts: function () { return outskirtsArea; },
       chapterEnd: function () { onChapterEnd(); },
+      restAt: restAt,
     });
     return ch2;
   }
@@ -496,10 +499,24 @@ RPG.Chapter1 = (function () {
       { kind: "narration", text: "（一度訪れた場所へは、メニューの「ファストトラベル」で移れる。減る歩数は、歩いたときと同じ）" },
     ], function () { enterOutskirts(); });
   }
+  // ── ファストトラベルの地点（PLAN §8-4）：訪れた場所に加えて、条件を満たすと登録される地点 ──
+  // 拠点（休息ができる所）は、そこで一度休むと登録される。アーカイブの涸れ間は、たどり着くと登録される（§8-4b）。
+  // 条件は game.flags を見る関数。後の章の拠点（廃棄設備＝PS-006救出後など）もここに足す
+  var FT_POINTS = [
+    { point: "hairegion_camp", node: "hairegion", name: "廃区画・野営地", cond: function (f) { return f.restCamp; } },
+    { point: "kareno_captain", node: "kareno", name: "枯野・隊長室", cond: function (f) { return f.restCaptain; } },
+    { point: "tomoshi_inn", node: "tomoshi", name: "灯の集落・宿", cond: function (f) { return f.restInn; } },
+    { point: "archive_karema", node: "archive", name: "アーカイブ・涸れ間", cond: function (f) { return f.karemaReached; } },
+  ];
+  function ftPoints() {
+    var f = game.flags || {};
+    return FT_POINTS.filter(function (p) { return p.cond(f); });
+  }
   function createWorld() {
     worldMap = Explore.createWorldMap(app, WORLD, game, {
       fastTravelOnly: true,
-      onArrive: function (id) { enterPlace(id, null); },
+      ftPoints: ftPoints,
+      onArrive: function (id, _a, _b, info) { enterPlace(id, null, false, info && info.point); },
       onCancel: function () { if (resumePlace) resumePlace(); },
     });
   }
@@ -577,9 +594,7 @@ RPG.Chapter1 = (function () {
     else enterShrineFloor(snap.floor || shrineFloorId, snap.dpos);
   }
   var FAST_TRAVEL = {
-    available: function () {
-      return WORLD.nodes.some(function (n) { return n.id !== worldMap.current && worldMap.visited[n.id] && n.fastTravel !== false; });
-    },
+    available: function () { return worldMap.destinations().length > 0; },
     open: function () { worldMap.render(); },
   };
 
@@ -604,8 +619,10 @@ RPG.Chapter1 = (function () {
     go();
   }
 
-  function enterPlace(id, fromId, firstVisit) {
-    if (chapter2() && ch2.handles(id)) { ch2.enterPlace(id, fromId, firstVisit); return; }
+  function enterPlace(id, fromId, firstVisit, point) {
+    if (chapter2() && ch2.handles(id)) { ch2.enterPlace(id, fromId, firstVisit, point); return; }
+    // 廃区画の野営地へファストトラベル：野営地の前に降りる
+    if (id === "hairegion" && point === "hairegion_camp") { enterHairegion(null, "street", null, { tx: CAMP.tx, ty: CAMP.ty + 1.4 }); return; }
     // 灰縁の集落はくじの前にしか歩けない。追放後は集落の外縁に出て、
     // 門に近づくと、集落長の命を受けた門番に押し戻される。
     if (id === "haiberi") { enterOutskirts(); return; }
@@ -732,6 +749,24 @@ RPG.Chapter1 = (function () {
     });
   }
 
+  var CAMP = { tx: 48, ty: 55 };
+  // 野営地で休む：HPとMPが全快し、シードを引き直す（§8-5b）。ファストトラベルの地点に登録する
+  function restAt(bg, flag, next) {
+    game.party.forEach(function (c) { c.hp = c.maxHp; c.mp = c.maxMp; c.defeated = false; });
+    game.crit = RPG.Data.newSeed();
+    var first = !game.flags[flag];
+    game.flags[flag] = true;
+    var beats = [{ kind: "narration", bg: bg, text: "（ひと晩休んだ。体力と魔力が回復した）" }];
+    if (first) beats.push({ kind: "narration", text: "（ここへは、ファストトラベルで来られるようになった）" });
+    Story.play(app, beats, next);
+  }
+  function onCamp(next) {
+    Story.play(app, [
+      say("ruins", { mira: "焚き火の跡……。誰かがここで野営してたのね。", tzelf: "焚き火の跡だ。休むならここだな。", alone: "焚き火の跡がある。誰かが野営していたらしい。" }),
+      { kind: "choice", options: ["休む", "先を急ぐ"] },
+    ], function (c) { if (c === 0) restAt("ruins", "restCamp", next); else next(); });
+  }
+
   // 崩れた壁をどかした後の下層の地図（壁の瓦礫を除いた設計図。地形は設計図ごとに一度だけ作られるので、別に持つ）
   var hairegionOpenedArea = null;
   function hairegionStreetArea() {
@@ -785,6 +820,7 @@ RPG.Chapter1 = (function () {
       onStairs: function (toLayer, toEntry) { enterHairegion(null, toLayer, toEntry); },
       onTalk: function (zone, next) {
         if (zone.id === "strength_wall") { onStrengthWall(next); return; }
+        if (zone.id === "camp") { onCamp(next); return; }
         next();
       },
       onChest: function (zoneId, next) {

@@ -713,17 +713,31 @@ RPG.Explore = (function () {
     return birds >= humans ? Math.ceil(cost / 2) : cost;
   };
 
-  WorldMap.prototype.fastTravelTo = function (nodeId) {
+  // ファストトラベルの行き先（PLAN §8-4）：一度訪れた場所（ノード）に加えて、条件を満たして登録された地点
+  // （拠点など。cb.ftPoints() が { point, node, name } の並びで返す。いる場所と同じノードの地点は出さない）
+  WorldMap.prototype.destinations = function () {
+    var self = this, list = [];
+    this.data.nodes.forEach(function (node) {
+      if (node.id !== self.current && self.visited[node.id] && node.fastTravel !== false) list.push({ node: node.id, name: node.name });
+    });
+    (this.cb.ftPoints ? this.cb.ftPoints() : []).forEach(function (p) {
+      if (p.node !== self.current && self.nodeById(p.node)) list.push({ node: p.node, point: p.point, name: p.name });
+    });
+    return list;
+  };
+
+  WorldMap.prototype.fastTravelTo = function (nodeId, pointId) {
     var self = this;
     var node = this.nodeById(nodeId);
-    if (!node || !this.visited[nodeId] || node.fastTravel === false || nodeId === this.current) return;
+    if (!node || nodeId === this.current) return;
+    if (!pointId && (!this.visited[nodeId] || node.fastTravel === false)) return;
     var cost = this.fastTravelCost(nodeId);
     if (!isFinite(cost)) return;
     var fromNodeId = this.current;
     this.game.steps += cost;
     this.current = nodeId;
     var go = function () {
-      if (self.cb.onArrive) { self.cb.onArrive(nodeId, false, function () { self.render(); }, { from: fromNodeId, fastTravel: true, cost: cost }); return; }
+      if (self.cb.onArrive) { self.cb.onArrive(nodeId, false, function () { self.render(); }, { from: fromNodeId, fastTravel: true, cost: cost, point: pointId || null }); return; }
       self.render();
     };
     if (checkTimeUp(this.game, go)) return;
@@ -927,9 +941,7 @@ RPG.Explore = (function () {
     // すでに訪れたランドマークだけを移動先にする。通常の隣接移動と並べて
     // 表示することで、「未知の場所へ飛ぶ」ことや経路を無視した徒歩移動と
     // 混同させない。
-    var destinations = this.data.nodes.filter(function (node) {
-      return node.id !== self.current && self.visited[node.id] && node.fastTravel !== false;
-    });
+    var destinations = this.destinations();
     if (this.cb.fastTravelOnly) {
       var ftc = document.createElement("div");
       ftc.className = "fast-travel-controls";
@@ -937,9 +949,9 @@ RPG.Explore = (function () {
       hd.className = "prompt";
       hd.textContent = destinations.length ? "ファストトラベル：行き先を選ぶ（最短経路と同じ歩数を消費）" : "まだファストトラベルで行ける場所がない";
       ftc.appendChild(hd);
-      destinations.forEach(function (node) {
-        var cost = self.fastTravelCost(node.id);
-        ftc.appendChild(ctrlBtn(node.name + "へ（" + cost + "歩）", function () { self.fastTravelTo(node.id); }));
+      destinations.forEach(function (d) {
+        var cost = self.fastTravelCost(d.node);
+        ftc.appendChild(ctrlBtn(d.name + "へ（" + cost + "歩）", function () { self.fastTravelTo(d.node, d.point); }));
       });
       ftc.appendChild(ctrlBtn("戻る", function () { if (self.cb.onCancel) self.cb.onCancel(); }));
       wrap.appendChild(ftc);
@@ -950,9 +962,9 @@ RPG.Explore = (function () {
       heading.className = "prompt";
       heading.textContent = "ファストトラベル（最短経路と同じ歩数を消費）";
       fastTravel.appendChild(heading);
-      destinations.forEach(function (node) {
-        var cost = self.fastTravelCost(node.id);
-        fastTravel.appendChild(ctrlBtn(node.name + "へ（" + cost + "歩）", function () { self.fastTravelTo(node.id); }));
+      destinations.forEach(function (d) {
+        var cost = self.fastTravelCost(d.node);
+        fastTravel.appendChild(ctrlBtn(d.name + "へ（" + cost + "歩）", function () { self.fastTravelTo(d.node, d.point); }));
       });
       wrap.appendChild(fastTravel);
     }
