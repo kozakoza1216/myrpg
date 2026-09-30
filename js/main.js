@@ -75,7 +75,7 @@ window.RPG = window.RPG || {};
       var alt = game.flags && game.flags.ch2End === "alt";
       h2.textContent = "第二章　ツェルフの目的に同行　― 了 ―";
       p.textContent = alt
-        ? "“真の名”の手がかりは、そこで途切れた。行き先を見失った三人の旅（第三章alt）は準備中です。"
+        ? "“真の名”の手がかりは、そこで途切れた。行き先を見失った旅（第三章alt）は準備中です。"
         : "“真の名”を知る梟の魔女を追って。アルワを追う第三章は準備中です。";
     } else {
       h2.textContent = "第一章　― Keep your head down. への序章 ―";
@@ -83,8 +83,10 @@ window.RPG = window.RPG || {};
     }
     var foot = document.createElement("p");
     foot.className = "footnote";
-    var names = ["ツェルフ"].concat(game.companions.indexOf("mira") >= 0 ? ["ミラ（非戦闘）"] : []);
-    foot.textContent = "同行者：" + names.join("・") + "　／　総歩数：" + game.steps;
+    // 同行者は、その時いる者だけ（ツェルフを外していれば出さない）
+    var names = game.party.filter(function (c) { return c.defId === "tzelf"; }).map(function (c) { return c.name; })
+      .concat(game.companions.indexOf("mira") >= 0 ? ["ミラ（非戦闘）"] : []);
+    foot.textContent = "同行者：" + (names.join("・") || "なし") + "　／　総歩数：" + game.steps;
     var btn = document.createElement("button");
     btn.className = "primary-btn";
     btn.textContent = "タイトルに戻る";

@@ -31,6 +31,7 @@ RPG.Chapter2 = (function () {
     var DERE_AT = 2;
     function tz() { return ctx.tzelfName(); }
     function hasTz() { return game().party.some(function (c) { return c.defId === "tzelf"; }); }
+    function hasMira() { return (game().companions || []).indexOf("mira") >= 0; }
     // ツェルフの台詞（パーティにいなければ出さない）
     function T(text, extra) { return hasTz() ? Object.assign({ speaker: tz(), text: text }, extra || {}) : null; }
     // ツェルフが言う台詞。いなければミラ、ミラもいなければ地の文
@@ -324,7 +325,8 @@ RPG.Chapter2 = (function () {
           hasTz() ? { speaker: "シャルラ", text: "東区狩猟隊の隊長、シャルラよ。……で、そっちの鳥人は？　うちの隊の者じゃないわね。" }
             : { speaker: "シャルラ", text: "東区狩猟隊の隊長、シャルラよ。……で、あなたたちは？　見ない顔ね。" },
           T("……名乗る筋合いはない。"),
-          hasTz() ? { speaker: "ミラ", text: "ツェルフ、よ。私はミラ。こっちはセオ。灰縁の集落から……追い出されてきたの。" }
+          !hasMira() ? { speaker: "シャルラ", text: "……訳ありってわけね。まあいいわ。" }
+            : hasTz() ? { speaker: "ミラ", text: "ツェルフ、よ。私はミラ。こっちはセオ。灰縁の集落から……追い出されてきたの。" }
             : { speaker: "ミラ", text: "私はミラ。こっちはセオ。灰縁の集落から……追い出されてきたの。" },
           { speaker: "シャルラ", text: "そう。ここは竜が命を吸い尽くして去った跡だから、竜も戻ってこない。休みたくなったら、いつでもいらっしゃい。" },
         ]), next);
@@ -374,16 +376,16 @@ RPG.Chapter2 = (function () {
     // 上がる＝背伸びしない素直な選択・突き放されても引き止める・気遣い／下がる＝地雷（過去に土足・同情・道具扱い・
     // 竜を殺すと言う・恩に着せる）と背伸びした宣言（§7.5-4h）。一つの選択で動く量は仮に±1
     var TZ_TALKS = [
-      { lead: [{ speaker: "ミラ", text: "ツェルフって、いつから一人で旅してるの？" }], text: "……さあな。数えるのはやめた。",
+      { needsMira: true, lead: [{ speaker: "ミラ", text: "ツェルフって、いつから一人で旅してるの？" }], text: "……さあな。数えるのはやめた。",
         options: ["大変だったな", "俺たちも似たようなもんだ", "昔の話、聞かせろよ"], deltas: [-1, 1, -1],
         replies: ["……同情なら要らん。", "……そうか。", "……詮索するな。"] },
       { lead: [], text: "お前、剣の握りが甘い。……それでよく祭壇まで来たな。",
         options: ["教えてくれ", "余計なお世話だ", "一人でも勝てた"], deltas: [1, 0, -1],
         replies: ["……握りは、こうだ。二度は言わん。", "そうか。なら好きにしろ。", "……本気で言ってるのか、それ。"] },
-      { lead: [{ speaker: "ミラ", text: "ねえ……竜って、本当に倒せないの？" }], text: "…………。",
+      { needsMira: true, lead: [{ speaker: "ミラ", text: "ねえ……竜って、本当に倒せないの？" }], text: "…………。",
         options: ["いつか倒してみせる", "倒さずに済む道を探す", "……"], deltas: [-1, 1, 0],
         replies: ["……軽々しく言うな。", "……ああ。それでいい。", "……。"] },
-      { lead: [{ speaker: "ミラ", text: "さっき、一人で先に行ったでしょ。……もう知らない。" }, { speakerTz: true, text: "…???" }], text: "……何を怒っている。",
+      { needsMira: true, lead: [{ speaker: "ミラ", text: "さっき、一人で先に行ったでしょ。……もう知らない。" }, { speakerTz: true, text: "…???" }], text: "……何を怒っている。",
         options: ["ミラは心配してたんだ", "気にするな", "俺たちがいなきゃ危なかったぞ"], deltas: [1, 0, -1],
         replies: ["……ハッ。……そういうことか。", "……そうか。", "……恩を売るつもりか。"] },
       { lead: [], text: "錠を開ける腕が要るなら言え。……それだけの付き合いだろう。",
@@ -392,9 +394,13 @@ RPG.Chapter2 = (function () {
     ];
     function tzelfTalk(bg, next) {
       F().tzTalkReady = false;
-      var n = F().tzTalkN || 0, t = TZ_TALKS[n];
+      // 話した話題を覚える（ミラがいないと出せない話題は、いる時まで取っておく）。旧セーブの tzTalkN は先頭から話した扱い
+      var done = F().tzTalked || TZ_TALKS.map(function (_, i) { return i; }).slice(0, F().tzTalkN || 0);
+      var n = -1;
+      TZ_TALKS.forEach(function (x, i) { if (n < 0 && done.indexOf(i) < 0 && (!x.needsMira || hasMira())) n = i; });
+      var t = TZ_TALKS[n];
       if (!t) { Story.play(app(), [{ speaker: tz(), bg: bg, text: "……話すことはない。寝ろ。" }], next); return; }
-      F().tzTalkN = n + 1;
+      F().tzTalked = done.concat([n]);
       var lead = t.lead.map(function (b) { return b.speakerTz ? { speaker: tz(), text: b.text } : b; });
       if (lead.length) lead[0] = Object.assign({ bg: bg }, lead[0]);
       Story.play(app(), lead.concat([{ kind: "choice", speaker: tz(), bg: lead.length ? undefined : bg, text: t.text, options: t.options }]), function (c) {
@@ -564,7 +570,8 @@ RPG.Chapter2 = (function () {
     ];
     // ⑤ミラが脅かされる（第二章の山場）：竜の眷属に襲われ、灰に呑まれかける。ツェルフが助けに来る
     function crisis(next) {
-      if (F().valleyCrisis) { next(); return; }
+      // ミラが脅かされる場面なので、ミラがいなければ起きない（フラグも立てない）
+      if (F().valleyCrisis || !hasMira()) { next(); return; }
       F().valleyCrisis = true;
       area.taken.crisis = true;
       area.playScene([
@@ -727,7 +734,8 @@ RPG.Chapter2 = (function () {
         F().ch2End = "main";
         beats = beats.concat([
           say("archive", { mira: "真の名……。シャルラさんの言ってた“梟の魔女”なら、知ってるかも。", alone: "" }),
-          sayTz("archive", { tzelf: "昔の住処、か。……行ってみる価値はある。", alone: "" }),
+          hasMira() ? sayTz("archive", { tzelf: "昔の住処、か。……行ってみる価値はある。", alone: "" })
+            : sayTz("archive", { tzelf: "……“梟の魔女”。枯野の隊長が言っていた昔の住処、行ってみる価値はある。", alone: "" }),
         ]);
       } else {
         F().ch2End = "alt";
@@ -763,18 +771,19 @@ RPG.Chapter2 = (function () {
         onTalk: function (zone, next) { if (zone.id !== "ch2_tzelf") return false; departTalk(next); return true; },
         // 声をかけずに外縁を出ようとしたら、ミラが引き止める
         onExit: function (to, stay) {
-          Story.play(app(), [{ speaker: "ミラ", bg: "gate", text: "待って。……ツェルフに、ちゃんと声をかけていこうよ。" }], stay);
+          Story.play(app(), [hasMira() ? { speaker: "ミラ", bg: "gate", text: "待って。……ツェルフに、ちゃんと声をかけていこうよ。" }
+            : { speaker: tz(), bg: "gate", text: "……黙って行く気か。" }], stay);
           return true;
         },
       };
     }
     function departTalk(next) {
-      Story.play(app(), [
+      Story.play(app(), B([
         { speaker: tz(), bg: "gate", text: "……まだ何か用か。" },
-        { speaker: "ミラ", text: "どこへ行くの？" },
-        { speaker: tz(), text: "旧管理者の施設跡だ。竜を止める手段の記録が、残っているかもしれん。" },
+        hasMira() ? { speaker: "ミラ", text: "どこへ行くの？" } : null,
+        { speaker: tz(), text: hasMira() ? "旧管理者の施設跡だ。竜を止める手段の記録が、残っているかもしれん。" : "……旧管理者の施設跡へ行く。竜を止める手段の記録が、残っているかもしれん。" },
         { kind: "choice", speaker: tz(), text: "……勝手にしろ。俺は俺の用がある。", options: ["一緒に行かせてくれ", "勝手についていく", "鳥人のこと、黙っててやる"] },
-      ], function (c) {
+      ]), function (c) {
         // 扉①：素直に頼む＝好感度↑／勝手についていく＝変化なし／弱みを握る言い方＝好感度↓
         var react = [
           [{ speaker: tz(), text: "……っ。" }, { speaker: tz(), text: "……好きにしろ。" }],
@@ -784,11 +793,11 @@ RPG.Chapter2 = (function () {
         affinity(c === 0 ? 1 : c === 2 ? -1 : 0);
         F().ch2Joined = true;
         F().tzTalkReady = true;
-        Story.play(app(), react.concat([
-          { speaker: "ミラ", text: "決まりね。……で、その施設跡って、どっち？" },
-          { speaker: tz(), text: "廃区画を抜けて、枯野の先だ。灯の集落を通って、灰の谷を越える。" },
+        Story.play(app(), B(react.concat([
+          hasMira() ? { speaker: "ミラ", text: "決まりね。……で、その施設跡って、どっち？" } : null,
+          { speaker: tz(), text: hasMira() ? "廃区画を抜けて、枯野の先だ。灯の集落を通って、灰の谷を越える。" : "……行くなら、廃区画を抜けて枯野の先だ。灯の集落を通って、灰の谷を越える。" },
           { kind: "narration", text: "（廃区画の南東の通りから、枯野へ抜けられる）" },
-        ]), function () { if (ctx.outskirts()) ctx.outskirts().taken.ch2_tzelf = true; next(); });
+        ])), function () { if (ctx.outskirts()) ctx.outskirts().taken.ch2_tzelf = true; next(); });
       });
     }
 
