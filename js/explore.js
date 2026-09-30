@@ -714,14 +714,15 @@ RPG.Explore = (function () {
   };
 
   // ファストトラベルの行き先（PLAN §8-4）：一度訪れた場所（ノード）に加えて、条件を満たして登録された地点
-  // （拠点など。cb.ftPoints() が { point, node, name } の並びで返す。いる場所と同じノードの地点は出さない）
+  // （拠点など。cb.ftPoints() が { point, node, name } の並びで返す。地点は、いる場所と同じノードの中でも選べる
+  // ＝廃区画の中から野営地へ、など。同じノードの中なら最短経路は0歩）
   WorldMap.prototype.destinations = function () {
     var self = this, list = [];
     this.data.nodes.forEach(function (node) {
       if (node.id !== self.current && self.visited[node.id] && node.fastTravel !== false) list.push({ node: node.id, name: node.name });
     });
     (this.cb.ftPoints ? this.cb.ftPoints() : []).forEach(function (p) {
-      if (p.node !== self.current && self.nodeById(p.node)) list.push({ node: p.node, point: p.point, name: p.name });
+      if (self.nodeById(p.node)) list.push({ node: p.node, point: p.point, name: p.name });
     });
     return list;
   };
@@ -729,7 +730,7 @@ RPG.Explore = (function () {
   WorldMap.prototype.fastTravelTo = function (nodeId, pointId) {
     var self = this;
     var node = this.nodeById(nodeId);
-    if (!node || nodeId === this.current) return;
+    if (!node || (nodeId === this.current && !pointId)) return;
     if (!pointId && (!this.visited[nodeId] || node.fastTravel === false)) return;
     var cost = this.fastTravelCost(nodeId);
     if (!isFinite(cost)) return;
@@ -2138,6 +2139,19 @@ RPG.Explore = (function () {
     "......kpk.....", "......kpk.....", "......kpk.....", "......kpk.....", "......kpk.....", ".....kkkkk....",
   ];
   var zoneSprites = null;
+  // 焚き火（野営地の目印）：組んだ薪と、揺れる炎
+  function drawCampfire(ctx, sx, sy, t) {
+    px(ctx, "rgba(0,0,0,0.35)", sx - 9, sy + 3, 19, 3);
+    // 囲みの石
+    [[-9, 1], [-6, 3], [-2, 4], [2, 4], [6, 3], [9, 1]].forEach(function (p) { px(ctx, "#6a645c", sx + p[0] - 1, sy + p[1] - 1, 3, 2); });
+    // 薪
+    px(ctx, "#5a3a22", sx - 7, sy, 14, 2); px(ctx, "#6e4a2c", sx - 5, sy - 2, 10, 2);
+    // 炎（時間で少し揺らす）
+    var f = Math.floor(t / 140) % 3;
+    px(ctx, "#c8401c", sx - 4, sy - 6 - (f === 1 ? 1 : 0), 8, 5);
+    px(ctx, "#e8782c", sx - 3, sy - 9 - (f === 2 ? 1 : 0), 6, 5);
+    px(ctx, "#f8c850", sx - 1 - (f === 0 ? 1 : 0), sy - 11, 3, 5);
+  }
   function getZoneSprites() {
     if (zoneSprites) return zoneSprites;
     zoneSprites = {
@@ -2470,8 +2484,16 @@ RPG.Explore = (function () {
     }
     this._symRaf = requestAnimationFrame(frame);
   };
+  // 安全地帯（zone.safe＝半径タイル数。野営地など）：中にいる主人公は追われず、敵も中へは入ってこない
+  FreeArea.prototype.inSafe = function (x, y) {
+    for (var i = 0; i < this.zones.length; i++) {
+      var z = this.zones[i];
+      if (z.safe && Math.hypot(x - z.x, y - z.y) < z.safe * TILE) return true;
+    }
+    return false;
+  };
   FreeArea.prototype.updateSymbols = function (dt, now) {
-    var self = this, grace = now < this._graceUntil;
+    var self = this, grace = now < this._graceUntil || this.inSafe(this.pos.x, this.pos.y);
     for (var i = 0; i < this.symbols.length; i++) {
       var s = this.symbols[i];
       var ddx = this.pos.x - s.x, ddy = this.pos.y - s.y, d = Math.hypot(ddx, ddy);
@@ -2489,8 +2511,8 @@ RPG.Explore = (function () {
         vx = s.dx; vy = s.dy; sp = SYM_WANDER;
       }
       var nx = s.x + vx * sp * dt, ny = s.y + vy * sp * dt;
-      if (!this.isBlocked(nx, s.y)) s.x = nx; else s.turn = 0;
-      if (!this.isBlocked(s.x, ny)) s.y = ny; else s.turn = 0;
+      if (!this.isBlocked(nx, s.y) && !this.inSafe(nx, s.y)) s.x = nx; else s.turn = 0;
+      if (!this.isBlocked(s.x, ny) && !this.inSafe(s.x, ny)) s.y = ny; else s.turn = 0;
       if (!grace && Math.hypot(this.pos.x - s.x, this.pos.y - s.y) < SYM_TOUCH && this.cb.onSymbol) {
         // 捕まった：その場で動きを止め、大きな「！」を一瞬見せてから戦闘へ（暗転はしない）
         var hit = s;
@@ -2602,6 +2624,7 @@ RPG.Explore = (function () {
       } else if (z.kind === "talk") {
         if (z.sprite !== "none") px(ctx, "rgba(0,0,0,0.35)", sx - 5, sy, 11, 3);
         if (z.sprite === "none") { /* 人ではない調べる場所（崩れた壁など）：地形そのものが目印 */ }
+        else if (z.sprite === "campfire") drawCampfire(ctx, sx, sy, performance.now());
         else if (CAST_PAL[z.sprite]) ctx.drawImage(getCastSprites(z.sprite)[z.face || "down"].idle, sx - 6, sy - 16);
         else if (z.sprite === "guard") ctx.drawImage(sprites.guard, sx - 6, sy - 16);
         else ctx.drawImage(sprites.elder, sx - 6, sy - 15);

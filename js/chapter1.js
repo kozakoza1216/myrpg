@@ -105,7 +105,7 @@ RPG.Chapter1 = (function () {
     },
     // うろつくはぐれ賊（シンボルエンカウント）
     symbols: [
-      { id: "s1", tx: 30, ty: 63 }, { id: "s2", tx: 44, ty: 55 }, { id: "s3", tx: 50, ty: 30 }, { id: "s4", tx: 28, ty: 29 },
+      { id: "s1", tx: 30, ty: 63 }, { id: "s2", tx: 65, ty: 60 }, { id: "s3", tx: 50, ty: 30 }, { id: "s4", tx: 28, ty: 29 },
       { id: "s5", tx: 70, ty: 62 }, { id: "s6", tx: 86, ty: 49 }, { id: "s7", tx: 100, ty: 40 },
     ],
     tilemap: {
@@ -146,7 +146,8 @@ RPG.Chapter1 = (function () {
       { id: "chest1", kind: "chest", tx: 13.5, ty: 23, r: 14, label: "北の住居跡" },
       { id: "chest3", kind: "chest", tx: 56, ty: 42.2, r: 14 },
       // 野営地（拠点・PLAN §7.5-4k5：野営地＝廃区画）。休むと体力と魔力が戻り、ファストトラベルの行き先に登録される
-      { id: "camp", kind: "talk", sprite: "none", tx: 48, ty: 55, r: 18, label: "野営地" },
+      // 焚き火が目印。周りは安全地帯（敵は入らず、中にいれば追われない）
+      { id: "camp", kind: "talk", sprite: "campfire", tx: 48, ty: 55, r: 30, safe: 8, label: "野営地" },
       { id: "strength_wall", kind: "talk", sprite: "none", tx: 56, ty: 46.6, r: 18, label: "崩れた壁" },
       { id: "chest2", kind: "chest", tx: 91, ty: 68.5, r: 14, label: "水路脇の荷箱" },
       { id: "stairs_up", kind: "stairs", toLayer: "upper", entry: "fromStreet", tx: 40, ty: 45, r: 16, label: "城壁へ上る石段" },
@@ -622,7 +623,7 @@ RPG.Chapter1 = (function () {
   function enterPlace(id, fromId, firstVisit, point) {
     if (chapter2() && ch2.handles(id)) { ch2.enterPlace(id, fromId, firstVisit, point); return; }
     // 廃区画の野営地へファストトラベル：野営地の前に降りる
-    if (id === "hairegion" && point === "hairegion_camp") { enterHairegion(null, "street", null, { tx: CAMP.tx, ty: CAMP.ty + 1.4 }); return; }
+    if (id === "hairegion" && point === "hairegion_camp") { enterHairegion(null, "street", null, { tx: CAMP.tx, ty: CAMP.ty + 2.2 }); return; }
     // 灰縁の集落はくじの前にしか歩けない。追放後は集落の外縁に出て、
     // 門に近づくと、集落長の命を受けた門番に押し戻される。
     if (id === "haiberi") { enterOutskirts(); return; }
