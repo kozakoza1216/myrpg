@@ -404,7 +404,9 @@ RPG.Chapter2 = (function () {
     }
     // 解散（§7.5-4h）：好感度−5。解散中は好感度が動かない。呼び戻せるのは好感度0以上のときだけ
     function dismissTzelf(bg, next) {
-      Story.play(app(), [{ kind: "choice", bg: bg, text: "ツェルフをパーティから外す？", options: ["外す", "やめておく"] }], function (c) {
+      // 外すと二度と戻らない好感度（5未満）のときだけ、本人が釘を刺す。ツェルフは必ずその場にいるので、ミラの有無に関わらない
+      var warn = (F().affinity || 0) < 5 ? [{ speaker: tz(), bg: bg, text: "……外すなら、それきりだ。二度と呼ぶな。" }] : [];
+      Story.play(app(), warn.concat([{ kind: "choice", bg: warn.length ? undefined : bg, text: "ツェルフをパーティから外す？", options: ["外す", "やめておく"] }]), function (c) {
         if (c !== 0) { next(); return; }
         affinity(-5);
         var g = game(), me = g.party.filter(function (x) { return x.defId === "tzelf"; })[0];
